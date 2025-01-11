@@ -1,5 +1,4 @@
 import TypediContainer, { ContainerInstance, Token } from "typedi";
-import { DataSource, EntityTarget } from "typeorm";
 
 export const ROUTE_META_KEY = Symbol("iroute:options");
 export const CONTROLLER_META_KEY = Symbol("icontroller:options");
@@ -36,18 +35,18 @@ export function getRegisteredControllers(): Function[] {
   return Array.from(controllerRegistry);
 }
 
-export const APP_DC_TOKEN = new Token<DataSource>();
-Container.set(APP_DC_TOKEN, DataSource);
+// export const APP_DC_TOKEN = new Token<DataSource>();
+// Container.set(APP_DC_TOKEN, DataSource);
 
 export const API_CONTROLLER_METADATA_KEY = Symbol('apiController');
-export type DBContext = Record<string, ReturnType<DataSource['getRepository']>>;
+// export type DBContext = Record<string, ReturnType<DataSource['getRepository']>>;
 
-export function registerDataSource(dc: DataSource) {
-  Container.set({
-    id: APP_DC_TOKEN,
-    factory: () => dc,
-  });
-}
+// export function registerDataSource(dc: DataSource) {
+//   Container.set({
+//     id: APP_DC_TOKEN,
+//     factory: () => dc,
+//   });
+// }
 export function isApiController(target: Function): boolean {
   return Reflect.getMetadata(API_CONTROLLER_METADATA_KEY, target) === true;
 }

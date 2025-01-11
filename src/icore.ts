@@ -158,7 +158,7 @@ class _InternalApplication {
   async mapControllers() {
     // const controllers = getRegisteredControllers();
     // await Promise.all(controllers.map((controller) => this.buildController(controller)));
-
+    await this._mapControllers();
   }
 
   async mapGroup(path: string) {

@@ -1,7 +1,6 @@
 {
   "name": "@avleon/core",
-  "version": "0.0.4",
-  "private": "false",
+  "version": "0.0.1",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
@@ -29,15 +28,12 @@
     "reflect-metadata": "^0.2.2",
     "typedi": "^0.10.0"
   },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com/"
-  },
   "directories": {
     "test": "tests"
   },
   "description": "avleon core",
   "repository": {
     "type": "git",
-    "url": "https://github.com/xtareq/avleon/core"
+    "url": "git+https://github.com/xtareq/avleon-core"
   }
 }

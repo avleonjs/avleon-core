@@ -8,4 +8,4 @@ export * from "./map-types";
 export * from './response';
 export * from './exceptions';
 export * from './validator-extend';
-export { DBContext, default as Container, APP_DC_TOKEN, registerDataSource } from './container';
+export {default as Container} from './container';
