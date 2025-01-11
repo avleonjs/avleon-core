@@ -1,0 +1,514 @@
+/**
+ * @copyright 2024
+ * @author Tareq Hossain
+ * @email xtrinsic96@gmail.com
+ * @url https://github.com/xtareq
+ */
+import fs from 'fs';
+import fastify, {
+  FastifyInstance,
+  FastifyReply,
+  FastifyRequest,
+} from "fastify";
+import swagger from "@fastify/swagger";
+import { DataSource, DataSourceOptions } from "typeorm";
+import fastifyApiReference from "@scalar/fastify-api-reference";
+import container, {
+  getRegisteredControllers,
+  isApiController,
+  registerController,
+} from "./container";
+import { isClassValidatorClass, isValidType } from "./helpers";
+import { OpenApiOptions, OpenApiUiOptions } from "./openapi";
+import { BadRequestException, BaseHttpException, InternalErrorException } from "./exceptions";
+import { getDbConfig } from "./database";
+import path from "path";
+import { Storage } from './storage';
+import { generateSwaggerSchema } from './swagger-schema';
+
+
+
+export interface IApplication {
+  controllers?: string | any[];
+}
+
+
+type App = FastifyInstance;
+
+export class Application {
+  private static appInstance: Application;
+  private static instance: App;
+  // check if it's typescript runtime or not
+  private isTSNode: boolean = false;
+  static datasource: DataSource;
+  private constructor() {
+    this.isTSNode = process.env.TS_NODE_DEV ||
+      process.env.TS_NODE_PROJECT ||
+      (process as any)[Symbol.for('ts-node.register.instance')];
+  }
+
+
+
+  static createApplication(options?: IApplication) {
+    if (options && options.controllers) {
+      const controllers = options.controllers as Function[];
+      controllers.forEach((c) => {
+        registerController(c);
+      });
+    }
+
+
+    const app = fastify();
+    app.setValidatorCompiler(() => () => true);
+    this.instance = app;
+    return this;
+  }
+
+  public static createBuilder() {
+    if (!Application.appInstance) {
+      Application.appInstance = new Application();
+    }
+    Application.appInstance;
+  }
+
+  public build() {
+    return Application.instance
+  }
+
+  static async mapControllers() {
+    const controllers: Function[] = [];
+    const isTsNode =
+      process.env.TS_NODE_DEV ||
+      process.env.TS_NODE_PROJECT ||
+      (process as any)[Symbol.for('ts-node.register.instance')];
+
+    // Read all files in the directory
+    const files = fs.readdirSync(path.join(process.cwd(), isTsNode ? './src/controllers' : './dist/controllers'));
+
+    files.forEach((file) => {
+      if (isTsNode ? file.endsWith('.ts') : file.endsWith('.js')) {
+        const filePath = path.join(path.join(process.cwd(), './src/Controllers'), file);
+        const module = require(filePath);
+
+        // Check all exported members of the file
+        Object.values(module).forEach((exported) => {
+          if (typeof exported === 'function' && isApiController(exported)) {
+            controllers.push(exported);
+          }
+        });
+      }
+    });
+
+
+    controllers.forEach((c) => {
+      registerController(c);
+    });
+    return this;
+  }
+
+
+  static async useDatabase() {
+    const dc = await getDbConfig();
+    Application.datasource = dc;
+    await dc.initialize();
+
+    console.log("Database connected");
+    return this;
+  }
+  static normalizePath(base: string, subPath: string): string {
+    return `/${base}/${subPath}`.replace(/\/+/g, "/").replace(/\/$/, "");
+  }
+
+  static async useSwagger(options: OpenApiUiOptions) {
+    if (!this.instance) {
+      return this;
+    }
+
+    const { routePrefix, ...restOptions } = options;
+
+    this.instance.register(swagger, {
+      openapi: {
+        openapi: "0.0.3",
+        ...restOptions
+      },
+    });
+    const rPrefix =
+      routePrefix !== "undefined" ? (routePrefix as any) : "/docs";
+    await this.instance.register(fastifyApiReference, {
+      routePrefix: "/docs",
+    });
+
+    return this;
+  }
+
+  private static async initControllers() {
+    getRegisteredControllers().forEach((i) => {
+      // get controller from registery
+      const controller = container.get(i);
+      // get prototype of the controller
+      const prototype = Object.getPrototypeOf(container.get(i));
+      // looking for additional controller options in reflect metadata
+      const controllerOptions = Reflect.getMetadata("controller:options", i);
+      // find controller class methods
+      const methods = Object.getOwnPropertyNames(prototype).filter(
+        (method) => method !== "constructor",
+      );
+
+      console.log("TAG ANME:", i.name)
+      const tag = i.name.replace("Controller", "");
+
+      // loop throw all methods in the controller
+      methods.forEach((method) => {
+        const routePath = Reflect.getMetadata("route:path", prototype, method);
+        const routeMethod = Reflect.getMetadata(
+          "route:method",
+          prototype,
+          method,
+        );
+        const routeOptions = Reflect.getMetadata(
+          "route:options",
+          prototype,
+          method,
+        );
+        const openapiOptions = Reflect.getMetadata(
+          "route:openapi",
+          prototype,
+          method,
+        );
+        const paramMetadata =
+          Reflect.getMetadata("route:param", prototype, method) || [];
+        const queryMetadata =
+          Reflect.getMetadata("route:query", prototype, method) || [];
+        const bodyMetadata =
+          Reflect.getMetadata("route:body", prototype, method) || [];
+
+        let route: any = {};
+
+        const routeUrl = routeOptions.path ? routeOptions.path : routePath;
+        const finalRouteUrl = controllerOptions.path
+          ? this.normalizePath(controllerOptions.path, routeUrl)
+          : routeUrl;
+        console.log(finalRouteUrl);
+
+        if (routeOptions && routeOptions.openapi) {
+          const internalOpenapiOptions = routeOptions.openapi;
+          route["schema"] = {
+            ...internalOpenapiOptions,
+            hide: internalOpenapiOptions.exclude ? true : false,
+            tags: [tag],
+          };
+        }
+
+        if (openapiOptions) {
+          route["schema"] = {
+            ...openapiOptions,
+            hide: openapiOptions.exclude ? true : false,
+            tags: [tag],
+          };
+        }
+
+        for (const b of bodyMetadata) {
+          const paramTypes = Reflect.getMetadata(
+            "design:paramtypes",
+            prototype,
+            method,
+          );
+          const expectedType = paramTypes[b.index];
+
+          const bodySchema = generateSwaggerSchema(expectedType);
+
+          route["schema"] = {
+            ...openapiOptions,
+            tags: [tag],
+            body: bodySchema,
+          };
+        }
+
+        // implement params schema
+        for (const b of paramMetadata) {
+          const paramTypes = Reflect.getMetadata(
+            "design:paramtypes",
+            prototype,
+            method,
+          );
+          const expectedType = paramTypes[b.index];
+
+          console.log("TYPE", expectedType.name)
+          console.log("Param", b)
+
+          const isClass = isClassValidatorClass(expectedType);
+          route["schema"] = {
+            ...openapiOptions,
+            tags: [tag],
+          };
+
+          if (expectedType.name && expectedType.name == "Number") {
+            route.schema.params = {
+              type: 'object',
+              properties: {
+                [b.key]: {
+                  type: 'integer'
+                },
+
+              },
+              required: [b.key]
+            }
+          }
+          if (expectedType.name && expectedType.name == "String") {
+            route.schema.params = {
+              type: 'object',
+              properties: {
+                [b.key]: {
+                  type: 'string'
+                },
+
+              },
+              required: [b.key]
+            }
+          }
+
+          // if (isClass) {
+          //   const bodySchema = generateSwaggerSchema(expectedType);
+          //   route.schema.params = bodySchema
+          // } else {
+          //   route.schema.params ={
+          //     type: 'object',
+          //       properties: {
+          //       id: {
+          //         type: 'integer',
+          //         description: 'user id'
+          //       }
+          //     }
+          //   }
+          // }
+        }
+
+
+        for (const b of queryMetadata) {
+          const paramTypes = Reflect.getMetadata(
+            "design:paramtypes",
+            prototype,
+            method,
+          );
+          const expectedType = paramTypes[b.index];
+
+          const isClass = isClassValidatorClass(expectedType);
+          route["schema"] = {
+            ...openapiOptions,
+            tags: [tag],
+
+          };
+
+          if (isClass) {
+            const bodySchema = generateSwaggerSchema(expectedType);
+            route.schema.querystring = bodySchema
+          }
+
+
+        }
+
+        this.instance?.route({
+          url: finalRouteUrl,
+          method: routeMethod,
+          ...route,
+          handler: async (req: FastifyRequest, res: FastifyReply) => {
+            // Extract and validate parameters
+
+            const args = [];
+            const reqParams = req.params as any;
+            const reqBody = req.body as any;
+            const reqQuery = req.query as any;
+            for (const param of paramMetadata) {
+              let value = reqParams[param.key];
+              args[param.index] = reqParams[param.key];
+              console.log(finalRouteUrl, param.key);
+              if (finalRouteUrl.includes(":" + param.key)) {
+                param.required = true;
+              }
+              if (param.required && !args[param.index]) {
+                res.status(400).send({
+                  code: 400,
+                  errorType: "BadRequest",
+                  errors: `Missing required parameter: ${param.key}`,
+                })
+              }
+              const paramType = Reflect.getMetadata(
+                "design:paramtypes",
+                prototype,
+                method,
+              )[param.index];
+              if (!isValidType(value, paramType)) {
+                // throw new BadRequestException(
+                //   `Invalid type for parameter "${param.key}". Expected ${paramType.name}, but got ${typeof value}.`,
+                // );
+                res.status(400).send({
+                  code: 400,
+                  errorType: "BadRequest",
+                  errors: `Invalid type for parameter "${param.key}". Expected ${paramType.name}, but got ${typeof value}.`,
+                })
+              }
+              if (paramType.name == "Number") {
+                args[param.index] = Number(value);
+              }
+            }
+
+            for (const query of queryMetadata) {
+              let value = reqQuery[query.key || query.index];
+              const queryType = Reflect.getMetadata(
+                "design:paramtypes",
+                prototype,
+                method,
+              )[query.index];
+
+              if (queryType === Number) {
+                value = Number(value);
+              }
+
+              if (query.required && (value === undefined || value === null)) {
+
+                throw new BadRequestException(
+                  `Missing required query parameter: ${query.key}`,
+                );
+              }
+              console.log("Valid Params", queryType)
+
+
+              if (query.validate && !isValidType(value, queryType)) {
+                throw new BadRequestException(
+                  `Invalid type for query parameter "${query.key}". Expected ${queryType.name}, but got ${typeof value}.`,
+                );
+              }
+              if (isClassValidatorClass(queryType)) {
+                try {
+                  const { validateOrReject } = require("class-validator");
+                  const { plainToInstance } = require("class-transformer");
+
+                  // create instance from request body using class-transformer
+                  const instance = plainToInstance(queryType, reqQuery);
+                  console.log(Object.getOwnPropertyNames(instance));
+
+                  await validateOrReject(instance);
+                  console.log("Valid Params", queryType)
+                } catch (error: any) {
+
+                  if (typeof error == "object" && Array.isArray(error)) {
+                    console.log(Object.getOwnPropertyNames(error[0]));
+                    let errorObj: any = {};
+                    const errors = error.reduce((acc: any, x: any) => {
+                      acc[x.property] = Object.values(x.constraints);
+                      return acc;
+                    }, {});
+
+                    return res.status(400).send({
+                      code: 400,
+                      errorType: "QueryParamsValidationError",
+                      errors: errors,
+                    });
+                  }
+                }
+              }
+              if (
+                query.key == "all" &&
+                query.validate &&
+                !isValidType(req.query, queryType)
+              ) {
+                throw new BadRequestException(
+                  `Invalid type for query parameter "${JSON.stringify(query)}". Expected ${queryType.name}, but got ${typeof req.query}.`,
+                );
+              }
+
+              args[query.index] = query.key == "all" ? req.query : value;
+            }
+
+            for (const body of bodyMetadata) {
+              // Assign the request body to the correct argument index
+              args[body.index] = reqBody;
+
+              // Check if the body is required and missing
+              if (body.required && !args[body.index]) {
+                throw new Error(`Missing required body`);
+              }
+
+              // Get the expected type of the parameter
+              const paramTypes = Reflect.getMetadata(
+                "design:paramtypes",
+                prototype,
+                method,
+              );
+              const expectedType = paramTypes[body.index];
+              try {
+                const { validateOrReject } = require("class-validator");
+                const { plainToInstance } = require("class-transformer");
+
+                // create instance from request body using class-transformer
+                const instance = plainToInstance(expectedType, reqBody);
+                console.log(Object.getOwnPropertyNames(instance));
+
+                await validateOrReject(instance);
+              } catch (error: any) {
+
+                if (typeof error == "object" && Array.isArray(error)) {
+                  console.log(Object.getOwnPropertyNames(error[0]));
+                  let errorObj: any = {};
+                  const errors = error.reduce((acc: any, x: any) => {
+                    acc[x.property] = Object.values(x.constraints);
+                    return acc;
+                  }, {});
+
+                  return res.status(400).send({
+                    code: 400,
+                    errorType: "ValidationError",
+                    errors: errors,
+                  });
+                }
+              }
+            }
+            try {
+              const res = await prototype[method].apply(controller, args);
+              return res;
+            } catch (err: any) {
+              if (err.code) {
+                console.log(typeof err);
+              }
+              console.log("Child:", err.name);
+              console.log("ParentName:", err.getParentClassName);
+              if (err.name && err.isCustomException()) {
+                return res.code(err.code).send({
+                  code: err.code,
+                  erroType: "NotFound",
+                  errors: err.message
+                })
+              } else {
+                return res.code(500).send({
+                  code: 500,
+                  erroType: "InternalServerError",
+                  errors: err.message
+
+                })
+
+              }
+
+
+            }
+          },
+        });
+      });
+    });
+
+    return this;
+  }
+
+  static async run(port: number) {
+    if (!this.instance) {
+      throw new InternalErrorException(
+        "You may want to call Application.createApplication before run",
+      );
+    }
+    const store = Storage.getStore();
+    await this.initControllers();
+    console.log(store.getProps());
+    await this.instance.ready();
+    console.log(`${container.get("appName")}run on port:${port}`);
+    await this.instance.listen({ port });
+  }
+}
