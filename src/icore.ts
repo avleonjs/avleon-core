@@ -5,6 +5,7 @@ import path from "path";
 import container, { CONTROLLER_META_KEY, ROUTE_META_KEY, PARAM_META_KEY, QUERY_META_KEY, REQUEST_BODY_META_KEY, REQUEST_HEADER_META_KEY, getRegisteredControllers, registerController, isApiController } from "./container";
 import { Constructor, formatUrl, validateObjectByInstance } from "./helpers";
 import { DuplicateRouteException, SystemUseError } from "./exceptions/system-exception";
+import { existsSync, writeFileSync } from "fs";
 export interface IRequest extends FastifyRequest {
   params: any;
   query: any;
@@ -61,6 +62,9 @@ class _InternalApplication {
       _InternalApplication.instance = new _InternalApplication();
     }
     _InternalApplication.buildOptions = buildOptions;
+    if (buildOptions.controllers) {
+
+    }
     return _InternalApplication.instance;
   }
 
@@ -80,32 +84,32 @@ class _InternalApplication {
         throw new SystemUseError(`Duplicate Error: Duplicate route found for methoed ${methodMeta.method}: ${methodMeta.path} in ${controller.name}`)
       }
       this.routeSet.add(routeKey);
-      const allMeta = this._processMeta(prototype, controllerMeta, method, methodMeta);
+      //    const allMeta = this._processMeta(prototype, controllerMeta, method, methodMeta);
       this.app.route({
         url: methodmetaOptions.path == "" ? "/" : methodmetaOptions.path,
         method: methodmetaOptions.method.toUpperCase(),
-        preHandler: async (req, res, next) => {
-          for (let bodyMeta of allMeta.body) {
-            const args = await this._mapArgs(req, allMeta);
-            if (bodyMeta.validatorClass) {
-              const err = await validateObjectByInstance(bodyMeta.dataType, args[bodyMeta.index])
-              if (err) {
-                console.log("Has validation error", err)
-                return await res.code(400).send({
-                  code: 400,
-                  errorType: "ValidationError",
-                  errors: err,
-                  message: err.message
-                });
-              }
-            }
-          }
-          next();
-        },
+        // preHandler: async (req, res, next) => {
+        //   for (let bodyMeta of allMeta.body) {
+        //     const args = await this._mapArgs(req, allMeta);
+        //     if (bodyMeta.validatorClass) {
+        //       const err = await validateObjectByInstance(bodyMeta.dataType, args[bodyMeta.index])
+        //       if (err) {
+        //         console.log("Has validation error", err)
+        //         return await res.code(400).send({
+        //           code: 400,
+        //           errorType: "ValidationError",
+        //           errors: err,
+        //           message: err.message
+        //         });
+        //       }
+        //     }
+        //   }
+        //   next();
+        // },
         handler: async (req, res) => {
-          const args = await this._mapArgs(req, allMeta);
+          //const args = await this._mapArgs(req, allMeta);
           try {
-            return await prototype[method].apply(ctrl, args);
+            return await prototype[method].apply(ctrl, []);
           } catch (err: any) {
             console.error(err);
             return res.code(err.statusCode || 500).send({
@@ -155,10 +159,38 @@ class _InternalApplication {
     return { params: paramsMetaList, query: queryMetaList, body: bodyMetaList, headers: headerMetaList };
   }
 
-  async mapControllers() {
-    // const controllers = getRegisteredControllers();
-    // await Promise.all(controllers.map((controller) => this.buildController(controller)));
-    await this._mapControllers();
+  async autoControllers() {
+    const controllers: Function[] = [];
+    const files = await fs.readdir(controllerDir);
+    for (const file of files) {
+      if (isTsNode ? file.endsWith(".ts") : file.endsWith(".js")) {
+        const filePath = path.join(controllerDir, file);
+        const module = await import(filePath);
+        for (const exported of Object.values(module)) {
+          if (typeof exported === "function" && isApiController(exported)) {
+            //controllers.push(exported);
+            this.buildController(exported)
+          }
+        }
+      }
+    }
+  }
+
+  useControllers(controllers?: Function[]) {
+    if (controllers) {
+      controllers.forEach(c => {
+        if (isApiController(c)) {
+          this.buildController(c)
+        }
+      })
+    } else {
+      const isExists = existsSync(controllerDir);
+      if (isExists) {
+        this.autoControllers();
+      }
+    }
+
+
   }
 
   async mapGroup(path: string) {
@@ -169,7 +201,22 @@ class _InternalApplication {
     console.log(args)
   }
 
-  async mapGet(path: string = '', fn: Function) {
+  private async mapFn(fn: Function) {
+    const original = fn
+
+    fn = function () {
+      console.log(arguments);
+    }
+
+    return fn
+  }
+
+
+  async mapGet<T extends (...args: any[]) => any>(path: string = '', fn: T) {
+
+    type FnArgs = Parameters<T>;
+    await this.mapFn(fn)
+
     this.app.get(path, async (req, res) => {
       const result = await fn.apply(this, [req, res]);
       return res.send(result);
@@ -235,27 +282,11 @@ export class AppBuilder {
 
 
 
-  async build(): Promise<_InternalApplication> {
-    //console.log("Hello", hello())
+  build(): _InternalApplication {
     if (this.alreadyBuilt) throw new Error("Already built");
     this.alreadyBuilt = true;
 
-    const controllers: Function[] = [];
-    const files = await fs.readdir(controllerDir);
-    for (const file of files) {
-      if (isTsNode ? file.endsWith(".ts") : file.endsWith(".js")) {
-        const filePath = path.join(controllerDir, file);
-        const module = await import(filePath);
-        for (const exported of Object.values(module)) {
-          if (typeof exported === "function" && isApiController(exported)) {
-            controllers.push(exported);
-          }
-        }
-      }
-    }
-
     const app = _InternalApplication.getInternalApp({ database: this.databse });
-    controllers.forEach(registerController);
     return app;
   }
 }

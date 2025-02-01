@@ -13,10 +13,8 @@ const serviceRegistry = new Set<Function>();
 const optionsRegistry = new Map<string, any>();
 
 export interface IContainer extends ContainerInstance {
-  registerHandler: IContainer
+  registerHandler: IContainer;
 }
-
-
 
 const Container: IContainer = TypediContainer.of("avContriner") as IContainer;
 
@@ -35,20 +33,10 @@ export function getRegisteredControllers(): Function[] {
   return Array.from(controllerRegistry);
 }
 
-// export const APP_DC_TOKEN = new Token<DataSource>();
-// Container.set(APP_DC_TOKEN, DataSource);
+export const API_CONTROLLER_METADATA_KEY = Symbol("apiController");
 
-export const API_CONTROLLER_METADATA_KEY = Symbol('apiController');
-// export type DBContext = Record<string, ReturnType<DataSource['getRepository']>>;
-
-// export function registerDataSource(dc: DataSource) {
-//   Container.set({
-//     id: APP_DC_TOKEN,
-//     factory: () => dc,
-//   });
-// }
 export function isApiController(target: Function): boolean {
   return Reflect.getMetadata(API_CONTROLLER_METADATA_KEY, target) === true;
 }
-Container.set<string>('appName', 'Iqra');
+Container.set<string>("appName", "Iqra");
 export default Container;

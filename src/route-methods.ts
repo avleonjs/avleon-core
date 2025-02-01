@@ -87,7 +87,7 @@ export function createRouteDecorator(
         propertyKey,
       );
       Reflect.getMetadata(CONTROLLER_META_KEY, target.constructor)
-      Reflect.defineMetadata(ROUTE_META_KEY, {...options, method, path, controller:target.constructor.name}, target, propertyKey);
+      Reflect.defineMetadata(ROUTE_META_KEY, { ...options, method, path, controller: target.constructor.name }, target, propertyKey);
 
       if (options) {
         Reflect.defineMetadata("route:options", options, target, propertyKey);
