@@ -2,10 +2,11 @@ import fastify, { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"
 import Container from "typedi";
 import fs from "fs/promises"; // Use promises for asynchronous file operations
 import path from "path";
-import container, { CONTROLLER_META_KEY, ROUTE_META_KEY, PARAM_META_KEY, QUERY_META_KEY, REQUEST_BODY_META_KEY, REQUEST_HEADER_META_KEY, getRegisteredControllers, registerController, isApiController } from "./container";
+import container, { CONTROLLER_META_KEY, ROUTE_META_KEY, PARAM_META_KEY, QUERY_META_KEY, REQUEST_BODY_META_KEY, REQUEST_HEADER_META_KEY, getRegisteredControllers, registerController, isApiController, DATASOURCE_META_KEY, registerDataSource } from "./container";
 import { Constructor, formatUrl, validateObjectByInstance } from "./helpers";
 import { DuplicateRouteException, SystemUseError } from "./exceptions/system-exception";
 import { existsSync, writeFileSync } from "fs";
+import { DataSource, DataSourceOptions } from "typeorm";
 export interface IRequest extends FastifyRequest {
   params: any;
   query: any;
@@ -176,7 +177,7 @@ class _InternalApplication {
     }
   }
 
-  useControllers(controllers?: Function[]) {
+  mapControllers(controllers?: Function[]) {
     if (controllers) {
       controllers.forEach(c => {
         if (isApiController(c)) {
@@ -260,7 +261,7 @@ class _InternalApplication {
 export class AppBuilder {
   private static instance: AppBuilder;
   private alreadyBuilt = false;
-  private databse: boolean = false;
+  private database: boolean = false;
 
   private constructor() { }
 
@@ -276,8 +277,30 @@ export class AppBuilder {
     container.set<T>(plugin, plugin.prototype)
   }
 
-  async useDatabase() {
-    this.databse = true;
+  async useDatabase(config:DataSourceOptions) {
+    this.database = true;
+    try {
+      const typeorm = await import("typeorm");
+      if (!typeorm) {
+        throw new SystemUseError("TypeOrm not installed");
+      }
+
+      const datasource = new typeorm.DataSource(config);
+
+      const data = require("@avleon/data");
+
+      const { DbSource } = data;
+      console.log("Datasource reigintersign..")
+      DbSource.initDbSource(datasource);
+      
+
+      
+      //Container.set<DataSource>("idatasource", datasource);
+      //registerDataSource(datasource)
+    } catch (error:unknown| any) {
+      console.error("Database Initialize Error:", error.message)
+    }
+    
   }
 
 
@@ -286,7 +309,7 @@ export class AppBuilder {
     if (this.alreadyBuilt) throw new Error("Already built");
     this.alreadyBuilt = true;
 
-    const app = _InternalApplication.getInternalApp({ database: this.databse });
+    const app = _InternalApplication.getInternalApp({ database: this.database });
     return app;
   }
 }

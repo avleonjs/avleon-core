@@ -22,12 +22,15 @@
     "typescript": "^5.7.2"
   },
   "dependencies": {
+    "@avleon/data": "link:..\\data",
     "@fastify/swagger": "^9.4.0",
     "@fastify/swagger-ui": "^5.1.0",
     "class-transformer": "^0.5.1",
+    "dotenv": "^16.4.7",
     "fastify": "^5.1.0",
     "reflect-metadata": "^0.2.2",
-    "typedi": "^0.10.0"
+    "typedi": "^0.10.0",
+    "typeorm": "^0.3.20"
   },
   "directories": {
     "test": "tests"

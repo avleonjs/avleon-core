@@ -1,4 +1,5 @@
 import TypediContainer, { ContainerInstance, Token } from "typedi";
+import { DataSource } from "typeorm";
 
 export const ROUTE_META_KEY = Symbol("iroute:options");
 export const CONTROLLER_META_KEY = Symbol("icontroller:options");
@@ -12,11 +13,8 @@ const controllerRegistry = new Set<Function>();
 const serviceRegistry = new Set<Function>();
 const optionsRegistry = new Map<string, any>();
 
-export interface IContainer extends ContainerInstance {
-  registerHandler: IContainer;
-}
 
-const Container: IContainer = TypediContainer.of("avContriner") as IContainer;
+const Container = TypediContainer;
 
 export function registerController(controller: Function) {
   controllerRegistry.add(controller);
@@ -39,4 +37,8 @@ export function isApiController(target: Function): boolean {
   return Reflect.getMetadata(API_CONTROLLER_METADATA_KEY, target) === true;
 }
 Container.set<string>("appName", "Iqra");
+
+export function registerDataSource(dataSource:any) {
+  Container.set<DataSource>("idatasource", dataSource);
+}
 export default Container;
