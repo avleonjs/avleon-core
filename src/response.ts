@@ -36,4 +36,18 @@ export class HttpResponse {
     }
 
     static NoContent() { }
+    static NotFound() { }
+    static Unauthorized() { }
+    static BadRequest() { }
+    static InternalError() { }
+    static Forbidden() { }
+    static UnknownError() { }
+    static MaxInputLimitExceeded() { }
+    static InvalidRequest() { }
+    static BadBodyFormat() { }
+    static BadFileType() { }
+    static InvalidHeader() { }
+
+
+    
 }
