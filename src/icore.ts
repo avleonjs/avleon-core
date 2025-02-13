@@ -84,6 +84,7 @@ class _InternalApplication {
   private alreadyRun = false;
   private routes: Map<string, Function> = new Map();
   private middlewares: Map<string, AppMiddleware> = new Map();
+
   private constructor() {
     this.app = fastify();
   }
