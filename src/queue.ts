@@ -1,8 +1,6 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import { uuid } from "./helpers";
-//import { createClient } from 'redis';
-//import { v4 as uuidv4 } from 'uuid';
 
 interface Job {
   id: string;
@@ -119,21 +117,3 @@ export class QueueManager {
     return new SimpleQueue(this.adapter, jobHandler);
   }
 }
-
-// Example Usage
-/* 
-const adapterType: "file" | "redis" = "redis";
-const adapter =
-  adapterType === "redis"
-    ? new RedisQueueAdapter("myQueue")
-    : new FileQueueAdapter("myQueue");
-const queueManager = QueueManager.getInstance(adapter);
-
-const queue = queueManager.createQueue(async (job) => {
-  console.log("Processing job:", job);
-  await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate async work
-  console.log("Job completed:", job.id);
-});
-
-queue.addJob({ task: "Send email", to: "user@example.com" });
-*/

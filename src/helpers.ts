@@ -53,7 +53,7 @@ export const isClassValidator = (target: Constructor) => {
 };
 
 export interface MatchLocation {
-  line: number; 
+  line: number;
   column: number;
 }
 export const getLineNumber = (

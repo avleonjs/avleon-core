@@ -1,11 +1,16 @@
 import Container, { Service } from "typedi";
-import container, { API_CONTROLLER_METADATA_KEY, CONTROLLER_META_KEY, registerController } from "./container";
+import container, {
+  API_CONTROLLER_METADATA_KEY,
+  CONTROLLER_META_KEY,
+  registerController,
+} from "./container";
 /**
  * @copyright 2024
  * @author Tareq Hossain
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
+
 /**
  * Options for configuring a controller.
  * @remarks
@@ -36,11 +41,11 @@ export function createControllerDecorator(
   pathOrOptions?: string | ControllerOptions,
   maybeOptions?: ControllerOptions,
 ) => ClassDecorator {
-  return function(
+  return function (
     pathOrOptions?: string | ControllerOptions,
     maybeOptions?: ControllerOptions,
   ): ClassDecorator {
-    return function(target: Function) {
+    return function (target: Function) {
       let path = "/";
       let options: ControllerOptions = {};
 
@@ -56,7 +61,11 @@ export function createControllerDecorator(
       if (typeof Service === "function") {
         registerController(target); // Add to custom registry
         Service()(target); // Apply DI decorator
-        Reflect.defineMetadata(CONTROLLER_META_KEY, { type, path, options }, target);
+        Reflect.defineMetadata(
+          CONTROLLER_META_KEY,
+          { type, path, options },
+          target,
+        );
       } else {
         throw new Error("Service decorator is not a function");
       }

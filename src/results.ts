@@ -12,9 +12,7 @@ export class Results {
   static NoContent() {
     this.code = 204;
   }
-  static OkStream() {
-    
-  }
+  static OkStream() {}
   static NotFound<T>(message: T) {
     return new NotFound<T>(message);
   }

@@ -12,23 +12,21 @@ const envContents = fs.readFileSync(envFilePath, "utf-8");
 
 // Parse .env file manually
 const parsedEnv: Record<string, string> = Object.fromEntries(
-    envContents
-        .split("\n")
-        .filter(line => line.trim() && !line.startsWith("#")) // Ignore empty lines and comments
-        .map(line => {
-            const [key, ...valueParts] = line.split("="); // Split key and value
-            return [key.trim(), valueParts.join("=").trim()]; // Handle values with `=`
-        })
+  envContents
+    .split("\n")
+    .filter((line) => line.trim() && !line.startsWith("#")) // Ignore empty lines and comments
+    .map((line) => {
+      const [key, ...valueParts] = line.split("="); // Split key and value
+      return [key.trim(), valueParts.join("=").trim()]; // Handle values with `=`
+    }),
 );
 
 const inferType = (value: string): string | number | boolean => {
-    if (!isNaN(Number(value))) return Number(value);
-    if (value.toLowerCase() === "true") return true;
-    if (value.toLowerCase() === "false") return false;
-    return value;
+  if (!isNaN(Number(value))) return Number(value);
+  if (value.toLowerCase() === "true") return true;
+  if (value.toLowerCase() === "false") return false;
+  return value;
 };
-
-
 
 export const e = parsedEnv;
 
@@ -36,5 +34,3 @@ export const e = parsedEnv;
 export type Env = typeof e;
 
 export const env = e as Env;
-
-

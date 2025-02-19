@@ -8,13 +8,11 @@ export function PartialType<T>(
   const baseProperties: string[] = [];
   let currentPrototype = BaseClass.prototype;
 
-
   // Collect properties from the base class (including inherited ones)
   while (currentPrototype && currentPrototype !== Object.prototype) {
     const properties = Object.getOwnPropertyNames(currentPrototype).filter(
       (prop) => prop !== "constructor", // Exclude the constructor
     );
-
 
     // Retrieve metadata for each property
     properties.forEach((key) => {
@@ -26,20 +24,15 @@ export function PartialType<T>(
       );
       if (designType) {
         baseProperties.push(key);
-
       }
 
       // Retrieve validation metadata (class-validator)
       const validationMetadata = Reflect.getMetadataKeys(currentPrototype, key);
-      validationMetadata.forEach((metadataKey) => {
-   
-      });
+      validationMetadata.forEach((metadataKey) => {});
     });
 
     currentPrototype = Object.getPrototypeOf(currentPrototype); // Move up the prototype chain
   }
-
-
 
   class PartialClass {}
 

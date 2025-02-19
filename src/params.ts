@@ -1,5 +1,12 @@
-import { PARAM_META_KEY, QUERY_META_KEY, REQUEST_BODY_META_KEY, REQUEST_HEADER_META_KEY, ROUTE_META_KEY } from "./container";
+import {
+  PARAM_META_KEY,
+  QUERY_META_KEY,
+  REQUEST_BODY_META_KEY,
+  REQUEST_HEADER_META_KEY,
+  ROUTE_META_KEY,
+} from "./container";
 import { getDataType, isClassValidatorClass, isValidType } from "./helpers";
+
 /**
  * @copyright 2024
  * @author Tareq Hossain
@@ -19,54 +26,73 @@ function createParamDecorator(
   key?: string | ParameterOptions,
   options?: ParameterOptions,
 ) => ParameterDecorator {
-  return function(
+  return function (
     key?: string | ParameterOptions,
     options: { required?: boolean; validate?: boolean } = {},
   ): ParameterDecorator {
-    return function(target: any, propertyKey: any, parameterIndex: number) {
+    return function (target: any, propertyKey: any, parameterIndex: number) {
       const existingParams =
         Reflect.getMetadata(type, target, propertyKey) || [];
-      const parameterTypes = Reflect.getMetadata(
-        "design:paramtypes",
-        target,
-        propertyKey,
-      ) || [];
+      const parameterTypes =
+        Reflect.getMetadata("design:paramtypes", target, propertyKey) || [];
       const functionSource: any = target[propertyKey].toString();
-      const paramNames = functionSource.match(/\(([^)]*)\)/)?.[1].split(',').map((name: any) => name.trim());
+      const paramNames = functionSource
+        .match(/\(([^)]*)\)/)?.[1]
+        .split(",")
+        .map((name: any) => name.trim());
       const paramDataType = parameterTypes[parameterIndex];
       existingParams.push({
         index: parameterIndex,
-        key: key ? key : 'all',
+        key: key ? key : "all",
         name: paramNames[parameterIndex],
         required: options.required || false,
         validate: options.validate || true,
         dataType: getDataType(paramDataType),
         validatorClass: isClassValidatorClass(paramDataType),
-        type
+        type,
       });
       switch (type) {
-        case 'route:param':
-          Reflect.defineMetadata(PARAM_META_KEY, existingParams, target, propertyKey);
+        case "route:param":
+          Reflect.defineMetadata(
+            PARAM_META_KEY,
+            existingParams,
+            target,
+            propertyKey,
+          );
           break;
-        case 'route:query':
-          Reflect.defineMetadata(QUERY_META_KEY, existingParams, target, propertyKey);
+        case "route:query":
+          Reflect.defineMetadata(
+            QUERY_META_KEY,
+            existingParams,
+            target,
+            propertyKey,
+          );
           break;
-        case 'route:body':
-          Reflect.defineMetadata(REQUEST_BODY_META_KEY, existingParams, target, propertyKey);
+        case "route:body":
+          Reflect.defineMetadata(
+            REQUEST_BODY_META_KEY,
+            existingParams,
+            target,
+            propertyKey,
+          );
           break;
-        case 'route:header':
-          Reflect.defineMetadata(REQUEST_HEADER_META_KEY, existingParams, target, propertyKey);
+        case "route:header":
+          Reflect.defineMetadata(
+            REQUEST_HEADER_META_KEY,
+            existingParams,
+            target,
+            propertyKey,
+          );
           break;
         default:
           break;
       }
-
     };
   };
 }
 
-
 export const Param = createParamDecorator("route:param");
 export const Query = createParamDecorator("route:query");
 export const Body = createParamDecorator("route:body");
-export const Header = createParamDecorator("route:header"); ``
+export const Header = createParamDecorator("route:header");
+``;

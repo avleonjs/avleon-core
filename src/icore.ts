@@ -3,7 +3,7 @@ import fastify, {
   FastifyReply,
   FastifyRequest,
   HookHandlerDoneFunction,
-  preHandlerHookHandler
+  preHandlerHookHandler,
 } from "fastify";
 import Container from "typedi";
 import fs from "fs/promises"; // Use promises for asynchronous file operations
@@ -24,9 +24,6 @@ import { existsSync, writeFileSync } from "fs";
 import { DataSource, DataSourceOptions } from "typeorm";
 import { AppMiddleware } from "./middleware";
 
-
-
-
 // IRequest
 export interface IRequest extends FastifyRequest {
   params: any;
@@ -36,9 +33,9 @@ export interface IRequest extends FastifyRequest {
 }
 
 // IResponse
-export interface IResponse extends FastifyReply { }
+export interface IResponse extends FastifyReply {}
 
-export interface DoneFunction extends HookHandlerDoneFunction{}
+export interface DoneFunction extends HookHandlerDoneFunction {}
 
 // ParamMetaOptions
 export interface ParamMetaOptions {
@@ -126,33 +123,30 @@ class _InternalApplication {
       }
       this.routeSet.add(routeKey);
 
-      const allMeta = this._processMeta(
-        prototype,
-        method
-      );
+      const allMeta = this._processMeta(prototype, method);
       this.app.route({
         url: methodmetaOptions.path == "" ? "/" : methodmetaOptions.path,
         method: methodmetaOptions.method.toUpperCase(),
         handler: async (req, res) => {
           const args = await this._mapArgs(req, allMeta);
-            for (let bodyMeta of allMeta.body) {
-              if (bodyMeta.validatorClass) {
-                const err = await validateObjectByInstance(
-                  bodyMeta.dataType,
-                  args[bodyMeta.index],
-                );
-                if (err) {
-                  console.log("Has validation error", err);
-                  return await res.code(400).send({
-                    code: 400,
-                    errorType: "ValidationError",
-                    errors: err,
-                    message: err.message,
-                  });
-                }
+          for (let bodyMeta of allMeta.body) {
+            if (bodyMeta.validatorClass) {
+              const err = await validateObjectByInstance(
+                bodyMeta.dataType,
+                args[bodyMeta.index],
+              );
+              if (err) {
+                console.log("Has validation error", err);
+                return await res.code(400).send({
+                  code: 400,
+                  errorType: "ValidationError",
+                  errors: err,
+                  message: err.message,
+                });
               }
             }
-            return await prototype[method].apply(ctrl, args);
+          }
+          return await prototype[method].apply(ctrl, args);
         },
       });
     }
@@ -187,7 +181,6 @@ class _InternalApplication {
   //   return args;
   // }
 
-
   private async _mapArgs(req: IRequest, meta: MethodParamMeta): Promise<any[]> {
     if (!req.hasOwnProperty("_argsCache")) {
       Object.defineProperty(req, "_argsCache", {
@@ -203,16 +196,20 @@ class _InternalApplication {
       return cache.get(cacheKey)!;
     }
 
-    const args: any[] = meta.params.map(p => req.params[p.key] || null);
-    meta.query.forEach(q => args[q.index] = q.key === "all" ? req.query : req.query[q.key]);
-    meta.body.forEach(body => args[body.index] = req.body);
-    meta.headers.forEach(header => args[header.index] = header.key === "all" ? req.headers : req.headers[header.key]);
+    const args: any[] = meta.params.map((p) => req.params[p.key] || null);
+    meta.query.forEach(
+      (q) => (args[q.index] = q.key === "all" ? req.query : req.query[q.key]),
+    );
+    meta.body.forEach((body) => (args[body.index] = req.body));
+    meta.headers.forEach(
+      (header) =>
+        (args[header.index] =
+          header.key === "all" ? req.headers : req.headers[header.key]),
+    );
 
     cache.set(cacheKey, args);
     return args;
   }
-
-
 
   private metaCache = new Map<string, MethodParamMeta>();
   private _processMeta(prototype: any, method: string): MethodParamMeta {
@@ -225,7 +222,8 @@ class _InternalApplication {
       params: Reflect.getMetadata(PARAM_META_KEY, prototype, method) || [],
       query: Reflect.getMetadata(QUERY_META_KEY, prototype, method) || [],
       body: Reflect.getMetadata(REQUEST_BODY_META_KEY, prototype, method) || [],
-      headers: Reflect.getMetadata(REQUEST_HEADER_META_KEY, prototype, method) || [],
+      headers:
+        Reflect.getMetadata(REQUEST_HEADER_META_KEY, prototype, method) || [],
     };
 
     this.metaCache.set(cacheKey, meta);
@@ -250,7 +248,6 @@ class _InternalApplication {
   }
 
   mapControllers(controllers: Function[]) {
-
     if (controllers) {
       controllers.forEach((c) => {
         if (isApiController(c)) {
@@ -282,48 +279,63 @@ class _InternalApplication {
   }
 
   useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
-
     for (const mclass of mclasses) {
       const cls = Container.get<T>(mclass);
       this.middlewares.set(mclass.name, cls);
-      this.app.addHook('preHandler', cls.invoke);
+      this.app.addHook("preHandler", cls.invoke);
     }
-
   }
 
+  async mapRoute<T extends (...args: any[]) => any>(
+    method: "get" | "post" | "put" | "delete",
+    path: string = "",
+    fn: T,
+  ) {
+    await this.mapFn(fn); // Assuming mapFn is needed for all methods
 
-
-
-
-
-
-
-
-  async mapGet<T extends (...args: any[]) => any>(path: string = "", fn: T) {
-    type FnArgs = Parameters<T>;
-    await this.mapFn(fn);
-
-    this.app.get(path, async (req, res) => {
-      const result = await fn.apply(this, [req, res]);
-      return res.send(result);
+    this.app[method](path, async (req: any, res: any) => {
+      // Dynamic method call
+      try {
+        const result = await fn.apply(this, [req, res]);
+        if (typeof result === "object" && result !== null) {
+          res.json(result); // Use res.json for objects
+        } else {
+          res.send(result); // Fallback for other types
+        }
+      } catch (error) {
+        console.error(`Error in ${method} route handler:`, error);
+        res.status(500).send("Internal Server Error");
+      }
     });
   }
 
-  async mapPost() {}
-  async mapPut() {}
-  async mapDelete() {}
+  async mapGet<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+    return this.mapRoute("get", path, fn);
+  }
+  async mapPost<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+    return this.mapRoute("post", path, fn);
+  }
+
+  async mapPut<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+    return this.mapRoute("put", path, fn);
+  }
+
+  async mapDelete<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+    return this.mapRoute("delete", path, fn);
+  }
 
   async run(port: number = 4000): Promise<void> {
     if (this.alreadyRun) throw new SystemUseError("App already running");
     this.alreadyRun = true;
     if (_InternalApplication.buildOptions.database) {
     }
-    
 
     await this.app.listen({ port });
     console.log(`Application running on port: ${port}`);
   }
 }
+
+// Applciation Builder
 
 export class AppBuilder {
   private static instance: AppBuilder;
@@ -357,7 +369,7 @@ export class AppBuilder {
       Container.set<DataSource>("idatasource", datasource);
       await datasource.initialize();
     } catch (error: unknown | any) {
-      console.log(error)
+      console.log(error);
       console.error("Database Initialize Error:", error.message);
     }
   }
