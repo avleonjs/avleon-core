@@ -149,7 +149,7 @@ class AvleonApplication {
 
 
       const classMiddlewares = this.executeMiddlewares(ctrl, method);
-      console.log(classMiddlewares)
+   
 
       const allMeta = this._processMeta(prototype, method);
       this.app.route({
@@ -174,12 +174,8 @@ class AvleonApplication {
               reqClone = await cls.invoke(req, res) as IRequest;
               if (res.sent) return;
             }
-
-            console.log(reqClone.user)
           }
           const args = await this._mapArgs(reqClone, allMeta);
-
-          console.log(args)
           for (let bodyMeta of allMeta.body) {
             if (bodyMeta.validatorClass) {
               const err = await validateObjectByInstance(
@@ -197,24 +193,6 @@ class AvleonApplication {
               }
             }
           }
-          for (let bodyMeta of allMeta.currentUser) {
-            if (bodyMeta.validatorClass) {
-              const err = await validateObjectByInstance(
-                bodyMeta.dataType,
-                args[bodyMeta.index],
-              );
-              if (err) {
-                console.log("Has validation error", err);
-                return await res.code(400).send({
-                  code: 400,
-                  errorType: "ValidationError",
-                  errors: err,
-                  message: err.message,
-                });
-              }
-            }
-          }
-
           return await prototype[method].apply(ctrl, args);
         },
       });
@@ -247,10 +225,6 @@ class AvleonApplication {
       (args[header.index] =
         header.key === "all" ? req.headers : req.headers[header.key]),
     );
-
-    console.log('Meta Current User',meta.currentUser)
-
-  
 
     cache.set(cacheKey, args);
     return args;

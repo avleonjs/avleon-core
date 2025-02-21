@@ -77,7 +77,7 @@ function createParamDecorator(
             propertyKey,
           );
           break;
-        case "route:body":
+        case "route:user":
           Reflect.defineMetadata(
             REQUEST_USER_META_KEY,
             existingParams,
@@ -104,5 +104,5 @@ export const Param = createParamDecorator("route:param");
 export const Query = createParamDecorator("route:query");
 export const Body = createParamDecorator("route:body");
 export const Header = createParamDecorator("route:header");
-export const CurrentUser = createParamDecorator("route:user");
+export const AuthUser = createParamDecorator("route:user");
 
