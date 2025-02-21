@@ -171,7 +171,7 @@ class AvleonApplication {
           if (classMiddlewares.length > 0) {
             for (let m of classMiddlewares) {
               const cls = Container.get<AppMiddleware>(m.constructor);
-              reqClone = await cls.invoke(req, res) as IRequest;
+              reqClone = await cls.invoke(reqClone, res) as IRequest;
               if (res.sent) return;
             }
           }
@@ -183,10 +183,9 @@ class AvleonApplication {
                 args[bodyMeta.index],
               );
               if (err) {
-                console.log("Has validation error", err);
                 return await res.code(400).send({
                   code: 400,
-                  errorType: "ValidationError",
+                  error: "ValidationError",
                   errors: err,
                   message: err.message,
                 });
