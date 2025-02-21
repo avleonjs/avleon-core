@@ -17,12 +17,14 @@ import container, {
   REQUEST_HEADER_META_KEY,
   getRegisteredControllers,
   isApiController,
+  REQUEST_USER_META_KEY,
 } from "./container";
 import { Constructor, formatUrl, validateObjectByInstance } from "./helpers";
 import { SystemUseError } from "./exceptions/system-exception";
 import { existsSync, writeFileSync } from "fs";
 import { DataSource, DataSourceOptions } from "typeorm";
 import { AppMiddleware } from "./middleware";
+import { BaseHttpException, NotFoundException } from "./exceptions";
 
 // IRequest
 export interface IRequest extends FastifyRequest {
@@ -30,12 +32,13 @@ export interface IRequest extends FastifyRequest {
   query: any;
   body: any;
   headers: any;
+  user?: any;
 }
 
 // IResponse
-export interface IResponse extends FastifyReply {}
+export interface IResponse extends FastifyReply { }
 
-export interface DoneFunction extends HookHandlerDoneFunction {}
+export interface DoneFunction extends HookHandlerDoneFunction { }
 
 // ParamMetaOptions
 export interface ParamMetaOptions {
@@ -46,7 +49,7 @@ export interface ParamMetaOptions {
   validate: boolean;
   dataType: any;
   validatorClass: boolean;
-  type: "route:param" | "route:query" | "route:body" | "route:header";
+  type: "route:param" | "route:query" | "route:body" | "route:header" | "route:user";
 }
 
 // Method Param Meta options
@@ -55,6 +58,7 @@ export interface MethodParamMeta {
   query: ParamMetaOptions[];
   body: ParamMetaOptions[];
   headers: ParamMetaOptions[];
+  currentUser: ParamMetaOptions[]
 }
 
 interface IRoute {
@@ -73,8 +77,8 @@ const controllerDir = path.join(
 );
 
 // InternalApplication
-class _InternalApplication {
-  private static instance: _InternalApplication;
+class AvleonApplication {
+  private static instance: AvleonApplication;
   private static buildOptions: any = {};
   private app!: FastifyInstance;
   private routeSet = new Set<string>(); // Use Set for fast duplicate detection
@@ -86,14 +90,31 @@ class _InternalApplication {
     this.app = fastify();
   }
 
-  static getInternalApp(buildOptions: any): _InternalApplication {
-    if (!_InternalApplication.instance) {
-      _InternalApplication.instance = new _InternalApplication();
+  static getInternalApp(buildOptions: any): AvleonApplication {
+    if (!AvleonApplication.instance) {
+      AvleonApplication.instance = new AvleonApplication();
     }
-    _InternalApplication.buildOptions = buildOptions;
+    AvleonApplication.buildOptions = buildOptions;
     if (buildOptions.controllers) {
     }
-    return _InternalApplication.instance;
+    return AvleonApplication.instance;
+  }
+
+  private handleMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
+    for (const mclass of mclasses) {
+      const cls = Container.get<T>(mclass.constructor);
+      this.middlewares.set(mclass.name, cls);
+      this.app.addHook("preHandler", cls.invoke);
+    }
+  }
+
+  private executeMiddlewares(target: any, propertyKey?: string) {
+    const classMiddlewares = Reflect.getMetadata("controller:middleware", target.constructor) || [];
+    const methodMiddlewares = propertyKey
+      ? Reflect.getMetadata("route:middleware", target, propertyKey) || []
+      : [];
+
+    return [...classMiddlewares, ...methodMiddlewares];
   }
 
   private async buildController(controller: any) {
@@ -107,6 +128,7 @@ class _InternalApplication {
     const methods = Object.getOwnPropertyNames(prototype).filter(
       (name) => name !== "constructor",
     );
+    let classMiddlewares: AppMiddleware[] = []
 
     for (const method of methods) {
       const methodMeta = Reflect.getMetadata(ROUTE_META_KEY, prototype, method);
@@ -116,19 +138,48 @@ class _InternalApplication {
         path: formatUrl(controllerMeta.path + methodMeta.path),
       };
       const routeKey = `${methodmetaOptions.method}:${methodmetaOptions.path}`;
-      if (this.routeSet.has(routeKey)) {
-        throw new SystemUseError(
-          `Duplicate Error: Duplicate route found for methoed ${methodMeta.method}: ${methodMeta.path} in ${controller.name}`,
-        );
+      //if (this.routeSet.has(routeKey)) {
+      //  throw new SystemUseError(
+      //    `Duplicate Error: Duplicate route found for methoed ${methodMeta.method}: ${methodMeta.path} in ${controller.name}`,
+      //  );
+      //}
+      if (!this.routeSet.has(routeKey)) {
+        this.routeSet.add(routeKey);
       }
-      this.routeSet.add(routeKey);
+
+
+      const classMiddlewares = this.executeMiddlewares(ctrl, method);
+      console.log(classMiddlewares)
 
       const allMeta = this._processMeta(prototype, method);
       this.app.route({
         url: methodmetaOptions.path == "" ? "/" : methodmetaOptions.path,
         method: methodmetaOptions.method.toUpperCase(),
+        preHandler: async (req, res, done) => {
+          // if (classMiddlewares.length > 0) {
+          //   for (let m of classMiddlewares) {
+          //     const cls = Container.get<AppMiddleware>(m.constructor);
+          //     await cls.invoke(req, res);
+          //   }
+          // }
+          // done();
+        },
         handler: async (req, res) => {
-          const args = await this._mapArgs(req, allMeta);
+
+          let reqClone = req as IRequest;
+
+          if (classMiddlewares.length > 0) {
+            for (let m of classMiddlewares) {
+              const cls = Container.get<AppMiddleware>(m.constructor);
+              reqClone = await cls.invoke(req, res) as IRequest;
+              if (res.sent) return;
+            }
+
+            console.log(reqClone.user)
+          }
+          const args = await this._mapArgs(reqClone, allMeta);
+
+          console.log(args)
           for (let bodyMeta of allMeta.body) {
             if (bodyMeta.validatorClass) {
               const err = await validateObjectByInstance(
@@ -146,40 +197,29 @@ class _InternalApplication {
               }
             }
           }
+          for (let bodyMeta of allMeta.currentUser) {
+            if (bodyMeta.validatorClass) {
+              const err = await validateObjectByInstance(
+                bodyMeta.dataType,
+                args[bodyMeta.index],
+              );
+              if (err) {
+                console.log("Has validation error", err);
+                return await res.code(400).send({
+                  code: 400,
+                  errorType: "ValidationError",
+                  errors: err,
+                  message: err.message,
+                });
+              }
+            }
+          }
+
           return await prototype[method].apply(ctrl, args);
         },
       });
     }
   }
-
-  // private _mapArgs(req: IRequest, meta: MethodParamMeta) {
-  //   const args: any[] = [];
-  //   if (meta.params.length > 0) {
-  //     meta.params.forEach((param) => {
-  //       const value = param.key === "all" ? req.params : req.params[param.key];
-  //       args[param.index] = value;
-  //     });
-  //   }
-  //   if (meta.query.length > 0) {
-  //     meta.query.forEach((q) => {
-  //       const value = q.key === "all" ? req.query : req?.query[q.key];
-  //       args[q.index] = value;
-  //     });
-  //   }
-  //   if (meta.body.length > 0) {
-  //     meta.body.forEach(async (body) => {
-  //       args[body.index] = req.body;
-  //     });
-  //   }
-  //   if (meta.headers.length > 0) {
-  //     meta.headers.forEach((header) => {
-  //       const value =
-  //         header.key === "all" ? req.headers : req.headers[header.key];
-  //       args[header.index] = value;
-  //     });
-  //   }
-  //   return args;
-  // }
 
   private async _mapArgs(req: IRequest, meta: MethodParamMeta): Promise<any[]> {
     if (!req.hasOwnProperty("_argsCache")) {
@@ -201,11 +241,16 @@ class _InternalApplication {
       (q) => (args[q.index] = q.key === "all" ? req.query : req.query[q.key]),
     );
     meta.body.forEach((body) => (args[body.index] = req.body));
+    meta.currentUser.forEach((user) => (args[user.index] = req.user))
     meta.headers.forEach(
       (header) =>
-        (args[header.index] =
-          header.key === "all" ? req.headers : req.headers[header.key]),
+      (args[header.index] =
+        header.key === "all" ? req.headers : req.headers[header.key]),
     );
+
+    console.log('Meta Current User',meta.currentUser)
+
+  
 
     cache.set(cacheKey, args);
     return args;
@@ -224,6 +269,7 @@ class _InternalApplication {
       body: Reflect.getMetadata(REQUEST_BODY_META_KEY, prototype, method) || [],
       headers:
         Reflect.getMetadata(REQUEST_HEADER_META_KEY, prototype, method) || [],
+      currentUser:Reflect.getMetadata(REQUEST_USER_META_KEY, prototype, method) || []
     };
 
     this.metaCache.set(cacheKey, meta);
@@ -262,7 +308,7 @@ class _InternalApplication {
     }
   }
 
-  async mapGroup(path: string) {}
+  async mapGroup(path: string) { }
 
   async handleRoute(args: any) {
     console.log(args);
@@ -286,6 +332,13 @@ class _InternalApplication {
     }
   }
 
+  private _handleError(error: any): { code: number, error: string, message: any } {
+    if (error instanceof BaseHttpException) {
+      return { code: error.code, error: error.name, message: error.message }
+    }
+    return { code: 500, error: 'INTERNALERROR', message: error.message ? error.message : "Something going wrong." }
+  }
+
   async mapRoute<T extends (...args: any[]) => any>(
     method: "get" | "post" | "put" | "delete",
     path: string = "",
@@ -304,16 +357,36 @@ class _InternalApplication {
         }
       } catch (error) {
         console.error(`Error in ${method} route handler:`, error);
-        res.status(500).send("Internal Server Error");
+        const handledErr = this._handleError(error);
+        res.status(handledErr.code).send(handledErr);
       }
     });
   }
 
+  // Usage:
+  //mapRoute('get', '/users', getUserHandler);
+  //mapRoute('post', '/users', createUserHandler);
+  //mapRoute('put', '/users/:id', updateUserHandler);
+  //mapRoute('delete', '/users/:id', deleteUserHandler);
+  //
   async mapGet<T extends (...args: any[]) => any>(path: string = "", fn: T) {
-    return this.mapRoute("get", path, fn);
+    type FnArgs = Parameters<T>;
+    await this.mapFn(fn);
+
+    this.app.get(path, async (req, res) => {
+      const result = await fn.apply(this, [req, res]);
+      return res.send(result);
+    });
   }
+  //async mapGet<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+  //  return this.mapRoute("get", path, fn);
+  //}
   async mapPost<T extends (...args: any[]) => any>(path: string = "", fn: T) {
-    return this.mapRoute("post", path, fn);
+    //    return this.mapRoute("post", path, fn);
+    this.app.post(path, async (req, res) => {
+      const result = await fn.apply(this, [req, res]);
+      return res.send(result);
+    });
   }
 
   async mapPut<T extends (...args: any[]) => any>(path: string = "", fn: T) {
@@ -327,8 +400,21 @@ class _InternalApplication {
   async run(port: number = 4000): Promise<void> {
     if (this.alreadyRun) throw new SystemUseError("App already running");
     this.alreadyRun = true;
-    if (_InternalApplication.buildOptions.database) {
+    if (AvleonApplication.buildOptions.database) {
     }
+
+    // this.app.addHook('onError', (req) => {
+    //   console.log('found error')
+    // })
+
+    this.app.setErrorHandler(async (error, req, res) => {
+      const handledErr = this._handleError(error);
+      return res.status(handledErr.code).send(handledErr);
+
+    })
+
+
+
 
     await this.app.listen({ port });
     console.log(`Application running on port: ${port}`);
@@ -337,18 +423,18 @@ class _InternalApplication {
 
 // Applciation Builder
 
-export class AppBuilder {
-  private static instance: AppBuilder;
+export class Builder {
+  private static instance: Builder;
   private alreadyBuilt = false;
   private database: boolean = false;
 
-  private constructor() {}
+  private constructor() { }
 
-  static createBuilder(): AppBuilder {
-    if (!AppBuilder.instance) {
-      AppBuilder.instance = new AppBuilder();
+  static createAppBuilder(): Builder {
+    if (!Builder.instance) {
+      Builder.instance = new Builder();
     }
-    return AppBuilder.instance;
+    return Builder.instance;
   }
 
   async registerPlugin<T extends Function, S extends {}>(
@@ -374,11 +460,11 @@ export class AppBuilder {
     }
   }
 
-  build(): _InternalApplication {
+  build(): AvleonApplication {
     if (this.alreadyBuilt) throw new Error("Already built");
     this.alreadyBuilt = true;
 
-    const app = _InternalApplication.getInternalApp({
+    const app = AvleonApplication.getInternalApp({
       database: this.database,
     });
     return app;

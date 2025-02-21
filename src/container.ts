@@ -6,6 +6,7 @@ export const CONTROLLER_META_KEY = Symbol("icontroller:options");
 export const PARAM_META_KEY = Symbol("iparam:options");
 export const QUERY_META_KEY = Symbol("iparam:options");
 export const REQUEST_BODY_META_KEY = Symbol("iparam:options");
+export const REQUEST_USER_META_KEY = Symbol("iparam:options");
 export const REQUEST_HEADER_META_KEY = Symbol("iheader:options");
 export const DATASOURCE_META_KEY = Symbol("idatasource:options");
 

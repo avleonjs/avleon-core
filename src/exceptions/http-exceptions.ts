@@ -1,5 +1,3 @@
-import { getLineNumber } from "./../helpers";
-import path from "path";
 
 export class BaseHttpException extends Error {
   code: number = 500;
@@ -12,7 +10,6 @@ export class BaseHttpException extends Error {
   }
 }
 
-
 export class BadRequestException extends BaseHttpException {
   name: string = "BadRequest";
   code: number = 400;
@@ -21,7 +18,6 @@ export class BadRequestException extends BaseHttpException {
     super(message);
   }
 }
-
 export class InternalErrorException extends BaseHttpException {
   name: string = "InternalError";
   code: number = 500;
@@ -40,6 +36,18 @@ export class NotFoundException extends BaseHttpException {
   }
 }
 
+
+
+export class UnauthorizedException extends BaseHttpException {
+  name: string = "Unauthorized";
+  code: number = 401;
+  constructor(message: any) {
+    super(message);
+  }
+}
+
+
+export type HttpExceptions = NotFoundException | BadRequestException | UnauthorizedException | InternalErrorException
 
 
 

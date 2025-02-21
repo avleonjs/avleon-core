@@ -3,6 +3,7 @@ import {
   QUERY_META_KEY,
   REQUEST_BODY_META_KEY,
   REQUEST_HEADER_META_KEY,
+  REQUEST_USER_META_KEY,
   ROUTE_META_KEY,
 } from "./container";
 import { getDataType, isClassValidatorClass, isValidType } from "./helpers";
@@ -76,6 +77,14 @@ function createParamDecorator(
             propertyKey,
           );
           break;
+        case "route:body":
+          Reflect.defineMetadata(
+            REQUEST_USER_META_KEY,
+            existingParams,
+            target,
+            propertyKey,
+          );
+          break;
         case "route:header":
           Reflect.defineMetadata(
             REQUEST_HEADER_META_KEY,
@@ -95,4 +104,5 @@ export const Param = createParamDecorator("route:param");
 export const Query = createParamDecorator("route:query");
 export const Body = createParamDecorator("route:body");
 export const Header = createParamDecorator("route:header");
-``;
+export const CurrentUser = createParamDecorator("route:user");
+

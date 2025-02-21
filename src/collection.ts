@@ -147,7 +147,6 @@ class BasicCollection<T> implements ICollection<T> {
   paginate(options?: PaginationOptions) {
     const take = options?.take || 10;
     const skip = options?.skip || 0;
-
     const total = this.items.length;
     const data = this.items.slice(skip, take);
     return {
