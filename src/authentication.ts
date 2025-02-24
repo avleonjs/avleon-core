@@ -7,5 +7,7 @@ export abstract class Authetication {
   abstract currentUser(): CurrentUser;
 }
 
-export function Authorized() {}
+export function Authorized() {
+  
+}
 export function CurrentUser() {}

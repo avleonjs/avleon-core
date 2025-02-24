@@ -22,39 +22,27 @@ function isClassTransformerType<T>(target: new () => T): boolean {
 }
 
 export class HttpResponse {
-  static Ok<T extends {}>(obj: any, s?: any) {
+  static Ok<T>(obj: any, s?: ClassConstructor<T>) {
     if (s) {
-      let pg = false;
-      if (obj.hasOwnProperty("total")) {
-        pg = true;
-      }
-      const data = instanceToPlain(
-        plainToInstance(s, pg ? obj.data : obj, {
+      const isPaginated = obj?.hasOwnProperty("total");
+      // Ensure transformation applies only allowed properties
+      const transformedData = plainToInstance(
+        s,
+        isPaginated ? obj.data : obj,
+        {
           enableImplicitConversion: true,
-          exposeUnsetFields: false,
-        }),
-        { strategy: "excludeAll" },
+          excludeExtraneousValues: true, // Ensures only @Expose() properties are included
+        }
       );
-      if (pg) {
-        return { message: "success", ...obj, data: data };
-      } else {
-        return { message: "success", data };
-      }
-    } else {
-      return { message: "success", data: obj };
+
+      return {
+        message: "success",
+        ...(isPaginated ? { ...obj, data: instanceToPlain(transformedData) } : { data: instanceToPlain(transformedData) }),
+      };
     }
+
+    return { message: "success", data: obj };
   }
 
   static NoContent() {}
-  static NotFound() {}
-  static Unauthorized() {}
-  static BadRequest() {}
-  static InternalError() {}
-  static Forbidden() {}
-  static UnknownError() {}
-  static MaxInputLimitExceeded() {}
-  static InvalidRequest() {}
-  static BadBodyFormat() {}
-  static BadFileType() {}
-  static InvalidHeader() {}
 }

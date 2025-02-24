@@ -1,9 +1,9 @@
 
-export class BaseHttpException extends Error {
+export abstract class BaseHttpException extends Error {
   code: number = 500;
   name: string = "HttpException";
   constructor(message: any) {
-    super(message);
+    super(JSON.stringify(message));
   }
   isCustomException() {
     return true;
@@ -18,6 +18,13 @@ export class BadRequestException extends BaseHttpException {
     super(message);
   }
 }
+
+
+export class ValidationErrorException extends BadRequestException {
+  name: string = "ValidationError";
+}
+
+
 export class InternalErrorException extends BaseHttpException {
   name: string = "InternalError";
   code: number = 500;
@@ -37,7 +44,6 @@ export class NotFoundException extends BaseHttpException {
 }
 
 
-
 export class UnauthorizedException extends BaseHttpException {
   name: string = "Unauthorized";
   code: number = 401;
@@ -47,7 +53,34 @@ export class UnauthorizedException extends BaseHttpException {
 }
 
 
-export type HttpExceptions = NotFoundException | BadRequestException | UnauthorizedException | InternalErrorException
+export class ForbiddenException extends BaseHttpException {
+  name: string = "Forbidden";
+  code: number = 403;
+  constructor(message: any) {
+    super(message);
+  }
+}
+
+
+
+export type HttpException = NotFoundException | BadRequestException | UnauthorizedException | InternalErrorException | ForbiddenException
+
+export type HttpExceptions = {
+  NotFound: (message: any) => NotFoundException,
+  ValidationError: (message: any) =>ValidationErrorException,
+  BadRequest: (message: any) => BadRequestException,
+  Unauthorized: (message: any) => UnauthorizedException,
+  Forbidden: (message: any) => ForbiddenException,
+  InternalError: (message: any) => InternalErrorException
+}
+export const httpExcepitoins: HttpExceptions = {
+  NotFound:(message:any)=>new NotFoundException(message),
+  ValidationError:(message:any)=>new ValidationErrorException(message),
+  BadRequest:(message:any)=>new BadRequestException(message),
+  Unauthorized:(message:any)=>new UnauthorizedException(message),
+  Forbidden:(message:any)=>new ForbiddenException(message),
+  InternalError: (message:any)=> new InternalErrorException(message)
+}
 
 
 

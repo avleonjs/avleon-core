@@ -4,6 +4,7 @@ import fastify, {
   FastifyRequest,
   HookHandlerDoneFunction,
   preHandlerHookHandler,
+  RouteGenericInterface,
 } from "fastify";
 import Container from "typedi";
 import fs from "fs/promises"; // Use promises for asynchronous file operations
@@ -19,12 +20,24 @@ import container, {
   isApiController,
   REQUEST_USER_META_KEY,
 } from "./container";
-import { Constructor, formatUrl, validateObjectByInstance } from "./helpers";
+import { Constructor, formatUrl, isValidJsonString, validateObjectByInstance } from "./helpers";
 import { SystemUseError } from "./exceptions/system-exception";
 import { existsSync, writeFileSync } from "fs";
 import { DataSource, DataSourceOptions } from "typeorm";
 import { AppMiddleware } from "./middleware";
-import { BaseHttpException, NotFoundException } from "./exceptions";
+import { BaseHttpException, NotFoundException, ValidationErrorException } from "./exceptions";
+import { isObject } from "class-validator";
+import { OpenApiUiOptions } from "./openapi";
+import swagger from "@fastify/swagger";
+import fastifyApiReference from "@scalar/fastify-api-reference";
+import { env } from "./environment-variables";
+
+export type FuncRoute = {
+  handler: any,
+  middlewares?: any[]
+}
+
+
 
 // IRequest
 export interface IRequest extends FastifyRequest {
@@ -58,7 +71,8 @@ export interface MethodParamMeta {
   query: ParamMetaOptions[];
   body: ParamMetaOptions[];
   headers: ParamMetaOptions[];
-  currentUser: ParamMetaOptions[]
+  currentUser: ParamMetaOptions[];
+  swagger?: OpenApiUiOptions
 }
 
 interface IRoute {
@@ -85,6 +99,7 @@ class AvleonApplication {
   private alreadyRun = false;
   private routes: Map<string, Function> = new Map();
   private middlewares: Map<string, AppMiddleware> = new Map();
+  private rMap = new Map<string, FuncRoute>();
 
   private constructor() {
     this.app = fastify();
@@ -99,6 +114,28 @@ class AvleonApplication {
     }
     return AvleonApplication.instance;
   }
+
+  isDevelopment() {
+    return env['NODE_ENV'] == "development"
+  }
+
+  async useSwagger(options: OpenApiUiOptions) {
+    const { routePrefix, ...restOptions } = options;
+
+    this.app.register(swagger, {
+      openapi: {
+        openapi: '3.0.0',
+        ...restOptions
+      }
+    });
+    const rPrefix =
+      routePrefix ? routePrefix : "/docs";
+    //import fastifyApiReference from "@scalar/fastify-api-reference";
+    await this.app.register(fastifyApiReference, {
+      routePrefix:  rPrefix as any,
+    });
+  }
+
 
   private handleMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
     for (const mclass of mclasses) {
@@ -129,7 +166,7 @@ class AvleonApplication {
       (name) => name !== "constructor",
     );
     let classMiddlewares: AppMiddleware[] = []
-
+    const tag = ctrl.constructor.name.replace("Controller", "");
     for (const method of methods) {
       const methodMeta = Reflect.getMetadata(ROUTE_META_KEY, prototype, method);
       if (!methodMeta) continue;
@@ -138,35 +175,42 @@ class AvleonApplication {
         path: formatUrl(controllerMeta.path + methodMeta.path),
       };
       const routeKey = `${methodmetaOptions.method}:${methodmetaOptions.path}`;
-      //if (this.routeSet.has(routeKey)) {
-      //  throw new SystemUseError(
-      //    `Duplicate Error: Duplicate route found for methoed ${methodMeta.method}: ${methodMeta.path} in ${controller.name}`,
-      //  );
-      //}
       if (!this.routeSet.has(routeKey)) {
         this.routeSet.add(routeKey);
       }
 
 
       const classMiddlewares = this.executeMiddlewares(ctrl, method);
-   
+
+      // handle openapi data
+
+     const swaggerMeta = Reflect.getMetadata("route:openapi", prototype, method) || []
+
+      // console.log(swaggerMeta)
+
 
       const allMeta = this._processMeta(prototype, method);
+      const routePath = methodmetaOptions.path == "" ? "/" : methodmetaOptions.path
       this.app.route({
-        url: methodmetaOptions.path == "" ? "/" : methodmetaOptions.path,
+        url: routePath,
         method: methodmetaOptions.method.toUpperCase(),
-        preHandler: async (req, res, done) => {
-          // if (classMiddlewares.length > 0) {
-          //   for (let m of classMiddlewares) {
-          //     const cls = Container.get<AppMiddleware>(m.constructor);
-          //     await cls.invoke(req, res);
-          //   }
-          // }
-          // done();
+        schema: {
+          description: routeKey,
+          summary: 'Some summary',
+          tags: [tag],
+          requestBody: { 
+            type: 'object',
+            properties: {
+              exampleProperty: { type: 'string' },
+            },
+            required: ['exampleProperty'],
+          },
         },
         handler: async (req, res) => {
 
           let reqClone = req as IRequest;
+
+          
 
           if (classMiddlewares.length > 0) {
             for (let m of classMiddlewares) {
@@ -242,7 +286,8 @@ class AvleonApplication {
       body: Reflect.getMetadata(REQUEST_BODY_META_KEY, prototype, method) || [],
       headers:
         Reflect.getMetadata(REQUEST_HEADER_META_KEY, prototype, method) || [],
-      currentUser:Reflect.getMetadata(REQUEST_USER_META_KEY, prototype, method) || []
+      currentUser: Reflect.getMetadata(REQUEST_USER_META_KEY, prototype, method) || [],
+      swagger: Reflect.getMetadata("route:openapi", prototype, method) || {}
     };
 
     this.metaCache.set(cacheKey, meta);
@@ -281,6 +326,14 @@ class AvleonApplication {
     }
   }
 
+
+  mapControllersAuto() {
+    const isExists = existsSync(controllerDir);
+    if (isExists) {
+      this.autoControllers();
+    }
+  }
+
   async mapGroup(path: string) { }
 
   async handleRoute(args: any) {
@@ -307,7 +360,8 @@ class AvleonApplication {
 
   private _handleError(error: any): { code: number, error: string, message: any } {
     if (error instanceof BaseHttpException) {
-      return { code: error.code, error: error.name, message: error.message }
+
+      return { code: error.code, error: error.name, message: isValidJsonString(error.message) ? JSON.parse(error.message) : error.message }
     }
     return { code: 500, error: 'INTERNALERROR', message: error.message ? error.message : "Something going wrong." }
   }
@@ -335,39 +389,50 @@ class AvleonApplication {
       }
     });
   }
+  private _routeHandler<T extends (...args: any[]) => any>(routePath: string, method: string, fn: T) {
+    const routeKey = method + ":" + routePath;
+    this.rMap.set(routeKey, {
+      handler: fn,
+      middlewares: []
+    })
+    this.mapFn(fn);
+    const route = {
+      useMiddleware: <M extends AppMiddleware>(middlewares: Constructor<AppMiddleware>[]) => {
+        const midds = Array.isArray(middlewares) ? middlewares : [middlewares]
+        const ms: any[] = (midds as unknown as any[]).map((mclass) => {
+          const cls = Container.get<AppMiddleware>(mclass)
+          this.middlewares.set(mclass.name, cls);
+          return cls.invoke // Ensure `invoke` runs in the correct context
+        });
 
-  // Usage:
-  //mapRoute('get', '/users', getUserHandler);
-  //mapRoute('post', '/users', createUserHandler);
-  //mapRoute('put', '/users/:id', updateUserHandler);
-  //mapRoute('delete', '/users/:id', deleteUserHandler);
-  //
-  async mapGet<T extends (...args: any[]) => any>(path: string = "", fn: T) {
-    type FnArgs = Parameters<T>;
-    await this.mapFn(fn);
+        const r = this.rMap.get(routeKey);
+        if (r?.middlewares) {
+          r.middlewares = ms;
+        }
+        this.rMap.set(routeKey, r!);
+        return route; // Allow chaining
+      },
+    };
 
-    this.app.get(path, async (req, res) => {
-      const result = await fn.apply(this, [req, res]);
-      return res.send(result);
-    });
-  }
-  //async mapGet<T extends (...args: any[]) => any>(path: string = "", fn: T) {
-  //  return this.mapRoute("get", path, fn);
-  //}
-  async mapPost<T extends (...args: any[]) => any>(path: string = "", fn: T) {
-    //    return this.mapRoute("post", path, fn);
-    this.app.post(path, async (req, res) => {
-      const result = await fn.apply(this, [req, res]);
-      return res.send(result);
-    });
-  }
-
-  async mapPut<T extends (...args: any[]) => any>(path: string = "", fn: T) {
-    return this.mapRoute("put", path, fn);
+    return route;
   }
 
-  async mapDelete<T extends (...args: any[]) => any>(path: string = "", fn: T) {
-    return this.mapRoute("delete", path, fn);
+  mapGet<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+
+    console.log("GET:?", path)
+    return this._routeHandler(path, "GET", fn)
+  }
+
+  mapPost<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+    return this._routeHandler(path, "POST", fn)
+  }
+
+  mapPut<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+    return this._routeHandler(path, "PUT", fn)
+  }
+
+  mapDelete<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+    return this._routeHandler(path, "DELETE", fn)
   }
 
   async run(port: number = 4000): Promise<void> {
@@ -376,21 +441,34 @@ class AvleonApplication {
     if (AvleonApplication.buildOptions.database) {
     }
 
-    // this.app.addHook('onError', (req) => {
-    //   console.log('found error')
-    // })
-
+    this.rMap.forEach((value, key) => {
+      const [m, r] = key.split(":");
+      this.app.route({
+        method: m,
+        url: r,
+        preHandler: value.middlewares ? value.middlewares : [],
+        handler: async (req, res) => {
+          const result = await value.handler.apply(this, [req, res]);
+          return result;
+        },
+      });
+    })
     this.app.setErrorHandler(async (error, req, res) => {
       const handledErr = this._handleError(error);
+      if (error instanceof ValidationErrorException) {
+        return res.status(handledErr.code).send({ code: handledErr.code, error: handledErr.error, errors: handledErr.message });
+      }
       return res.status(handledErr.code).send(handledErr);
-
     })
 
+    
+    await this.app.ready();
+    //this.app.swagger();
 
-
+    console.log(this.app.printRoutes())
 
     await this.app.listen({ port });
-    console.log(`Application running on port: ${port}`);
+    console.log(`Application running on port: 0.0.0.0:${port}`);
   }
 }
 
@@ -400,6 +478,7 @@ export class Builder {
   private static instance: Builder;
   private alreadyBuilt = false;
   private database: boolean = false;
+  private dataSource?: DataSource;
 
   private constructor() { }
 
@@ -417,7 +496,11 @@ export class Builder {
     container.set<T>(plugin, plugin.prototype);
   }
 
-  async useDatabase(config: DataSourceOptions) {
+
+  async addDataSource(config: DataSourceOptions) {
+    if (this.database) {
+      throw new SystemUseError("Datasource already added.");
+    }
     this.database = true;
     try {
       const typeorm = await import("typeorm");
@@ -426,6 +509,7 @@ export class Builder {
       }
       const datasource = new typeorm.DataSource(config);
       Container.set<DataSource>("idatasource", datasource);
+      this.dataSource = datasource;
       await datasource.initialize();
     } catch (error: unknown | any) {
       console.log(error);
@@ -436,7 +520,6 @@ export class Builder {
   build(): AvleonApplication {
     if (this.alreadyBuilt) throw new Error("Already built");
     this.alreadyBuilt = true;
-
     const app = AvleonApplication.getInternalApp({
       database: this.database,
     });

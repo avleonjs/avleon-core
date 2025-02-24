@@ -1,9 +1,9 @@
 import { Service } from "typedi";
 import { IRequest, IResponse } from "./icore";
-import { HttpExceptions } from "./exceptions";
+import { HttpException } from "./exceptions";
 
 export abstract class AppMiddleware {
-  abstract invoke(req: IRequest, res?: IResponse): Promise<IRequest|HttpExceptions>;
+  abstract invoke(req: IRequest, res?: IResponse): Promise<IRequest|HttpException>;
 }
 
 export type Constructor<T> = { new(...args: any[]): T };

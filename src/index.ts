@@ -1,6 +1,6 @@
 //export * from "./iqra-core";
 export * from "./icore";
-export { inject } from "./helpers";
+export { inject, validateRequestBody} from "./helpers";
 export * from "./decorators";
 export * from "./middleware";
 export * from "./config";

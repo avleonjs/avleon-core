@@ -4,6 +4,7 @@ import fs from "fs";
 import container from "./container";
 import { SystemUseError } from "./exceptions/system-exception";
 import crypto, { UUID } from "crypto";
+import { getMetadataStorage, validate, validateSync } from "class-validator";
 
 export const uuid = crypto.randomUUID();
 
@@ -42,9 +43,8 @@ export function parsedPath(ipath: string): string {
 export const isClassValidator = (target: Constructor) => {
   try {
     const clsval = require("class-validator");
-    const result = clsval
-      .getMetadataStorage()
-      .getTargetValidationMetadatas(target, undefined, false, false);
+    const result =getMetadataStorage()
+      .getTargetValidationMetadatas(target, '', false, false);
     return result.length > 0;
   } catch (err: any) {
     console.log(err);
@@ -192,7 +192,8 @@ export const isClassValidatorClass = (target: Constructor) => {
 
 export async function validateObjectByInstance(
   target: Constructor,
-  value: object,
+  value: object = {},
+  options: 'object' | 'array' = 'array'
 ) {
   try {
     const { validateOrReject } = require("class-validator");
@@ -200,15 +201,30 @@ export async function validateObjectByInstance(
     await validateOrReject(plainToInstance(target, value));
   } catch (error: any) {
     if (typeof error == "object" && Array.isArray(error)) {
-      const errors = error.reduce((acc: any, x: any) => {
+      const errors = options == 'object' ? error.reduce((acc: any, x: any) => {
         //acc[x.property] = Object.values(x.constraints);
         acc[x.property] = x.constraints;
         return acc;
-      }, {});
-
+      }, {}) : error.map(x => ({ path: x.property, constraints: x.constraints }));
       return errors;
     } else {
       throw new InternalErrorException("Can't validate object");
     }
   }
+}
+
+type ValidationError = {
+  count: number,
+  errors: any
+}
+
+export function validateRequestBody(target: Constructor, value: object, options:'object'| 'array' = 'array'): ValidationError {
+  if (!isClassValidatorClass(target)) return {count:0, errors:{}};
+  const error = validateSync(plainToInstance(target, value? value :{}));
+  const errors = options == 'object'? error.reduce((acc: any, x: any) => {
+    //acc[x.property] = Object.values(x.constraints);
+    acc[x.property] = x.constraints;
+    return acc;
+  }, {}): error.map(x=> ({path:x.property, constraints: x.constraints}));
+  return {count:error.length, errors} as ValidationError;
 }
