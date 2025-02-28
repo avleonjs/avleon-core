@@ -144,7 +144,7 @@ class AvleonApplication {
           ogTitle: 'Avleon'
         },
         theme: 'kepler',
-        favicon: '/static/favicon.ico'
+        favicon: '/static/favicon.png'
       }
     });
   }
