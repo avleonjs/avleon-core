@@ -7,7 +7,7 @@ import fastify, {
   RouteGenericInterface,
 } from "fastify";
 import Container from "typedi";
-import fs from "fs/promises"; // Use promises for asynchronous file operations
+import fs from "fs/promises";
 import path from "path";
 import container, {
   CONTROLLER_META_KEY,
@@ -19,26 +19,29 @@ import container, {
   getRegisteredControllers,
   isApiController,
   REQUEST_USER_META_KEY,
+  AUTHORIZATION_META_KEY,
 } from "./container";
-import { Constructor, formatUrl, isValidJsonString, validateObjectByInstance } from "./helpers";
+import {
+  Constructor,
+  formatUrl,
+  isValidJsonString,
+  validateObjectByInstance,
+} from "./helpers";
 import { SystemUseError } from "./exceptions/system-exception";
-import { existsSync, writeFileSync } from "fs";
+import { existsSync, PathLike } from "fs";
 import { DataSource, DataSourceOptions } from "typeorm";
 import { AppMiddleware } from "./middleware";
-import { BaseHttpException, NotFoundException, ValidationErrorException } from "./exceptions";
-import { isObject } from "class-validator";
+import { BaseHttpException, ValidationErrorException } from "./exceptions";
 import { OpenApiOptions, OpenApiUiOptions } from "./openapi";
 import swagger from "@fastify/swagger";
 import fastifyApiReference from "@scalar/fastify-api-reference";
 import { env } from "./environment-variables";
 
 export type FuncRoute = {
-  handler: any,
-  middlewares?: any[],
-  schema?: {}
-}
-
-
+  handler: any;
+  middlewares?: any[];
+  schema?: {};
+};
 
 // IRequest
 export interface IRequest extends FastifyRequest {
@@ -50,9 +53,9 @@ export interface IRequest extends FastifyRequest {
 }
 
 // IResponse
-export interface IResponse extends FastifyReply { }
+export interface IResponse extends FastifyReply {}
 
-export interface DoneFunction extends HookHandlerDoneFunction { }
+export interface DoneFunction extends HookHandlerDoneFunction {}
 
 // ParamMetaOptions
 export interface ParamMetaOptions {
@@ -63,7 +66,12 @@ export interface ParamMetaOptions {
   validate: boolean;
   dataType: any;
   validatorClass: boolean;
-  type: "route:param" | "route:query" | "route:body" | "route:header" | "route:user";
+  type:
+    | "route:param"
+    | "route:query"
+    | "route:body"
+    | "route:header"
+    | "route:user";
 }
 
 // Method Param Meta options
@@ -73,7 +81,7 @@ export interface MethodParamMeta {
   body: ParamMetaOptions[];
   headers: ParamMetaOptions[];
   currentUser: ParamMetaOptions[];
-  swagger?: OpenApiUiOptions
+  swagger?: OpenApiUiOptions;
 }
 
 interface IRoute {
@@ -91,6 +99,11 @@ const controllerDir = path.join(
   isTsNode ? "./src/controllers" : "./dist/cotrollers",
 );
 
+type StaticFileOptions = {
+  path?: PathLike;
+  prefix?: string;
+};
+
 // InternalApplication
 class AvleonApplication {
   private static instance: AvleonApplication;
@@ -103,11 +116,12 @@ class AvleonApplication {
   private rMap = new Map<string, FuncRoute>();
   private hasSwagger = false;
   private globalSwaggerOptions: any = {};
-  private controllers:any[] = []
+  private controllers: any[] = [];
+  private authorizeMiddleware?: any = undefined;
 
   private constructor() {
     this.app = fastify();
-   // this.app.setValidatorCompiler(() => () => true);
+    // this.app.setValidatorCompiler(() => () => true);
   }
 
   static getInternalApp(buildOptions: any): AvleonApplication {
@@ -121,7 +135,7 @@ class AvleonApplication {
   }
 
   isDevelopment() {
-    return env['NODE_ENV'] == "development"
+    return env["NODE_ENV"] == "development";
   }
 
   private async initSwagger(options: OpenApiUiOptions) {
@@ -129,23 +143,22 @@ class AvleonApplication {
 
     this.app.register(swagger, {
       openapi: {
-        openapi: '3.0.0',
-        ...restOptions
-      }
+        openapi: "3.0.0",
+        ...restOptions,
+      },
     });
-    const rPrefix =
-      routePrefix ? routePrefix : "/docs";
+    const rPrefix = routePrefix ? routePrefix : "/docs";
     //import fastifyApiReference from "@scalar/fastify-api-reference";
     await this.app.register(fastifyApiReference, {
       routePrefix: rPrefix as any,
       configuration: {
         metaData: {
-          title: 'Avleon Api',
-          ogTitle: 'Avleon'
+          title: "Avleon Api",
+          ogTitle: "Avleon",
         },
-        theme: 'kepler',
-        favicon: '/static/favicon.png'
-      }
+        theme: "kepler",
+        favicon: "/static/favicon.png",
+      },
     });
   }
 
@@ -154,8 +167,9 @@ class AvleonApplication {
     this.globalSwaggerOptions = options;
   }
 
-
-  private handleMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
+  private handleMiddlewares<T extends AppMiddleware>(
+    mclasses: Constructor<T>[],
+  ) {
     for (const mclass of mclasses) {
       const cls = Container.get<T>(mclass.constructor);
       this.middlewares.set(mclass.name, cls);
@@ -164,7 +178,8 @@ class AvleonApplication {
   }
 
   private executeMiddlewares(target: any, propertyKey?: string) {
-    const classMiddlewares = Reflect.getMetadata("controller:middleware", target.constructor) || [];
+    const classMiddlewares =
+      Reflect.getMetadata("controller:middleware", target.constructor) || [];
     const methodMiddlewares = propertyKey
       ? Reflect.getMetadata("route:middleware", target, propertyKey) || []
       : [];
@@ -183,11 +198,23 @@ class AvleonApplication {
     const methods = Object.getOwnPropertyNames(prototype).filter(
       (name) => name !== "constructor",
     );
-    let classMiddlewares: AppMiddleware[] = []
+    let classMiddlewares: AppMiddleware[] = [];
     const tag = ctrl.constructor.name.replace("Controller", "");
-    const swaggerControllerMeta = Reflect.getMetadata("controller:openapi", ctrl.constructor) || {}
+    const swaggerControllerMeta =
+      Reflect.getMetadata("controller:openapi", ctrl.constructor) || {};
+    const authClsMeata = Reflect.getMetadata(
+      AUTHORIZATION_META_KEY,
+      ctrl.constructor,
+    ) || { authorize: false, options: undefined };
 
-    for await(const method of methods) {
+    if (authClsMeata.authorize && this.authorizeMiddleware) {
+      this.app.addHook("preHandler", (req, res) => {
+        return this.authorizeMiddleware.authorize(req);
+      });
+    }
+    console.log("ClassMiddlware:", tag + ":", authClsMeata);
+
+    for await (const method of methods) {
       const methodMeta = Reflect.getMetadata(ROUTE_META_KEY, prototype, method);
       if (!methodMeta) continue;
       const methodmetaOptions = {
@@ -199,25 +226,37 @@ class AvleonApplication {
         this.routeSet.add(routeKey);
       }
 
-
       const classMiddlewares = this.executeMiddlewares(ctrl, method);
 
       // handle openapi data
+      const swaggerMeta =
+        Reflect.getMetadata("route:openapi", prototype, method) || {};
+      
+      
 
-      const swaggerMeta = Reflect.getMetadata("route:openapi", prototype, method) || {}
-
+      const authClsMethodMeata = Reflect.getMetadata(
+        AUTHORIZATION_META_KEY,
+        ctrl.constructor,
+        method,
+      ) || { authorize: false, options: undefined };
       const allMeta = this._processMeta(prototype, method);
-      const routePath = methodmetaOptions.path == "" ? "/" : methodmetaOptions.path
+      const routePath =
+        methodmetaOptions.path == "" ? "/" : methodmetaOptions.path;
       this.app.route({
         url: routePath,
         method: methodmetaOptions.method.toUpperCase(),
-        schema: {...swaggerControllerMeta,...swaggerMeta, tags:[tag]} ,
+        schema: { ...swaggerControllerMeta, ...swaggerMeta, tags: [tag] },
         handler: async (req, res) => {
           let reqClone = req as IRequest;
+          if (authClsMethodMeata.authorize && this.authorizeMiddleware) {
+            const cls = container.get(this.authorizeMiddleware) as any;
+            await cls.authorize(reqClone, authClsMethodMeata.options);
+            if (res.sent) return;
+          }
           if (classMiddlewares.length > 0) {
             for (let m of classMiddlewares) {
               const cls = Container.get<AppMiddleware>(m.constructor);
-              reqClone = await cls.invoke(reqClone, res) as IRequest;
+              reqClone = (await cls.invoke(reqClone, res)) as IRequest;
               if (res.sent) return;
             }
           }
@@ -245,6 +284,9 @@ class AvleonApplication {
     }
   }
 
+
+
+
   private async _mapArgs(req: IRequest, meta: MethodParamMeta): Promise<any[]> {
     if (!req.hasOwnProperty("_argsCache")) {
       Object.defineProperty(req, "_argsCache", {
@@ -265,11 +307,11 @@ class AvleonApplication {
       (q) => (args[q.index] = q.key === "all" ? req.query : req.query[q.key]),
     );
     meta.body.forEach((body) => (args[body.index] = req.body));
-    meta.currentUser.forEach((user) => (args[user.index] = req.user))
+    meta.currentUser.forEach((user) => (args[user.index] = req.user));
     meta.headers.forEach(
       (header) =>
-      (args[header.index] =
-        header.key === "all" ? req.headers : req.headers[header.key]),
+        (args[header.index] =
+          header.key === "all" ? req.headers : req.headers[header.key]),
     );
 
     cache.set(cacheKey, args);
@@ -289,7 +331,8 @@ class AvleonApplication {
       body: Reflect.getMetadata(REQUEST_BODY_META_KEY, prototype, method) || [],
       headers:
         Reflect.getMetadata(REQUEST_HEADER_META_KEY, prototype, method) || [],
-      currentUser: Reflect.getMetadata(REQUEST_USER_META_KEY, prototype, method) || [],
+      currentUser:
+        Reflect.getMetadata(REQUEST_USER_META_KEY, prototype, method) || [],
       // swagger: Reflect.getMetadata("route:openapi", prototype, method) || {}
     };
 
@@ -315,20 +358,18 @@ class AvleonApplication {
   }
 
   mapControllers(controllers: Function[]) {
-      this.controllers = controllers;
+    this.controllers = controllers;
   }
-
 
   private async _mapControllers() {
     if (this.controllers.length > 0) {
-      for(let controller of this.controllers) {
+      for (let controller of this.controllers) {
         if (isApiController(controller)) {
-          this.buildController(controller)
+          this.buildController(controller);
         }
       }
     }
   }
-
 
   mapControllersAuto() {
     const isExists = existsSync(controllerDir);
@@ -336,7 +377,6 @@ class AvleonApplication {
       this.autoControllers();
     }
   }
-
 
   async handleRoute(args: any) {
     console.log(args);
@@ -360,11 +400,29 @@ class AvleonApplication {
     }
   }
 
-  private _handleError(error: any): { code: number, error: string, message: any } {
+  useAuthoriztion<T extends any>(middleware: Constructor<T>) {
+    this.authorizeMiddleware = middleware as any;
+  }
+
+  private _handleError(error: any): {
+    code: number;
+    error: string;
+    message: any;
+  } {
     if (error instanceof BaseHttpException) {
-      return { code: error.code, error: error.name, message: isValidJsonString(error.message) ? JSON.parse(error.message) : error.message }
+      return {
+        code: error.code,
+        error: error.name,
+        message: isValidJsonString(error.message)
+          ? JSON.parse(error.message)
+          : error.message,
+      };
     }
-    return { code: 500, error: 'INTERNALERROR', message: error.message ? error.message : "Something going wrong." }
+    return {
+      code: 500,
+      error: "INTERNALERROR",
+      message: error.message ? error.message : "Something going wrong.",
+    };
   }
 
   async mapRoute<T extends (...args: any[]) => any>(
@@ -390,18 +448,24 @@ class AvleonApplication {
       }
     });
   }
-  private _routeHandler<T extends (...args: any[]) => any>(routePath: string, method: string, fn: T) {
+  private _routeHandler<T extends (...args: any[]) => any>(
+    routePath: string,
+    method: string,
+    fn: T,
+  ) {
     const routeKey = method + ":" + routePath;
     this.rMap.set(routeKey, {
       handler: fn,
       middlewares: [],
-      schema: {}
+      schema: {},
     });
 
     this.mapFn(fn);
 
     const route = {
-      useMiddleware: <M extends AppMiddleware>(middlewares: Constructor<AppMiddleware>[]) => {
+      useMiddleware: <M extends AppMiddleware>(
+        middlewares: Constructor<AppMiddleware>[],
+      ) => {
         const midds = Array.isArray(middlewares) ? middlewares : [middlewares];
         const ms: any[] = (midds as unknown as any[]).map((mclass) => {
           const cls = Container.get<AppMiddleware>(mclass);
@@ -428,21 +492,29 @@ class AvleonApplication {
     return route;
   }
 
-
   mapGet<T extends (...args: any[]) => any>(path: string = "", fn: T) {
-    return this._routeHandler(path, "GET", fn)
+    return this._routeHandler(path, "GET", fn);
   }
 
   mapPost<T extends (...args: any[]) => any>(path: string = "", fn: T) {
-    return this._routeHandler(path, "POST", fn)
+    return this._routeHandler(path, "POST", fn);
   }
 
   mapPut<T extends (...args: any[]) => any>(path: string = "", fn: T) {
-    return this._routeHandler(path, "PUT", fn)
+    return this._routeHandler(path, "PUT", fn);
   }
 
   mapDelete<T extends (...args: any[]) => any>(path: string = "", fn: T) {
     return this._routeHandler(path, "DELETE", fn);
+  }
+
+  useStaticFiles(
+    options: StaticFileOptions = { path: undefined, prefix: undefined },
+  ) {
+    this.app.register(require("@fastify/static"), {
+      root: options.path ? options.path : path.join(process.cwd(), "public"),
+      prefix: options.prefix ? options.prefix : "/static/",
+    });
   }
 
   async run(port: number = 4000): Promise<void> {
@@ -451,21 +523,14 @@ class AvleonApplication {
     if (AvleonApplication.buildOptions.database) {
     }
 
-    this.app.register(require('@fastify/static'), {
-      root: path.join(process.cwd(), 'public'),
-      prefix: '/static/'
-    })
-
-
     //this.app.swagger();
     if (this.hasSwagger) {
       await this.initSwagger(this.globalSwaggerOptions);
     }
-   await this._mapControllers();
+    await this._mapControllers();
     // this.controllers.forEach(controller => {
     //   this.buildController(controller)
     // })
-
 
     this.rMap.forEach((value, key) => {
       const [m, r] = key.split(":");
@@ -479,21 +544,24 @@ class AvleonApplication {
           return result;
         },
       });
-    })
+    });
     this.app.setErrorHandler(async (error, req, res) => {
       const handledErr = this._handleError(error);
       if (error instanceof ValidationErrorException) {
-        return res.status(handledErr.code).send({ code: handledErr.code, error: handledErr.error, errors: handledErr.message });
+        return res.status(handledErr.code).send({
+          code: handledErr.code,
+          error: handledErr.error,
+          errors: handledErr.message,
+        });
       }
       return res.status(handledErr.code).send(handledErr);
-    })
-
-
-
-   
+    });
     await this.app.ready();
     await this.app.listen({ port });
     console.log(`Application running on port: 0.0.0.0:${port}`);
+  }
+  getTestApp(app: AvleonApplication) {
+    return this.app;
   }
 }
 
@@ -505,9 +573,16 @@ export class Builder {
   private database: boolean = false;
   private dataSource?: DataSource;
 
-  private constructor() { }
+  private constructor() {}
 
   static createAppBuilder(): Builder {
+    if (!Builder.instance) {
+      Builder.instance = new Builder();
+    }
+    return Builder.instance;
+  }
+
+  static creatTestAppBilder(): Builder {
     if (!Builder.instance) {
       Builder.instance = new Builder();
     }
@@ -520,7 +595,6 @@ export class Builder {
   ) {
     container.set<T>(plugin, plugin.prototype);
   }
-
 
   async addDataSource(config: DataSourceOptions) {
     if (this.database) {

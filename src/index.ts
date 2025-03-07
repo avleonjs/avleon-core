@@ -1,6 +1,6 @@
 //export * from "./iqra-core";
 export * from "./icore";
-export { inject, validateRequestBody} from "./helpers";
+export { inject, validateRequestBody } from "./helpers";
 export * from "./decorators";
 export * from "./middleware";
 export * from "./config";
@@ -9,6 +9,7 @@ export * from "./map-types";
 export * from "./response";
 export * from "./exceptions";
 export * from "./validator-extend";
+export * from "./validation";
 export * from "./environment-variables";
 export * from "./collection";
 export * from "./queue";

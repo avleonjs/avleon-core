@@ -20,6 +20,31 @@ export function inject<T>(cls: new (...args: any[]) => T): T {
 
 export type Constructor<T = any> = new (...args: any[]) => T;
 
+export function isConstructor(func: any): boolean {
+  // Check if the func is a function
+  if (typeof func !== 'function') {
+    return false;
+  }
+
+  // Check if it's an arrow function or a built-in JavaScript function
+  if (func === Function.prototype.bind || func instanceof RegExp) {
+    return false;
+  }
+
+  // Check if it has a `prototype` property
+  if (func.prototype && typeof func.prototype === 'object') {
+    return true;
+  }
+
+  // If it's not a constructor, check if it can be called with the new keyword
+  try {
+    const instance = new (func as any)();
+    return typeof instance === 'object';
+  } catch (e) {
+    return false;
+  }
+}
+
 export function formatUrl(path: string): string {
   if (typeof path !== "string") {
     throw new Error("The path must be a string");

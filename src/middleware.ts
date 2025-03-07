@@ -1,25 +1,76 @@
 import { Service } from "typedi";
 import { IRequest, IResponse } from "./icore";
-import { HttpException } from "./exceptions";
+import { HttpException, UnauthorizedException } from "./exceptions";
+import Container, { AUTHORIZATION_META_KEY } from "./container";
 
 export abstract class AppMiddleware {
   abstract invoke(req: IRequest, res?: IResponse): Promise<IRequest|HttpException>;
 }
+export type AuthHandler = (req: IRequest, roles?: string[]) => Promise<IRequest | HttpException>;
+
+
 
 export type Constructor<T> = { new(...args: any[]): T };
 
+export abstract class AuthorizeMiddleware {
+  abstract authorize(roles: string[]): (req: IRequest, res?: IResponse) => IRequest | Promise<IRequest>;
+
+}
 
 
+export type AuthReturnTypes = IRequest | Promise<IRequest>
 
-// export function CurrentUser(): ParameterDecorator {
-//   return (target, propertyKey, parameterIndex) => {
-//     const existingMetadata =
-//       Reflect.getMetadata("currentUser:params", target, propertyKey!) || [];
+interface AuthorizeClass {
+  authorize(req: IRequest, options?:any): AuthReturnTypes;
+}
 
-//     existingMetadata.push(parameterIndex);
-//     Reflect.defineMetadata("currentUser:params", existingMetadata, target, propertyKey!);
-//   };
+export function Authorize(target: { new (...args: any[]): AuthorizeClass }) {
+  if (typeof target.prototype.authorize !== "function") {
+    throw new Error(
+      `Class "${target.name}" must implement an "authorize" method.`,
+    );
+  }
+  Service()(target);
+}
+// export function Authorize<T extends AuthorizeMiddleware>(target: Constructor<T>) {
+//   if (typeof target.prototype.authorize !== "function") {
+//     throw new Error(`Class "${target.name}" must implement an "authorize" method.`);
+//   }
+//   Service()(target); 
 // }
+
+
+
+// export function Authorized(target: Function): void;
+// export function Authorized(roles?: string[]): MethodDecorator | ClassDecorator;
+// export function Authorized(targetOrRoles?: Function | string[]): MethodDecorator | ClassDecorator | void {
+//   if (typeof targetOrRoles === "function") {
+//     Reflect.defineMetadata(AUTHORIZATION_META_KEY, [], targetOrRoles);
+//     return;
+//   }
+//   return function (target: any, propertyKey?: string, descriptor?: PropertyDescriptor) {
+//     if (propertyKey && descriptor) {
+//       Reflect.defineMetadata(AUTHORIZATION_META_KEY, targetOrRoles || [], target, propertyKey);
+//     } else {
+//       Reflect.defineMetadata(AUTHORIZATION_META_KEY, targetOrRoles || [], target);
+//     }
+//   };
+//}
+
+
+
+// export function Authorized(target: Function): void;
+export function Authorized(): ClassDecorator & MethodDecorator;
+export function Authorized(options?: any): ClassDecorator & MethodDecorator;
+export function Authorized(options: any = {}): MethodDecorator | ClassDecorator {
+  return function (target: any, propertyKey?: string | symbol, descriptor?: PropertyDescriptor) {
+    if (propertyKey && descriptor) {
+      Reflect.defineMetadata(AUTHORIZATION_META_KEY, { authorize: true, options}, target.constructor, propertyKey);
+    } else {
+      Reflect.defineMetadata(AUTHORIZATION_META_KEY, { authorize: true, options}, target);
+    }
+  };
+}
 
 
 export function Middleware(target: Constructor<AppMiddleware>) {
@@ -33,6 +84,15 @@ export function Middleware(target: Constructor<AppMiddleware>) {
 }
 
 
+// export function CurrentUser(): ParameterDecorator {
+//   return (target, propertyKey, parameterIndex) => {
+//     const existingMetadata =
+//       Reflect.getMetadata("currentUser:params", target, propertyKey!) || [];
+
+//     existingMetadata.push(parameterIndex);
+//     Reflect.defineMetadata("currentUser:params", existingMetadata, target, propertyKey!);
+//   };
+// }
 
 export function UseMiddleware<T extends AppMiddleware | (new (...args: any[]) => AppMiddleware)>(
   options: T | T[],

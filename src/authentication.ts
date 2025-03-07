@@ -1,10 +1,9 @@
 export type CurrentUser = {};
 
-export abstract class Authetication {
-  abstract login(): void;
-  abstract register(): void;
-  abstract verifyToken(): boolean;
-  abstract currentUser(): CurrentUser;
+export abstract class BaseAuthetication {
+  abstract  authenticate(): Promise<Boolean>;
+  abstract  authorize(): Promise<Boolean>;
+
 }
 
 export function Authorized() {

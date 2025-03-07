@@ -82,7 +82,9 @@ export function createControllerDecorator(
  * @param path {string} this will used as route prefix
  *
  **/
-export function ApiController(path?: string): ClassDecorator;
+
+export function ApiController(target: Function): void;
+export function ApiController(path: string): ClassDecorator;
 /**
  *@description Api controller's are used for rest . It will populate
  * json on return and all it http methods {get} {post} etc must return
@@ -96,11 +98,29 @@ export function ApiController(
   options?: ControllerOptions,
 ): ClassDecorator;
 export function ApiController(
-  pathOrOptions: string | ControllerOptions = "/",
+  pathOrOptions: Function |string | ControllerOptions = "/",
   mayBeOptions?: ControllerOptions,
-): ClassDecorator {
-  if (mayBeOptions) {
-    return createControllerDecorator("api")(pathOrOptions, mayBeOptions);
+): any {
+  if (typeof pathOrOptions == 'function') {
+    Reflect.defineMetadata(API_CONTROLLER_METADATA_KEY, true, pathOrOptions);
+    // Ensure Service is applied as a ClassDecorator
+    if (typeof Service === "function") {
+      registerController(pathOrOptions); // Add to custom registry
+      Service()(pathOrOptions); // Apply DI decorator
+      Reflect.defineMetadata(
+        CONTROLLER_META_KEY,
+        { type: 'api', path: "/", options: {} },
+        pathOrOptions,
+      );
+    } else {
+      throw new Error("Service decorator is not a function");
+    }
+  } else {
+    if (mayBeOptions) {
+      return createControllerDecorator("api")(pathOrOptions, mayBeOptions);
+    }
+    return createControllerDecorator("api")(pathOrOptions);
   }
-  return createControllerDecorator("api")(pathOrOptions);
+
 }
+
