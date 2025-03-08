@@ -1,7 +1,6 @@
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
-import { parseEnv } from "util";
 
 // Load environment variables
 dotenv.config({ path: path.join(process.cwd(), ".env") });

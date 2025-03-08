@@ -29,6 +29,8 @@ interface ServerVariableObject {
 }
 
 export type OpenApiUiOptions = {
+  logo?: any,
+  theme?:any,
   openapi?: string;
   routePrefix?: string;
   info?: InfoObject;

@@ -6,7 +6,7 @@ import fastify, {
   preHandlerHookHandler,
   RouteGenericInterface,
 } from "fastify";
-import Container from "typedi";
+import Container, { Constructable } from "typedi";
 import fs from "fs/promises";
 import path from "path";
 import container, {
@@ -34,8 +34,9 @@ import { AppMiddleware } from "./middleware";
 import { BaseHttpException, ValidationErrorException } from "./exceptions";
 import { OpenApiOptions, OpenApiUiOptions } from "./openapi";
 import swagger from "@fastify/swagger";
-import fastifyApiReference from "@scalar/fastify-api-reference";
+
 import { env } from "./environment-variables";
+import { AppConfig, IConfig } from "./config";
 
 export type FuncRoute = {
   handler: any;
@@ -118,9 +119,10 @@ class AvleonApplication {
   private globalSwaggerOptions: any = {};
   private controllers: any[] = [];
   private authorizeMiddleware?: any = undefined;
-
+  private appConfig: AppConfig;
   private constructor() {
     this.app = fastify();
+    this.appConfig = new AppConfig();
     // this.app.setValidatorCompiler(() => () => true);
   }
 
@@ -139,7 +141,7 @@ class AvleonApplication {
   }
 
   private async initSwagger(options: OpenApiUiOptions) {
-    const { routePrefix, ...restOptions } = options;
+    const { routePrefix,logo,theme,  ...restOptions } = options;
 
     this.app.register(swagger, {
       openapi: {
@@ -149,7 +151,11 @@ class AvleonApplication {
     });
     const rPrefix = routePrefix ? routePrefix : "/docs";
     //import fastifyApiReference from "@scalar/fastify-api-reference";
-    await this.app.register(fastifyApiReference, {
+    //const fastifyApiReference = await require("@scalar/fastify-api-reference");
+
+    await this.app.register(require("@fastify/swagger-ui"), {
+      logo: logo ? logo : null,
+      theme: theme ? theme : {},
       routePrefix: rPrefix as any,
       configuration: {
         metaData: {
@@ -160,6 +166,21 @@ class AvleonApplication {
         favicon: "/static/favicon.png",
       },
     });
+  }
+  useOpenApi<T extends IConfig<R>, R = ReturnType<InstanceType<Constructable<T>>['config']>>(
+    ConfigClass: Constructable<T>,
+    modifyConfig?: (config: R) => R
+  ) {
+    const openApiConfig: R = this.appConfig.get(ConfigClass);
+    if (modifyConfig) {
+      const modifiedConfig: R = modifyConfig(openApiConfig);
+      this.globalSwaggerOptions = modifiedConfig;
+      
+    } else {
+      this.globalSwaggerOptions = openApiConfig;
+      
+    }
+    this.hasSwagger = true;
   }
 
   async useSwagger(options: OpenApiUiOptions) {
@@ -212,7 +233,7 @@ class AvleonApplication {
         return this.authorizeMiddleware.authorize(req);
       });
     }
-    console.log("ClassMiddlware:", tag + ":", authClsMeata);
+    
 
     for await (const method of methods) {
       const methodMeta = Reflect.getMetadata(ROUTE_META_KEY, prototype, method);
@@ -379,14 +400,14 @@ class AvleonApplication {
   }
 
   async handleRoute(args: any) {
-    console.log(args);
+    
   }
 
   private async mapFn(fn: Function) {
     const original = fn;
 
     fn = function () {
-      console.log(arguments);
+      
     };
 
     return fn;
@@ -558,7 +579,8 @@ class AvleonApplication {
     });
     await this.app.ready();
     await this.app.listen({ port });
-    console.log(`Application running on port: 0.0.0.0:${port}`);
+    console.log(`Application running on http://127.0.0.1:${port}`);
+    
   }
   getTestApp(app: AvleonApplication) {
     return this.app;
@@ -582,7 +604,7 @@ export class Builder {
     return Builder.instance;
   }
 
-  static creatTestAppBilder(): Builder {
+  static creatTestApplication(): Builder {
     if (!Builder.instance) {
       Builder.instance = new Builder();
     }
@@ -611,7 +633,7 @@ export class Builder {
       this.dataSource = datasource;
       await datasource.initialize();
     } catch (error: unknown | any) {
-      console.log(error);
+      
       console.error("Database Initialize Error:", error.message);
     }
   }
