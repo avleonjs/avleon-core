@@ -35,8 +35,8 @@ import { BaseHttpException, ValidationErrorException } from "./exceptions";
 import { OpenApiOptions, OpenApiUiOptions } from "./openapi";
 import swagger from "@fastify/swagger";
 
-import { env } from "./environment-variables";
 import { AppConfig, IConfig } from "./config";
+import { Environment } from "./environment-variables";
 
 export type FuncRoute = {
   handler: any;
@@ -137,7 +137,8 @@ class AvleonApplication {
   }
 
   isDevelopment() {
-    return env["NODE_ENV"] == "development";
+    const env = container.get(Environment);
+    return env.get("NODE_ENV") == "development";
   }
 
   private async initSwagger(options: OpenApiUiOptions) {

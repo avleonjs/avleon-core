@@ -1,35 +1,34 @@
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
-
+import { Service } from "typedi";
+import { EnvironmentVariableNotFound, SystemUseError } from "./exceptions/system-exception";
 // Load environment variables
 dotenv.config({ path: path.join(process.cwd(), ".env") });
 
-// Read the .env file and infer keys dynamically
-const envFilePath = path.join(process.cwd(), ".env");
-const envContents = fs.readFileSync(envFilePath, "utf-8");
+@Service()
+export class Environment{
+   private parseEnvFile(filePath: string): any {
+  try {
+    const fileContent = fs.readFileSync(filePath, 'utf8');
+    const parsedEnv = dotenv.parse(fileContent);
+    return {...parsedEnv, ...process.env};
+  } catch (error) {
+    console.error(`Error parsing .env file: ${error}`);
+    return {};
+  }
+}
+  get<T=any>(key:string):T {
+    const parsedEnv = this.parseEnvFile(path.join(process.cwd(), '.env'));
 
-// Parse .env file manually
-const parsedEnv: Record<string, string> = Object.fromEntries(
-  envContents
-    .split("\n")
-    .filter((line) => line.trim() && !line.startsWith("#")) // Ignore empty lines and comments
-    .map((line) => {
-      const [key, ...valueParts] = line.split("="); // Split key and value
-      return [key.trim(), valueParts.join("=").trim()]; // Handle values with `=`
-    }),
-);
+    if (!Object(parsedEnv).hasOwnProperty(key)) {
+      throw new EnvironmentVariableNotFound(key)
+    }
+    return parsedEnv[key] as T;
+  }
 
-const inferType = (value: string): string | number | boolean => {
-  if (!isNaN(Number(value))) return Number(value);
-  if (value.toLowerCase() === "true") return true;
-  if (value.toLowerCase() === "false") return false;
-  return value;
-};
-
-export const e = parsedEnv;
-
-// Auto-infer TypeScript type
-export type Env = typeof e;
-
-export const env = e as Env;
+  getAll<T = any>(): T {
+    const parsedEnv = this.parseEnvFile(path.join(process.cwd(), '.env'));
+    return parsedEnv as T;
+  }
+}

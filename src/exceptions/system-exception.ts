@@ -19,3 +19,10 @@ export class DuplicateRouteException extends Error {
         super(message);
     }
 }
+
+
+export class EnvironmentVariableNotFound extends Error{
+    constructor(key: string) {
+        super(`${key} not found in environment variables.`)
+    }
+}
