@@ -1,4 +1,9 @@
-import "reflect-metadata";
+/**
+ * @copyright 2024
+ * @author Tareq Hossain
+ * @email xtrinsic96@gmail.com
+ * @url https://github.com/xtareq
+ */
 
 type Constructor<T = any> = new (...args: any[]) => T;
 

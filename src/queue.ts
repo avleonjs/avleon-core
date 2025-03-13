@@ -1,3 +1,10 @@
+/**
+ * @copyright 2024
+ * @author Tareq Hossain
+ * @email xtrinsic96@gmail.com
+ * @url https://github.com/xtareq
+ */
+
 import { promises as fs } from "fs";
 import { join } from "path";
 import { uuid } from "./helpers";

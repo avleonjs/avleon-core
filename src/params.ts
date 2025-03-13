@@ -1,3 +1,10 @@
+/**
+ * @copyright 2024
+ * @author Tareq Hossain
+ * @email xtrinsic96@gmail.com
+ * @url https://github.com/xtareq
+ */
+
 import {
   PARAM_META_KEY,
   QUERY_META_KEY,
@@ -7,13 +14,6 @@ import {
   ROUTE_META_KEY,
 } from "./container";
 import { getDataType, isClassValidatorClass, isValidType } from "./helpers";
-
-/**
- * @copyright 2024
- * @author Tareq Hossain
- * @email xtrinsic96@gmail.com
- * @url https://github.com/xtareq
- */
 
 type ParameterOptions = {
   required?: boolean;

@@ -1,3 +1,9 @@
+/**
+ * @copyright 2024
+ * @author Tareq Hossain
+ * @email xtrinsic96@gmail.com
+ * @url https://github.com/xtareq
+ */
 import { instanceToPlain, plainToInstance } from "class-transformer";
 import { InternalErrorException } from "./exceptions";
 import fs from "fs";
@@ -8,12 +14,16 @@ import { getMetadataStorage, validate, validateSync } from "class-validator";
 
 export const uuid = crypto.randomUUID();
 
+
+
+
+
 export function inject<T>(cls: new (...args: any[]) => T): T {
   try {
     return container.get(cls);
   } catch (error) {
     throw new SystemUseError(
-      `Not  a project class. Maybe you  wanna register it first.`,
+      `Not a project class. Maybe you wanna register it first.`,
     );
   }
 }

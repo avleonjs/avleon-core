@@ -1,3 +1,9 @@
+/**
+ * @copyright 2024
+ * @author Tareq Hossain
+ * @email xtrinsic96@gmail.com
+ * @url https://github.com/xtareq
+ */
 import { Service } from "typedi";
 import { IRequest, IResponse } from "./icore";
 import { HttpException, UnauthorizedException } from "./exceptions";

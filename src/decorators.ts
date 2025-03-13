@@ -1,3 +1,10 @@
+/**
+ * @copyright 2024
+ * @author Tareq Hossain
+ * @email xtrinsic96@gmail.com
+ * @url https://github.com/xtareq
+ */
+
 import { Service as _service } from "typedi";
 import container, { registerService } from "./container";
 export function AppService(target: any): void;

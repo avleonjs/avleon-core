@@ -1,4 +1,9 @@
-
+/**
+ * @copyright 2024
+ * @author Tareq Hossain
+ * @email xtrinsic96@gmail.com
+ * @url https://github.com/xtareq
+ */
 export abstract class BaseHttpException extends Error {
   code: number = 500;
   name: string = "HttpException";

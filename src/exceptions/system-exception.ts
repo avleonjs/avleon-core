@@ -1,3 +1,9 @@
+/**
+ * @copyright 2024
+ * @author Tareq Hossain
+ * @email xtrinsic96@gmail.com
+ * @url https://github.com/xtareq
+ */
 export interface IRouteDuplicateErr {
     path: string,
     mpath: string,

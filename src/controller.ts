@@ -1,15 +1,17 @@
-import Container, { Service } from "typedi";
-import container, {
-  API_CONTROLLER_METADATA_KEY,
-  CONTROLLER_META_KEY,
-  registerController,
-} from "./container";
 /**
  * @copyright 2024
  * @author Tareq Hossain
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
+
+
+import Container, { Service } from "typedi";
+import container, {
+  API_CONTROLLER_METADATA_KEY,
+  CONTROLLER_META_KEY,
+  registerController,
+} from "./container";
 
 /**
  * Options for configuring a controller.

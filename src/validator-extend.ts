@@ -1,3 +1,9 @@
+/**
+ * @copyright 2024
+ * @author Tareq Hossain
+ * @email xtrinsic96@gmail.com
+ * @url https://github.com/xtareq
+ */
 export function IsArrayNotEmpty(validationOptions?: any) {
   const { registerDecorator, ValidationArguments } = require("class-validator");
   return function (object: Object, propertyName: string) {
