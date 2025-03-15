@@ -33,18 +33,16 @@ export class HttpResponse {
     if (s) {
       const isPaginated = obj?.hasOwnProperty("total");
       // Ensure transformation applies only allowed properties
-      const transformedData = plainToInstance(
-        s,
-        isPaginated ? obj.data : obj,
-        {
-          enableImplicitConversion: true,
-          excludeExtraneousValues: true, // Ensures only @Expose() properties are included
-        }
-      );
+      const transformedData = plainToInstance(s, isPaginated ? obj.data : obj, {
+        enableImplicitConversion: true,
+        excludeExtraneousValues: true, // Ensures only @Expose() properties are included
+      });
 
       return {
         message: "success",
-        ...(isPaginated ? { ...obj, data: instanceToPlain(transformedData) } : { data: instanceToPlain(transformedData) }),
+        ...(isPaginated
+          ? { ...obj, data: instanceToPlain(transformedData) }
+          : { data: instanceToPlain(transformedData) }),
       };
     }
 

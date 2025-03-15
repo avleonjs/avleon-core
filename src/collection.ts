@@ -209,6 +209,7 @@ class AsynchronousCollection<T extends ObjectLiteral> {
       total,
       totalPage: Math.ceil(total / take),
       next: skip + take < total ? skip + take : null,
+      prev: skip + take < total ? skip + take : null,
       data,
     };
   }
