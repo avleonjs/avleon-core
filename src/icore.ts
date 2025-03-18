@@ -305,7 +305,6 @@ class AvleonApplication implements IAvleonApplication {
     const methods = Object.getOwnPropertyNames(prototype).filter(
       (name) => name !== "constructor"
     );
-    let classMiddlewares: AppMiddleware[] = [];
     const tag = ctrl.constructor.name.replace("Controller", "");
     const swaggerControllerMeta =
       Reflect.getMetadata("controller:openapi", ctrl.constructor) || {};
@@ -646,6 +645,7 @@ class AvleonApplication implements IAvleonApplication {
     if (this.hasSwagger) {
       await this.initSwagger(this.globalSwaggerOptions);
     }
+    await this.initializeDatabase();
 
     await this._mapControllers();
 
@@ -747,7 +747,7 @@ export interface IAppBuilder {
 export class TestBuilder {
   private static instance: TestBuilder;
   private app: any;
-    private dataSourceOptions?: DataSourceOptions | undefined;
+  private dataSourceOptions?: DataSourceOptions | undefined;
   private constructor() {}
 
   static createBuilder() {
@@ -765,15 +765,13 @@ export class TestBuilder {
     return Container.get(service);
   }
 
-
   async getTestApplication(options: TestAppOptions) {
     const app = AvleonApplication.getInternalApp({
-      dataSourceOptions: this.dataSourceOptions
+      dataSourceOptions: this.dataSourceOptions,
     });
     app.mapControllers([...options.controllers]);
     const fa = await app.getTestApp();
     return fa as AvleonApp;
-
   }
 
   build(app: IAvleonApplication) {

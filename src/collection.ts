@@ -412,7 +412,7 @@ export class Collection {
   static from<T>(items: T[]): BasicCollection<T> {
     return BasicCollection.from(items);
   }
-  static fromRepositry<T extends ObjectLiteral>(entity: EntityTarget<T>) {
+  static fromRepository<T extends ObjectLiteral>(entity: EntityTarget<T>) {
     return AsynchronousCollection.fromRepository(
       entity,
     ) as unknown as Repository<T>;
