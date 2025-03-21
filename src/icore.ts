@@ -40,7 +40,11 @@ import { SystemUseError } from "./exceptions/system-exception";
 import { existsSync, PathLike } from "fs";
 import { DataSource, DataSourceOptions } from "typeorm";
 import { AppMiddleware } from "./middleware";
-import { BaseHttpException, ValidationErrorException } from "./exceptions";
+import {
+  BadRequestException,
+  BaseHttpException,
+  ValidationErrorException,
+} from "./exceptions";
 import { OpenApiOptions, OpenApiUiOptions } from "./openapi";
 import swagger from "@fastify/swagger";
 import { AppConfig, IConfig } from "./config";
@@ -88,6 +92,13 @@ export interface ParamMetaOptions {
     | "route:files";
 }
 
+export interface ParamMetaFilesOptions {
+  index: number;
+  type: "route:files";
+  files: MultipartFile[];
+  fieldName: string;
+}
+
 // Method Param Meta options
 export interface MethodParamMeta {
   params: ParamMetaOptions[];
@@ -97,7 +108,7 @@ export interface MethodParamMeta {
   currentUser: ParamMetaOptions[];
   swagger?: OpenApiUiOptions;
   file?: any[];
-  files?: MultipartFile[];
+  files?: ParamMetaFilesOptions[];
 }
 
 interface IRoute {
@@ -412,7 +423,9 @@ class AvleonApplication implements IAvleonApplication {
     meta.query.forEach(
       (q) => (args[q.index] = q.key === "all" ? req.query : req.query[q.key])
     );
-    meta.body.forEach((body) => (args[body.index] = req.body));
+    meta.body.forEach(
+      (body) => (args[body.index] = { ...req.body, ...req.formData })
+    );
     meta.currentUser.forEach((user) => (args[user.index] = req.user));
     meta.headers.forEach(
       (header) =>
@@ -425,6 +438,36 @@ class AvleonApplication implements IAvleonApplication {
         args[f.index] = await req.file();
       }
     }
+
+    if (meta.files) {
+      const files = await req.saveRequestFiles();
+      if (!files || files.length === 0) {
+        throw new BadRequestException({ error: "No files uploaded" });
+      }
+
+      const fileInfo = files.map((file) => ({
+        type: file.type,
+        filepath: file.filepath,
+        fieldname: file.fieldname,
+        filename: file.filename,
+        encoding: file.encoding,
+        mimetype: file.mimetype,
+        fields: file.fields,
+      }));
+      for await (let f of meta.files) {
+        const findex = fileInfo.findIndex((x) => x.fieldname == f.fieldName);
+        if (f.fieldName != "all" && findex == -1) {
+          throw new BadRequestException(
+            `${f.fieldName} doesn't exists in request files tree.`
+          );
+        }
+        args[f.index] =
+          f.fieldName == "all"
+            ? fileInfo
+            : fileInfo.filter((x) => x.fieldname == f.fieldName);
+      }
+    }
+
     cache.set(cacheKey, args);
     return args;
   }
