@@ -239,7 +239,7 @@ class AvleonApplication implements IAvleonApplication {
   }
 
   private async initSwagger(options: OpenApiUiOptions) {
-    const { routePrefix, logo, theme, ...restOptions } = options;
+    const { routePrefix, logo, theme, configuration, ...restOptions } = options;
 
     this.app.register(swagger, {
       openapi: {
@@ -248,19 +248,36 @@ class AvleonApplication implements IAvleonApplication {
       },
     });
     const rPrefix = routePrefix ? routePrefix : "/docs";
-    await this.app.register(require("@fastify/swagger-ui"), {
-      logo: logo ? logo : null,
-      theme: theme ? theme : {},
-      routePrefix: rPrefix as any,
-      configuration: {
-        metaData: {
-          title: "Avleon Api",
-          ogTitle: "Avleon",
+
+    if (options.theme == "scalar") {
+      await this.app.register(require("@scalar/fastify-api-reference"), {
+        routePrefix: rPrefix as any,
+        configuration: configuration
+          ? configuration
+          : {
+              metaData: {
+                title: "Avleon Api",
+                ogTitle: "Avleon",
+              },
+              theme: "kepler",
+              favicon: "/static/favicon.png",
+            },
+      });
+    } else {
+      await this.app.register(require("@fastify/swagger-ui"), {
+        logo: logo ? logo : null,
+        theme: theme ? theme : {},
+        routePrefix: rPrefix as any,
+        configuration: {
+          metaData: {
+            title: "Avleon Api",
+            ogTitle: "Avleon",
+          },
+          theme: "kepler",
+          favicon: "/static/favicon.png",
         },
-        theme: "kepler",
-        favicon: "/static/favicon.png",
-      },
-    });
+      });
+    }
   }
   useCors(corsOptions: FastifyCorsOptions = {}) {
     this.app.register(cors, corsOptions);

@@ -35,9 +35,10 @@ interface ServerVariableObject {
 }
 
 export type OpenApiUiOptions = {
-  logo?: any,
-  theme?:any,
+  logo?: any;
+  theme?: any;
   openapi?: string;
+  configuration?: any;
   routePrefix?: string;
   info?: InfoObject;
   servers?: ServerObject[];
@@ -352,12 +353,12 @@ export type OpenApiOptions = {
 } & any;
 
 export function OpenApi(
-  options: OpenApiOptions,
+  options: OpenApiOptions
 ): MethodDecorator & ClassDecorator & PropertyDecorator {
   return function (
     target: Object | Function,
     propertyKey?: string | symbol,
-    descriptor?: PropertyDescriptor,
+    descriptor?: PropertyDescriptor
   ) {
     if (typeof target === "function" && !propertyKey) {
       Reflect.defineMetadata("controller:openapi", options, target);
