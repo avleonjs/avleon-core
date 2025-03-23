@@ -14,16 +14,12 @@ import { getMetadataStorage, validate, validateSync } from "class-validator";
 
 export const uuid = crypto.randomUUID();
 
-
-
-
-
 export function inject<T>(cls: new (...args: any[]) => T): T {
   try {
     return container.get(cls);
   } catch (error) {
     throw new SystemUseError(
-      `Not a project class. Maybe you wanna register it first.`,
+      `Not a project class. Maybe you wanna register it first.`
     );
   }
 }
@@ -32,7 +28,7 @@ export type Constructor<T = any> = new (...args: any[]) => T;
 
 export function isConstructor(func: any): boolean {
   // Check if the func is a function
-  if (typeof func !== 'function') {
+  if (typeof func !== "function") {
     return false;
   }
 
@@ -42,14 +38,14 @@ export function isConstructor(func: any): boolean {
   }
 
   // Check if it has a `prototype` property
-  if (func.prototype && typeof func.prototype === 'object') {
+  if (func.prototype && typeof func.prototype === "object") {
     return true;
   }
 
   // If it's not a constructor, check if it can be called with the new keyword
   try {
     const instance = new (func as any)();
-    return typeof instance === 'object';
+    return typeof instance === "object";
   } catch (e) {
     return false;
   }
@@ -78,8 +74,12 @@ export function parsedPath(ipath: string): string {
 export const isClassValidator = (target: Constructor) => {
   try {
     const clsval = require("class-validator");
-    const result =getMetadataStorage()
-      .getTargetValidationMetadatas(target, '', false, false);
+    const result = getMetadataStorage().getTargetValidationMetadatas(
+      target,
+      "",
+      false,
+      false
+    );
     return result.length > 0;
   } catch (err: any) {
     console.log(err);
@@ -93,7 +93,7 @@ export interface MatchLocation {
 }
 export const getLineNumber = (
   filePath: string,
-  rpath: string | RegExp,
+  rpath: string | RegExp
 ): MatchLocation[] | null => {
   let numbers = [];
   try {
@@ -205,7 +205,7 @@ export function jsonToInstance(value: string, instance: Constructor) {
 
 export function transformObjectByInstanceToObject(
   instance: Constructor,
-  value: object,
+  value: object
 ) {
   return instanceToPlain(plainToInstance(instance, value), {
     excludeExtraneousValues: true,
@@ -228,7 +228,7 @@ export const isClassValidatorClass = (target: Constructor) => {
 export async function validateObjectByInstance(
   target: Constructor,
   value: object = {},
-  options: 'object' | 'array' = 'array'
+  options: "object" | "array" = "array"
 ) {
   try {
     const { validateOrReject } = require("class-validator");
@@ -236,11 +236,17 @@ export async function validateObjectByInstance(
     await validateOrReject(plainToInstance(target, value));
   } catch (error: any) {
     if (typeof error == "object" && Array.isArray(error)) {
-      const errors = options == 'object' ? error.reduce((acc: any, x: any) => {
-        //acc[x.property] = Object.values(x.constraints);
-        acc[x.property] = x.constraints;
-        return acc;
-      }, {}) : error.map(x => ({ path: x.property, constraints: x.constraints }));
+      const errors =
+        options == "object"
+          ? error.reduce((acc: any, x: any) => {
+              //acc[x.property] = Object.values(x.constraints);
+              acc[x.property] = x.constraints;
+              return acc;
+            }, {})
+          : error.map((x) => ({
+              path: x.property,
+              constraints: x.constraints,
+            }));
       return errors;
     } else {
       throw new InternalErrorException("Can't validate object");
@@ -249,17 +255,24 @@ export async function validateObjectByInstance(
 }
 
 type ValidationError = {
-  count: number,
-  errors: any
-}
+  count: number;
+  errors: any;
+};
 
-export function validateRequestBody(target: Constructor, value: object, options:'object'| 'array' = 'array'): ValidationError {
-  if (!isClassValidatorClass(target)) return {count:0, errors:{}};
-  const error = validateSync(plainToInstance(target, value? value :{}));
-  const errors = options == 'object'? error.reduce((acc: any, x: any) => {
-    //acc[x.property] = Object.values(x.constraints);
-    acc[x.property] = x.constraints;
-    return acc;
-  }, {}): error.map(x=> ({path:x.property, constraints: x.constraints}));
-  return {count:error.length, errors} as ValidationError;
+export function validateRequestBody(
+  target: Constructor,
+  value: object,
+  options: "object" | "array" = "array"
+): ValidationError {
+  if (!isClassValidatorClass(target)) return { count: 0, errors: {} };
+  const error = validateSync(plainToInstance(target, value ? value : {}));
+  const errors =
+    options == "object"
+      ? error.reduce((acc: any, x: any) => {
+          //acc[x.property] = Object.values(x.constraints);
+          acc[x.property] = x.constraints;
+          return acc;
+        }, {})
+      : error.map((x) => ({ path: x.property, constraints: x.constraints }));
+  return { count: error.length, errors } as ValidationError;
 }

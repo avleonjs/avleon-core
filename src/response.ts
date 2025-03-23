@@ -4,8 +4,6 @@
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
-
-import "reflect-metadata";
 import {
   instanceToPlain,
   plainToInstance,
@@ -73,7 +71,9 @@ export class HttpResponse {
   static NoContent(): IHttpResponse<null> {
     return { message: "no content", data: null };
   }
+}
 
+export class HttpExceptions {
   static BadRequest(message: string, data: any = null): IHttpResponse<any> {
     return { message: message, data: data };
   }

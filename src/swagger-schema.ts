@@ -4,16 +4,15 @@
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
-export function generateSwaggerSchema(classType: any): any {
-  const { getMetadataStorage } = require("class-validator");
-  const { plainToInstance } = require("class-transformer");
-  //const { isArray } = require("lodash"); // Add lodash for array check
+import { getMetadataStorage } from "class-validator";
 
+export function generateSwaggerSchema(classType: any): any {
   const metadataStorage = getMetadataStorage();
   const validationMetadata = metadataStorage.getTargetValidationMetadatas(
     classType,
     "",
-    true
+    true,
+    false
   );
 
   const schema: any = {
@@ -22,13 +21,27 @@ export function generateSwaggerSchema(classType: any): any {
     required: [],
   };
 
-  validationMetadata.forEach((meta: any) => {
-    const propertyName = meta.propertyName;
+  const prototype = classType.prototype;
 
-    // Infer the type dynamically using Reflect metadata
+  const propertyKeys = new Set([
+    ...Object.getOwnPropertyNames(prototype),
+    ...validationMetadata.map((m: any) => m.propertyName),
+  ]);
+
+  propertyKeys.forEach((propertyName) => {
+    if (!propertyName || propertyName === "constructor") return;
+
+    const openApiMeta: any = Reflect.getMetadata(
+      "property:openapi",
+      prototype,
+      propertyName
+    );
+
+    if (openApiMeta?.exclude) return;
+
     const propertyType = Reflect.getMetadata(
       "design:type",
-      classType.prototype,
+      prototype,
       propertyName
     );
 
@@ -49,101 +62,112 @@ export function generateSwaggerSchema(classType: any): any {
         swaggerProperty.format = "date-time";
         break;
       case Array:
-        // Attempt to infer array item type
-        const arrayItemType = Reflect.getMetadata(
-          "design:type",
-          classType.prototype,
-          propertyName + "[0]" // Attempt to get array item type. Very fragile.
-        );
-
-        if (arrayItemType) {
-          swaggerProperty.type = "array";
-          swaggerProperty.items = {
-            type: arrayItemType.name.toLowerCase(), // basic type inference
-          };
-
-          if (arrayItemType === Object) {
-            //try to infer the Object type within array
-            const nestedSchema = generateSwaggerSchema(Reflect.getMetadata("design:type", classType.prototype, propertyName + "[0]"));
-            swaggerProperty.items = nestedSchema;
-          }
-        } else {
-          swaggerProperty.type = "array";
-          swaggerProperty.items = {}; // Array of unknown type
-        }
+        swaggerProperty.type = "array";
+        swaggerProperty.items = { type: "string" }; // fallback
         break;
       case Object:
-        //Nested object
-        const nestedSchema = generateSwaggerSchema(Reflect.getMetadata("design:type", classType.prototype, propertyName));
-        swaggerProperty = nestedSchema;
+        swaggerProperty = generateSwaggerSchema(propertyType);
         break;
       default:
-        swaggerProperty.type = propertyType?.name?.toLowerCase() || "string"; // Default to string if type cannot be inferred
+        swaggerProperty.type = propertyType?.name?.toLowerCase() || "string";
+    }
+
+    // Apply OpenApi metadata if present
+    if (openApiMeta) {
+      swaggerProperty = {
+        ...swaggerProperty,
+        ...extractOpenApiFields(openApiMeta),
+      };
     }
 
     schema.properties[propertyName] = swaggerProperty;
-
-    meta.constraints?.forEach((constraint: any) => {
-      switch (constraint.name) {
-        case "isNotEmpty":
-          if (!schema.required.includes(propertyName)) {
-            schema.required.push(propertyName);
-          }
-          break;
-        case "minLength":
-          schema.properties[propertyName].minLength = constraint.constraints[0];
-          break;
-        case "maxLength":
-          schema.properties[propertyName].maxLength = constraint.constraints[0];
-          break;
-        case "min":
-          schema.properties[propertyName].minimum = constraint.constraints[0];
-          break;
-        case "max":
-          schema.properties[propertyName].maximum = constraint.constraints[0];
-          break;
-        case "isEmail":
-          schema.properties[propertyName].format = "email";
-          break;
-        case "isDate":
-          schema.properties[propertyName].format = "date-time";
-          break;
-        case "isIn":
-          schema.properties[propertyName].enum = constraint.constraints[0];
-          break;
-        case "isNumber":
-          schema.properties[propertyName].type = "number";
-          break;
-        case "isInt":
-          schema.properties[propertyName].type = "integer";
-          break;
-        case "isBoolean":
-          schema.properties[propertyName].type = "boolean";
-          break;
-        case "isString":
-          schema.properties[propertyName].type = "string";
-          break;
-        case "isOptional":
-          if (schema.required.includes(propertyName)) {
-            schema.required = schema.required.filter((item:any) => item !== propertyName);
-          }
-          break;
-        // Add more cases for other validators as needed
-      }
-    });
   });
 
+  // Handle validation rules
+  validationMetadata.forEach((meta: any) => {
+    const propertyName = meta.propertyName;
+    switch (meta.name) {
+      case "isNotEmpty":
+        if (!schema.required.includes(propertyName)) {
+          schema.required.push(propertyName);
+        }
+        break;
+      case "isDefined":
+        if (!schema.required.includes(propertyName)) {
+          schema.required.push(propertyName);
+        }
+        break;
+      case "isOptional":
+        schema.required = schema.required.filter(
+          (item: any) => item !== propertyName
+        );
+        break;
+      case "minLength":
+        schema.properties[propertyName].minLength = meta.constraints[0];
+        break;
+      case "maxLength":
+        schema.properties[propertyName].maxLength = meta.constraints[0];
+        break;
+      case "min":
+        schema.properties[propertyName].minimum = meta.constraints[0];
+        break;
+      case "max":
+        schema.properties[propertyName].maximum = meta.constraints[0];
+        break;
+      case "isEmail":
+        schema.properties[propertyName].format = "email";
+        break;
+      case "isDate":
+        schema.properties[propertyName].format = "date-time";
+        break;
+      case "isIn":
+        schema.properties[propertyName].enum = meta.constraints[0];
+        break;
+      case "isNumber":
+        schema.properties[propertyName].type = "number";
+        break;
+      case "isInt":
+        schema.properties[propertyName].type = "integer";
+        break;
+      case "isBoolean":
+        schema.properties[propertyName].type = "boolean";
+        break;
+      case "isString":
+        schema.properties[propertyName].type = "string";
+        break;
+    }
+  });
   return schema;
 }
 
+function extractOpenApiFields(meta: any): any {
+  const result: any = {};
+  const fields = [
+    "description",
+    "summary",
+    "deprecated",
+    "example",
+    "enum",
+    "format",
+    "default",
+    "minimum",
+    "maximum",
+    "minLength",
+    "maxLength",
+    "pattern",
+    "oneOf",
+    "allOf",
+    "anyOf",
+  ];
 
+  fields.forEach((field) => {
+    if (meta[field] !== undefined) {
+      result[field] = meta[field];
+    }
+  });
 
-
-
-
-
-
-
+  return result;
+}
 
 // export function generateSwaggerSchema(classType: any) {
 //   const { getMetadataStorage } = require("class-validator");

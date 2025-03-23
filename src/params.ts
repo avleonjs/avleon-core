@@ -14,6 +14,7 @@ import {
   ROUTE_META_KEY,
 } from "./container";
 import { getDataType, isClassValidatorClass, isValidType } from "./helpers";
+import { generateSwaggerSchema } from "./swagger-schema";
 
 type ParameterOptions = {
   required?: boolean;
@@ -22,14 +23,14 @@ type ParameterOptions = {
 };
 
 function createParamDecorator(
-  type: string | symbol,
+  type: string | symbol
 ): (
   key?: string | ParameterOptions,
-  options?: ParameterOptions,
+  options?: ParameterOptions
 ) => ParameterDecorator {
   return function (
     key?: string | ParameterOptions,
-    options: { required?: boolean; validate?: boolean } = {},
+    options: { required?: boolean; validate?: boolean } = {}
   ): ParameterDecorator {
     return function (target: any, propertyKey: any, parameterIndex: number) {
       const existingParams =
@@ -43,7 +44,6 @@ function createParamDecorator(
         .map((name: any) => name.trim());
       const paramDataType = parameterTypes[parameterIndex];
 
-     
       existingParams.push({
         index: parameterIndex,
         key: key ? key : "all",
@@ -52,6 +52,9 @@ function createParamDecorator(
         validate: options.validate || true,
         dataType: getDataType(paramDataType),
         validatorClass: isClassValidatorClass(paramDataType),
+        schema: isClassValidatorClass(paramDataType)
+          ? generateSwaggerSchema(paramDataType)
+          : null,
         type,
       });
       switch (type) {
@@ -60,7 +63,7 @@ function createParamDecorator(
             PARAM_META_KEY,
             existingParams,
             target,
-            propertyKey,
+            propertyKey
           );
           break;
         case "route:query":
@@ -68,16 +71,15 @@ function createParamDecorator(
             QUERY_META_KEY,
             existingParams,
             target,
-            propertyKey,
+            propertyKey
           );
           break;
         case "route:body":
-
           Reflect.defineMetadata(
             REQUEST_BODY_META_KEY,
             existingParams,
             target,
-            propertyKey,
+            propertyKey
           );
           break;
         case "route:user":
@@ -85,7 +87,7 @@ function createParamDecorator(
             REQUEST_USER_META_KEY,
             existingParams,
             target,
-            propertyKey,
+            propertyKey
           );
           break;
         case "route:header":
@@ -93,7 +95,7 @@ function createParamDecorator(
             REQUEST_HEADER_META_KEY,
             existingParams,
             target,
-            propertyKey,
+            propertyKey
           );
           break;
         default:
@@ -108,4 +110,3 @@ export const Query = createParamDecorator("route:query");
 export const Body = createParamDecorator("route:body");
 export const Header = createParamDecorator("route:header");
 export const AuthUser = createParamDecorator("route:user");
-

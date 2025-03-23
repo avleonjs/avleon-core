@@ -4,7 +4,7 @@
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
-
+import * as sw from "./swagger-schema";
 export * from "./icore";
 export { inject, validateRequestBody } from "./helpers";
 export * from "./decorators";
@@ -22,5 +22,8 @@ export * from "./queue";
 export * from "./security";
 export * from "./multipart";
 export * from "./file-storage";
+export * from "./logger";
+
+export const GetSchema = sw.generateSwaggerSchema;
 
 export { default as Container } from "./container";
