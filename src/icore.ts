@@ -239,7 +239,8 @@ class AvleonApplication implements IAvleonApplication {
   }
 
   private async initSwagger(options: OpenApiUiOptions) {
-    const { routePrefix, logo, theme, configuration, ...restOptions } = options;
+    const { routePrefix, logo, ui, theme, configuration, ...restOptions } =
+      options;
 
     this.app.register(swagger, {
       openapi: {
@@ -249,7 +250,7 @@ class AvleonApplication implements IAvleonApplication {
     });
     const rPrefix = routePrefix ? routePrefix : "/docs";
 
-    if (options.theme == "scalar") {
+    if (options.ui && options.ui == "scalar") {
       await this.app.register(require("@scalar/fastify-api-reference"), {
         routePrefix: rPrefix as any,
         configuration: configuration
@@ -259,7 +260,7 @@ class AvleonApplication implements IAvleonApplication {
                 title: "Avleon Api",
                 ogTitle: "Avleon",
               },
-              theme: "kepler",
+              theme: options.theme ? options.theme : "kepler",
               favicon: "/static/favicon.png",
             },
       });

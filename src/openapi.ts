@@ -37,6 +37,7 @@ interface ServerVariableObject {
 export type OpenApiUiOptions = {
   logo?: any;
   theme?: any;
+  ui?: "default" | "scalar";
   openapi?: string;
   configuration?: any;
   routePrefix?: string;
