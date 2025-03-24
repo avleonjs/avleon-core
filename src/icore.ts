@@ -69,9 +69,9 @@ export interface IRequest extends FastifyRequest {
   user?: any;
 }
 
-export interface DoneFunction extends HookHandlerDoneFunction {}
+export interface DoneFunction extends HookHandlerDoneFunction { }
 // IResponse
-export interface IResponse extends FastifyReply {}
+export interface IResponse extends FastifyReply { }
 
 export type TestResponseType = LightMyRequestResponse;
 export type TestResponse = TestResponseType | Promise<TestResponseType>;
@@ -95,13 +95,13 @@ export interface ParamMetaOptions {
   validatorClass: boolean;
   schema?: any;
   type:
-    | "route:param"
-    | "route:query"
-    | "route:body"
-    | "route:header"
-    | "route:user"
-    | "route:file"
-    | "route:files";
+  | "route:param"
+  | "route:query"
+  | "route:body"
+  | "route:header"
+  | "route:user"
+  | "route:file"
+  | "route:files";
 }
 
 export interface ParamMetaFilesOptions {
@@ -209,7 +209,7 @@ class AvleonApplication implements IAvleonApplication {
   private multipartOptions: FastifyMultipartOptions | undefined;
   private constructor() {
     this.app = fastify({
-      frameworkErrors: (error, req, res) => {},
+      frameworkErrors: (error, req, res) => { },
     });
     this.appConfig = new AppConfig();
     // this.app.setValidatorCompiler(() => () => true);
@@ -256,13 +256,13 @@ class AvleonApplication implements IAvleonApplication {
         configuration: configuration
           ? configuration
           : {
-              metaData: {
-                title: "Avleon Api",
-                ogTitle: "Avleon",
-              },
-              theme: options.theme ? options.theme : "kepler",
-              favicon: "/static/favicon.png",
+            metaData: {
+              title: "Avleon Api",
+              ogTitle: "Avleon",
             },
+            theme: options.theme ? options.theme : "kepler",
+            favicon: "/static/favicon.png",
+          },
       });
     } else {
       await this.app.register(require("@fastify/swagger-ui"), {
@@ -476,8 +476,8 @@ class AvleonApplication implements IAvleonApplication {
     meta.currentUser.forEach((user) => (args[user.index] = req.user));
     meta.headers.forEach(
       (header) =>
-        (args[header.index] =
-          header.key === "all" ? req.headers : req.headers[header.key]),
+      (args[header.index] =
+        header.key === "all" ? req.headers : req.headers[header.key]),
     );
 
     if (meta.file) {
@@ -592,12 +592,12 @@ class AvleonApplication implements IAvleonApplication {
     }
   }
 
-  async handleRoute(args: any) {}
+  async handleRoute(args: any) { }
 
   private async mapFn(fn: Function) {
     const original = fn;
 
-    fn = function () {};
+    fn = function() { };
 
     return fn;
   }
@@ -782,7 +782,7 @@ class AvleonApplication implements IAvleonApplication {
         typeorm.then(async (t) => {
           try {
             const datasource = new t.DataSource(buildOptions.addDataSource);
-            Container.set<DataSource>("idatasource", datasource);
+            Container.set<DataSource>("itestdatasource", datasource);
             await datasource.initialize();
           } catch (error) {
             console.error("Database can't initialized.", error);
@@ -864,7 +864,7 @@ export class TestBuilder {
   private static instance: TestBuilder;
   private app: any;
   private dataSourceOptions?: DataSourceOptions | undefined;
-  private constructor() {}
+  private constructor() { }
 
   static createBuilder() {
     if (!TestBuilder.instance) {
