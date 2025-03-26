@@ -185,7 +185,9 @@ class AsynchronousCollection<T extends ObjectLiteral> {
 
   private getRepository() {
     if (!this.repo) {
-      const dataSource = Container.get("idatasource") as DataSource;
+      const dataSourceKey =
+        process.env.NODE_ENV === "test" ? "itestdatasource" : "idatasource";
+      const dataSource = Container.get(dataSourceKey) as DataSource;
       const repository = dataSource.getRepository<T>(this.model).extend({
         paginate: this.paginate,
       });

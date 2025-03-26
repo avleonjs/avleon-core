@@ -23,7 +23,6 @@ const controllerRegistry = new Set<Function>();
 const serviceRegistry = new Set<Function>();
 const optionsRegistry = new Map<string, any>();
 
-
 const Container = TypediContainer;
 
 export function registerController(controller: Function) {
@@ -48,7 +47,7 @@ export function isApiController(target: Function): boolean {
 }
 Container.set<string>("appName", "Iqra");
 
-export function registerDataSource(dataSource:any) {
+export function registerDataSource(dataSource: any) {
   Container.set<DataSource>("idatasource", dataSource);
 }
 export default Container;
