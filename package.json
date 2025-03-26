@@ -1,6 +1,6 @@
 {
   "name": "@avleon/core",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "main": "./dist/index.js",
   "scripts": {
     "build": "rimraf dist && tsc",

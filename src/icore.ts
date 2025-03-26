@@ -85,6 +85,7 @@ export interface TestApplication {
   options: (url: string, options?: InjectOptions) => TestResponse;
   getController?: <T>(controller: Constructor<T>) => T;
 }
+
 // ParamMetaOptions
 export interface ParamMetaOptions {
   index: number;
@@ -136,7 +137,7 @@ const isTsNode =
   (process as any)[Symbol.for("ts-node.register.instance")];
 const controllerDir = path.join(
   process.cwd(),
-  isTsNode ? "./src/controllers" : "./dist/cotrollers"
+  isTsNode ? "./src/controllers" : "./dist/cotrollers",
 );
 
 type StaticFileOptions = {
@@ -164,10 +165,10 @@ export interface IAvleonApplication {
   useCors(corsOptions?: FastifyCorsOptions): void;
   useOpenApi<
     T extends IConfig<R>,
-    R = ReturnType<InstanceType<Constructable<T>>["config"]>
+    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
   >(
     ConfigClass: Constructable<T>,
-    modifyConfig?: (config: R) => R
+    modifyConfig?: (config: R) => R,
   ): void;
   useSwagger(options: OpenApiUiOptions): Promise<void>; // Deprecated
   useMultipart(options: MultipartOptions): void;
@@ -176,7 +177,7 @@ export interface IAvleonApplication {
   mapRoute<T extends (...args: any[]) => any>(
     method: "get" | "post" | "put" | "delete",
     path: string,
-    fn: T
+    fn: T,
   ): Promise<void>;
   mapGet<T extends (...args: any[]) => any>(path: string, fn: T): any;
   mapPost<T extends (...args: any[]) => any>(path: string, fn: T): any;
@@ -185,11 +186,11 @@ export interface IAvleonApplication {
   mapControllers(controllers: any[]): any;
   useStaticFiles(options?: StaticFileOptions): void;
   run(port?: number): Promise<void>;
-  getTestApp(): Promise<TestApplication>;
+  getTestApp(): TestApplication;
 }
 
 // InternalApplication
-class AvleonApplication implements IAvleonApplication {
+export class AvleonApplication implements IAvleonApplication {
   private static instance: AvleonApplication;
   private static buildOptions: any = {};
   private app!: FastifyInstance;
@@ -227,12 +228,12 @@ class AvleonApplication implements IAvleonApplication {
         buildOptions.dataSourceOptions;
       const typeorm = require("typeorm");
       const datasource = new typeorm.DataSource(
-        buildOptions.dataSourceOptions
+        buildOptions.dataSourceOptions,
       ) as DataSource;
 
       Container.set<DataSource>(
         isTestEnv ? "itestdatasource" : "idatasource",
-        datasource
+        datasource,
       );
       AvleonApplication.instance.dataSource = datasource;
     }
@@ -291,7 +292,7 @@ class AvleonApplication implements IAvleonApplication {
   }
   useOpenApi<
     T extends IConfig<R>,
-    R = ReturnType<InstanceType<Constructable<T>>["config"]>
+    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
   >(ConfigClass: Constructable<T>, modifyConfig?: (config: R) => R) {
     const openApiConfig: R = this.appConfig.get(ConfigClass);
     if (modifyConfig) {
@@ -321,7 +322,7 @@ class AvleonApplication implements IAvleonApplication {
   }
 
   private handleMiddlewares<T extends AppMiddleware>(
-    mclasses: Constructor<T>[]
+    mclasses: Constructor<T>[],
   ) {
     for (const mclass of mclasses) {
       const cls = Container.get<T>(mclass.constructor);
@@ -349,19 +350,19 @@ class AvleonApplication implements IAvleonApplication {
     const ctrl: any = Container.get(controller);
     const controllerMeta = Reflect.getMetadata(
       CONTROLLER_META_KEY,
-      ctrl.constructor
+      ctrl.constructor,
     );
     if (!controllerMeta) return;
     const prototype = Object.getPrototypeOf(ctrl);
     const methods = Object.getOwnPropertyNames(prototype).filter(
-      (name) => name !== "constructor"
+      (name) => name !== "constructor",
     );
     const tag = ctrl.constructor.name.replace("Controller", "");
     const swaggerControllerMeta =
       Reflect.getMetadata("controller:openapi", ctrl.constructor) || {};
     const authClsMeata = Reflect.getMetadata(
       AUTHORIZATION_META_KEY,
-      ctrl.constructor
+      ctrl.constructor,
     ) || { authorize: false, options: undefined };
 
     if (authClsMeata.authorize && this.authorizeMiddleware) {
@@ -390,7 +391,7 @@ class AvleonApplication implements IAvleonApplication {
       const authClsMethodMeata = Reflect.getMetadata(
         AUTHORIZATION_META_KEY,
         ctrl.constructor,
-        method
+        method,
       ) || { authorize: false, options: undefined };
       const allMeta = this._processMeta(prototype, method);
 
@@ -432,7 +433,7 @@ class AvleonApplication implements IAvleonApplication {
             if (bodyMeta.validatorClass) {
               const err = await validateObjectByInstance(
                 bodyMeta.dataType,
-                args[bodyMeta.index]
+                args[bodyMeta.index],
               );
               if (err) {
                 return await res.code(400).send({
@@ -474,16 +475,16 @@ class AvleonApplication implements IAvleonApplication {
 
     const args: any[] = meta.params.map((p) => req.params[p.key] || null);
     meta.query.forEach(
-      (q) => (args[q.index] = q.key === "all" ? req.query : req.query[q.key])
+      (q) => (args[q.index] = q.key === "all" ? req.query : req.query[q.key]),
     );
     meta.body.forEach(
-      (body) => (args[body.index] = { ...req.body, ...req.formData })
+      (body) => (args[body.index] = { ...req.body, ...req.formData }),
     );
     meta.currentUser.forEach((user) => (args[user.index] = req.user));
     meta.headers.forEach(
       (header) =>
         (args[header.index] =
-          header.key === "all" ? req.headers : req.headers[header.key])
+          header.key === "all" ? req.headers : req.headers[header.key]),
     );
 
     if (meta.file) {
@@ -514,7 +515,7 @@ class AvleonApplication implements IAvleonApplication {
         const findex = fileInfo.findIndex((x) => x.fieldname == f.fieldName);
         if (f.fieldName != "all" && findex == -1) {
           throw new BadRequestException(
-            `${f.fieldName} doesn't exists in request files tree.`
+            `${f.fieldName} doesn't exists in request files tree.`,
           );
         }
         args[f.index] =
@@ -644,7 +645,7 @@ class AvleonApplication implements IAvleonApplication {
   async mapRoute<T extends (...args: any[]) => any>(
     method: "get" | "post" | "put" | "delete",
     path: string = "",
-    fn: T
+    fn: T,
   ) {
     await this.mapFn(fn); // Assuming mapFn is needed for all methods
 
@@ -667,7 +668,7 @@ class AvleonApplication implements IAvleonApplication {
   private _routeHandler<T extends (...args: any[]) => any>(
     routePath: string,
     method: string,
-    fn: T
+    fn: T,
   ) {
     const routeKey = method + ":" + routePath;
     this.rMap.set(routeKey, {
@@ -680,7 +681,7 @@ class AvleonApplication implements IAvleonApplication {
 
     const route = {
       useMiddleware: <M extends AppMiddleware>(
-        middlewares: Constructor<AppMiddleware>[]
+        middlewares: Constructor<AppMiddleware>[],
       ) => {
         const midds = Array.isArray(middlewares) ? middlewares : [middlewares];
         const ms: any[] = (midds as unknown as any[]).map((mclass) => {
@@ -725,7 +726,7 @@ class AvleonApplication implements IAvleonApplication {
   }
 
   useStaticFiles(
-    options: StaticFileOptions = { path: undefined, prefix: undefined }
+    options: StaticFileOptions = { path: undefined, prefix: undefined },
   ) {
     this.app.register(require("@fastify/static"), {
       root: options.path ? options.path : path.join(process.cwd(), "public"),
@@ -778,11 +779,11 @@ class AvleonApplication implements IAvleonApplication {
     await this.app.listen({ port });
     console.log(`Application running on http://127.0.0.1:${port}`);
   }
-  async getTestApp(buildOptions?: any): Promise<TestApplication> {
+  getTestApp(buildOptions?: any): TestApplication {
     try {
       // }
-      await this.initializeDatabase();
-      await this._mapControllers();
+      // this.initializeDatabase();
+      this._mapControllers();
       this.rMap.forEach((value, key) => {
         const [m, r] = key.split(":");
         this.app.route({
@@ -809,7 +810,7 @@ class AvleonApplication implements IAvleonApplication {
         return res.status(handledErr.code).send(handledErr);
       });
       // return this.app as any;
-
+      //
       return {
         get: async (url: string, options?: InjectOptions) =>
           this.app.inject({ method: "GET", url, ...options }),
@@ -845,14 +846,14 @@ export interface ITestBuilder {
 export interface IAppBuilder {
   registerPlugin<T extends Function, S extends {}>(
     plugin: T,
-    options: S
+    options: S,
   ): Promise<void>;
   addDataSource<
     T extends IConfig<R>,
-    R = ReturnType<InstanceType<Constructable<T>>["config"]>
+    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
   >(
     ConfigClass: Constructable<T>,
-    modifyConfig?: (config: R) => R
+    modifyConfig?: (config: R) => R,
   ): void;
   build<T extends IAvleonApplication>(): T;
 }
@@ -889,7 +890,7 @@ export class TestBuilder {
       dataSourceOptions: this.dataSourceOptions,
     });
     app.mapControllers([...options.controllers]);
-    return Promise.resolve(app.getTestApp());
+    return app.getTestApp();
   }
 
   build(app: IAvleonApplication) {
@@ -924,14 +925,14 @@ export class Builder implements IAppBuilder {
 
   async registerPlugin<T extends Function, S extends {}>(
     plugin: T,
-    options: S
+    options: S,
   ) {
     container.set<T>(plugin, plugin.prototype);
   }
 
   addDataSource<
     T extends IConfig<R>,
-    R = ReturnType<InstanceType<Constructable<T>>["config"]>
+    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
   >(ConfigClass: Constructable<T>, modifyConfig?: (config: R) => R) {
     const openApiConfig: R = this.appConfig.get(ConfigClass);
     if (modifyConfig) {

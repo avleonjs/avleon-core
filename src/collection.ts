@@ -10,21 +10,8 @@ import {
   DataSource,
   EntityTarget,
   FindOneOptions,
-  FindManyOptions,
   ObjectLiteral,
-  Repository as TypeOrmRepository,
-  SaveOptions,
-  DeepPartial,
-  DeleteResult,
-  EntityManager,
-  EntityMetadata,
-  FindOptionsWhere,
-  InsertResult,
-  ObjectId,
-  QueryRunner,
-  SelectQueryBuilder,
-  UpdateResult,
-  In,
+  Repository,
 } from "typeorm";
 import { UpsertOptions } from "typeorm/repository/UpsertOptions";
 
@@ -47,21 +34,6 @@ export type PaginationResult<T> = {
   last?: number | null;
   totalPage?: number;
 };
-export class Repository<
-  Entity extends ObjectLiteral,
-> extends TypeOrmRepository<Entity> {
-  async paginate(
-    options: PaginationOptions = { take: 10, skip: 0 },
-  ): Promise<PaginationResult<Entity>> {
-    const total = await this.count();
-    const data = await this.find({
-      take: options.take || 10,
-      skip: options.skip || 0,
-    });
-
-    return { total, data };
-  }
-}
 
 type ICollection<T> = {
   findAll(): T[] | Promise<T[]>;
@@ -183,14 +155,12 @@ class AsynchronousCollection<T extends ObjectLiteral> {
     return new AsynchronousCollection(model);
   }
 
-  private getRepository() {
+  getRepository() {
     if (!this.repo) {
       const dataSourceKey =
         process.env.NODE_ENV === "test" ? "itestdatasource" : "idatasource";
       const dataSource = Container.get(dataSourceKey) as DataSource;
-      const repository = dataSource.getRepository<T>(this.model).extend({
-        paginate: this.paginate,
-      });
+      const repository = dataSource.getRepository<T>(this.model);
       this.repo = repository;
       return repository;
     }
@@ -215,197 +185,6 @@ class AsynchronousCollection<T extends ObjectLiteral> {
       data,
     };
   }
-
-  createQueryBuilder(
-    alias?: string,
-    queryRunner?: QueryRunner,
-  ): SelectQueryBuilder<T> {
-    return this.getRepository().createQueryBuilder(alias, queryRunner);
-  }
-
-  hasId(entity: T): boolean {
-    return this.getRepository().hasId(entity);
-  }
-  getId(entity: T): any {
-    return this.getRepository().getId(entity);
-  }
-
-  create(entityLike?: Partial<T>): T | T[] {
-    return this.getRepository().create(entityLike as any);
-  }
-  merge(mergeIntoEntity: T, ...entityLikes: Partial<T>[]): T {
-    return this.getRepository().merge(mergeIntoEntity, ...(entityLikes as any));
-  }
-  async preload(entityLike: Partial<T>): Promise<T | undefined> {
-    return this.getRepository().preload(entityLike as any);
-  }
-
-  async save(
-    entities: any[],
-    options: SaveOptions & {
-      reload: false;
-    },
-  ): Promise<T | T[]> {
-    return this.getRepository().save(entities, options);
-  }
-  async remove(entity: T | T[]): Promise<T | T[]> {
-    return this.getRepository().remove(entity as any);
-  }
-  async softRemove(entity: T | T[]): Promise<T | T[]> {
-    return this.getRepository().softRemove(entity as any);
-  }
-  async recover(entity: T | T[]): Promise<T | T[]> {
-    return this.getRepository().recover(entity as any);
-  }
-
-  async insert(entity: Partial<T> | Partial<T>[]): Promise<void> {
-    await this.getRepository().insert(entity);
-  }
-  async update(
-    criteria: FindOptionsWhere<T>,
-    partialEntity: Partial<T>,
-  ): Promise<UpdateResult> {
-    return this.getRepository().update(criteria, partialEntity);
-  }
-  async upsert(
-    entityOrEntities: T | T[],
-    conflictPathsOrOptions: UpsertOptions<T>,
-  ): Promise<void> {
-    await this.getRepository().upsert(entityOrEntities, conflictPathsOrOptions);
-  }
-  async delete(criteria: FindOptionsWhere<T>): Promise<DeleteResult> {
-    return this.getRepository().delete(criteria);
-  }
-  async softDelete(criteria: FindOptionsWhere<T>): Promise<UpdateResult> {
-    return this.getRepository().softDelete(criteria);
-  }
-  async restore(criteria: FindOptionsWhere<T>): Promise<UpdateResult> {
-    return this.getRepository().restore(criteria);
-  }
-  async exist(options?: FindManyOptions<T>): Promise<boolean> {
-    return (await this.getRepository().count(options)) > 0;
-  }
-  async exists(options?: FindManyOptions<T>): Promise<boolean> {
-    return this.exist(options);
-  }
-  async existsBy(
-    where: FindOptionsWhere<T> | FindOptionsWhere<T>[],
-  ): Promise<boolean> {
-    return (await this.getRepository().count({ where })) > 0;
-  }
-  async count(options?: FindManyOptions<T>): Promise<number> {
-    return this.getRepository().count(options);
-  }
-  async countBy(
-    where: FindOptionsWhere<T> | FindOptionsWhere<T>[],
-  ): Promise<number> {
-    return this.getRepository().count({ where });
-  }
-  async sum(
-    columnName: keyof T | any,
-    where?: FindOptionsWhere<T>,
-  ): Promise<number | null> {
-    return this.getRepository()
-      .createQueryBuilder()
-      .select(`SUM(${columnName})`, "sum")
-      .where(where || {})
-      .getRawOne()
-      .then((res) => res?.sum || null);
-  }
-  async average(
-    columnName: keyof T | any,
-    where?: FindOptionsWhere<T>,
-  ): Promise<number | null> {
-    return this.getRepository()
-      .createQueryBuilder()
-      .select(`AVG(${columnName})`, "average")
-      .where(where || {})
-      .getRawOne()
-      .then((res) => res?.average || null);
-  }
-  async minimum(
-    columnName: keyof T | any,
-    where?: FindOptionsWhere<T>,
-  ): Promise<number | null> {
-    return this.getRepository()
-      .createQueryBuilder()
-      .select(`MIN(${columnName})`, "minimum")
-      .where(where || {})
-      .getRawOne()
-      .then((res) => res?.minimum || null);
-  }
-  async maximum(
-    columnName: keyof T | any,
-    where?: FindOptionsWhere<T>,
-  ): Promise<number | null> {
-    return this.getRepository().maximum(columnName, where);
-  }
-  async find(options?: FindManyOptions<T>): Promise<T[]> {
-    return await this.getRepository().find(options);
-  }
-  async findBy(
-    where: FindOptionsWhere<T> | FindOptionsWhere<T>[],
-  ): Promise<T[]> {
-    return this.getRepository().findBy(where);
-  }
-  async findAndCount(options?: FindManyOptions<T>): Promise<[T[], number]> {
-    return this.getRepository().findAndCount(options);
-  }
-  async findAndCountBy(
-    where: FindOptionsWhere<T> | FindOptionsWhere<T>[],
-  ): Promise<[T[], number]> {
-    return this.getRepository().findAndCount({ where });
-  }
-  async findByIds(ids: any[]): Promise<T[]> {
-    return this.getRepository().findBy(ids);
-  }
-  async findOne(options: FindOneOptions<T>): Promise<T | null> {
-    return this.getRepository().findOne(options);
-  }
-  async findOneBy(
-    where: FindOptionsWhere<T> | FindOptionsWhere<T>[],
-  ): Promise<T | null> {
-    return this.getRepository().findOneBy(where);
-  }
-  async findOneById(id: number | string | Date | ObjectId): Promise<T | null> {
-    return this.getRepository().findOneBy({ id } as any);
-  }
-  async findOneOrFail(options: FindOneOptions<T>): Promise<T> {
-    return this.getRepository().findOneOrFail(options);
-  }
-  async findOneByOrFail(
-    where: FindOptionsWhere<T> | FindOptionsWhere<T>[],
-  ): Promise<T> {
-    return this.getRepository().findOneByOrFail(where);
-  }
-  async query(query: string, parameters?: any[]): Promise<any> {
-    return this.getRepository().query(query, parameters);
-  }
-  async clear(): Promise<void> {
-    await this.getRepository().clear();
-  }
-  async increment(
-    conditions: FindOptionsWhere<T>,
-    propertyPath: keyof T,
-    value: number,
-  ): Promise<UpdateResult> {
-    return this.getRepository().increment(
-      conditions,
-      propertyPath as string,
-      value,
-    );
-  }
-  async decrement(
-    conditions: FindOptionsWhere<T>,
-    propertyPath: keyof T,
-    value: number,
-  ): Promise<UpdateResult> {
-    return this.getRepository().decrement(
-      conditions,
-      propertyPath as string,
-      value,
-    );
-  }
 }
 
 export class Collection {
@@ -414,9 +193,61 @@ export class Collection {
   static from<T>(items: T[]): BasicCollection<T> {
     return BasicCollection.from(items);
   }
-  static fromRepository<T extends ObjectLiteral>(entity: EntityTarget<T>) {
-    return AsynchronousCollection.fromRepository(
-      entity,
-    ) as unknown as Repository<T>;
+  // Example refactoring of Collection.fromRepository for better type safety
+  static fromRepository<T extends ObjectLiteral>(
+    entity: EntityTarget<T>,
+  ): Repository<T> {
+    const asyncCollection = AsynchronousCollection.fromRepository(entity);
+    // Assuming AsynchronousCollection has a method to get the Repository<T>
+    return asyncCollection.getRepository();
   }
+}
+
+export function InjectRepository<T extends Repository<T>>(
+  model: EntityTarget<T>,
+) {
+  return function (
+    object: any,
+    propertyName: string | undefined,
+    index?: number,
+  ) {
+    let repo!: any | Repository<T>;
+    try {
+      Container.registerHandler({
+        object,
+        propertyName,
+        index,
+        value: (containerInstance) => {
+          const dataSource = containerInstance.get<DataSource>("idatasource");
+          repo = dataSource
+            .getRepository<T>(model)
+            .extend({ paginate: () => {} });
+          repo.paginate = async function (
+            options: PaginationOptions = { take: 10, skip: 0 },
+          ): Promise<PaginationResult<T>> {
+            const [data, total] = await this.findAndCount({
+              take: options.take || 10,
+              skip: options.skip || 0,
+            });
+
+            return {
+              total,
+              totalPage: Math.ceil(total / (options.take || 10)),
+              next:
+                options.skip! + options.take! < total
+                  ? options.skip! + options.take!
+                  : null,
+              data,
+            };
+          };
+          return repo;
+        },
+      });
+    } catch (error: any) {
+      console.log(error);
+      if (error.name && error.name == "ServiceNotFoundError") {
+        console.log("Database didn't initialized.");
+      }
+    }
+  };
 }
