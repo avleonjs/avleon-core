@@ -69,9 +69,9 @@ export interface IRequest extends FastifyRequest {
   user?: any;
 }
 
-export interface DoneFunction extends HookHandlerDoneFunction {}
+export interface DoneFunction extends HookHandlerDoneFunction { }
 // IResponse
-export interface IResponse extends FastifyReply {}
+export interface IResponse extends FastifyReply { }
 
 export type TestResponseType = LightMyRequestResponse;
 export type TestResponse = TestResponseType | Promise<TestResponseType>;
@@ -97,13 +97,13 @@ export interface ParamMetaOptions {
   validatorClass: boolean;
   schema?: any;
   type:
-    | "route:param"
-    | "route:query"
-    | "route:body"
-    | "route:header"
-    | "route:user"
-    | "route:file"
-    | "route:files";
+  | "route:param"
+  | "route:query"
+  | "route:body"
+  | "route:header"
+  | "route:user"
+  | "route:file"
+  | "route:files";
 }
 
 export interface ParamMetaFilesOptions {
@@ -215,7 +215,7 @@ export class AvleonApplication implements IAvleonApplication {
     // this.app.setValidatorCompiler(() => () => true);
   }
 
-  private isTest() {}
+  private isTest() { }
 
   static getInternalApp(buildOptions: any): AvleonApplication {
     let isTestEnv = process.env.NODE_ENV == "test";
@@ -231,8 +231,7 @@ export class AvleonApplication implements IAvleonApplication {
         buildOptions.dataSourceOptions,
       ) as DataSource;
 
-      Container.set<DataSource>(
-        isTestEnv ? "itestdatasource" : "idatasource",
+      Container.set<DataSource>("idatasource",
         datasource,
       );
       AvleonApplication.instance.dataSource = datasource;
@@ -263,13 +262,13 @@ export class AvleonApplication implements IAvleonApplication {
         configuration: configuration
           ? configuration
           : {
-              metaData: {
-                title: "Avleon Api",
-                ogTitle: "Avleon",
-              },
-              theme: options.theme ? options.theme : "kepler",
-              favicon: "/static/favicon.png",
+            metaData: {
+              title: "Avleon Api",
+              ogTitle: "Avleon",
             },
+            theme: options.theme ? options.theme : "kepler",
+            favicon: "/static/favicon.png",
+          },
       });
     } else {
       await this.app.register(require("@fastify/swagger-ui"), {
@@ -483,8 +482,8 @@ export class AvleonApplication implements IAvleonApplication {
     meta.currentUser.forEach((user) => (args[user.index] = req.user));
     meta.headers.forEach(
       (header) =>
-        (args[header.index] =
-          header.key === "all" ? req.headers : req.headers[header.key]),
+      (args[header.index] =
+        header.key === "all" ? req.headers : req.headers[header.key]),
     );
 
     if (meta.file) {
@@ -599,12 +598,12 @@ export class AvleonApplication implements IAvleonApplication {
     }
   }
 
-  async handleRoute(args: any) {}
+  async handleRoute(args: any) { }
 
   private async mapFn(fn: Function) {
     const original = fn;
 
-    fn = function () {};
+    fn = function () { };
 
     return fn;
   }
