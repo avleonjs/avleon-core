@@ -23,6 +23,9 @@ importers:
       '@fastify/swagger-ui':
         specifier: ^5.1.0
         version: 5.2.1
+      '@fastify/view':
+        specifier: ^11.0.0
+        version: 11.0.0
       bcryptjs:
         specifier: ^3.0.2
         version: 3.0.2
@@ -32,6 +35,9 @@ importers:
       fastify:
         specifier: ^5.1.0
         version: 5.2.1
+      highlight.js:
+        specifier: ^11.9.0
+        version: 11.11.1
       pino:
         specifier: ^9.6.0
         version: 9.6.0
@@ -304,6 +310,9 @@ packages:
 
   '@fastify/swagger@9.4.1':
     resolution: {integrity: sha512-VyQ0tTPYIvjHaaIStrXajTEx2xBf0FjYkXfm6GPWA/aCk5q+85Jl//F37BwxUAC5u4lMColWkktCQfczE3WBrQ==}
+
+  '@fastify/view@11.0.0':
+    resolution: {integrity: sha512-uMNwZoY88uUMP6hidJYHT0/7bXzLrWgo/X5kjKdKPi3bj69kSkuNKmcG5KEU2sDF91n+IiLAnqx3dkldFfz5hQ==}
 
   '@img/sharp-darwin-arm64@0.33.5':
     resolution: {integrity: sha512-UT4p+iz/2H4twwAoLCqfA9UH5pI6DggwKEGuaPy7nCVQ8ZsiY5PIcrRvD1DzuY3qYL07NtIQcWnBSY/heikIFQ==}
@@ -1089,6 +1098,10 @@ packages:
 
   highlight.js@10.7.3:
     resolution: {integrity: sha512-tzcUFauisWKNHaRkN4Wjl/ZA07gENAjFl3J/c480dprkGTg5EQstgaNFqBfUqCq54kZRIEcreTsAgF/m2quD7A==}
+
+  highlight.js@11.11.1:
+    resolution: {integrity: sha512-Xwwo44whKBVCYoliBQwaPvtd/2tYFkRQtXDWj1nackaV2JPXx3L0+Jvd8/qCJ2p+ML0/XVkJ2q+Mr+UVdpJK5w==}
+    engines: {node: '>=12.0.0'}
 
   hookable@5.5.3:
     resolution: {integrity: sha512-Yc+BQe8SvoXH1643Qez1zqLRmbA5rCL+sSmk6TVos0LWVfNIB7PGncdlId77WzLGSIB5KaWgTaNTs2lNVEI6VQ==}
@@ -2365,6 +2378,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@fastify/view@11.0.0':
+    dependencies:
+      fastify-plugin: 5.0.1
+      toad-cache: 3.7.0
+
   '@img/sharp-darwin-arm64@0.33.5':
     optionalDependencies:
       '@img/sharp-libvips-darwin-arm64': 1.0.4
@@ -3253,6 +3271,8 @@ snapshots:
   help-me@5.0.0: {}
 
   highlight.js@10.7.3: {}
+
+  highlight.js@11.11.1: {}
 
   hookable@5.5.3:
     optional: true

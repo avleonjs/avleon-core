@@ -43,13 +43,12 @@ function createParamDecorator(
         .split(",")
         .map((name: any) => name.trim());
       const paramDataType = parameterTypes[parameterIndex];
-
       existingParams.push({
         index: parameterIndex,
         key: key ? key : "all",
         name: paramNames[parameterIndex],
-        required: options.required || false,
-        validate: options.validate || true,
+        required: options.required == undefined ? true : options.required ,
+        validate: options.validate == undefined ? true: options.validate,
         dataType: getDataType(paramDataType),
         validatorClass: isClassValidatorClass(paramDataType),
         schema: isClassValidatorClass(paramDataType)

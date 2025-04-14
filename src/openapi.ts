@@ -4,7 +4,7 @@
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
-interface InfoObject {
+export interface InfoObject {
   title: string;
   description?: string;
   termsOfService?: string;
@@ -12,23 +12,23 @@ interface InfoObject {
   license?: LicenseObject;
   version: string;
 }
-interface ContactObject {
+export interface ContactObject {
   name?: string;
   url?: string;
   email?: string;
 }
-interface LicenseObject {
+export interface LicenseObject {
   name: string;
   url?: string;
 }
-interface ServerObject {
+export interface ServerObject {
   url: string;
   description?: string;
   variables?: {
     [variable: string]: ServerVariableObject;
   };
 }
-interface ServerVariableObject {
+export interface ServerVariableObject {
   enum?: string[];
   default: string;
   description?: string;
@@ -54,7 +54,7 @@ export type OpenApiUiOptions = {
   )[];
   "x-express-openapi-validation-strict"?: boolean;
 };
-interface PathsObject<T extends {} = {}, P extends {} = {}> {
+export interface PathsObject<T extends {} = {}, P extends {} = {}> {
   [pattern: string]: (PathItemObject<T> & P) | undefined;
 }
 enum HttpMethods {
@@ -67,7 +67,7 @@ enum HttpMethods {
   PATCH = "patch",
   TRACE = "trace",
 }
-type PathItemObject<T extends {} = {}> = {
+export type PathItemObject<T extends {} = {}> = {
   $ref?: string;
   summary?: string;
   description?: string;
@@ -76,7 +76,7 @@ type PathItemObject<T extends {} = {}> = {
 } & {
   [method in HttpMethods]?: OperationObject<T>;
 };
-type OperationObject<T extends {} = {}> = {
+export type OperationObject<T extends {} = {}> = {
   tags?: string[];
   summary?: string;
   description?: string;
@@ -92,16 +92,16 @@ type OperationObject<T extends {} = {}> = {
   security?: SecurityRequirementObject[];
   servers?: ServerObject[];
 } & T;
-interface ExternalDocumentationObject {
+export interface ExternalDocumentationObject {
   description?: string;
   url: string;
 }
-interface ParameterObject extends ParameterBaseObject {
+export interface ParameterObject extends ParameterBaseObject {
   name: string;
   in: string;
 }
-interface HeaderObject extends ParameterBaseObject {}
-interface ParameterBaseObject {
+export interface HeaderObject extends ParameterBaseObject {}
+export interface ParameterBaseObject {
   description?: string;
   required?: boolean;
   deprecated?: boolean;
@@ -118,22 +118,22 @@ interface ParameterBaseObject {
     [media: string]: MediaTypeObject;
   };
 }
-type NonArraySchemaObjectType =
+export type NonArraySchemaObjectType =
   | "boolean"
   | "object"
   | "number"
   | "string"
   | "integer";
-type ArraySchemaObjectType = "array";
-type SchemaObject = ArraySchemaObject | NonArraySchemaObject;
-interface ArraySchemaObject extends BaseSchemaObject {
+export type ArraySchemaObjectType = "array";
+export type SchemaObject = ArraySchemaObject | NonArraySchemaObject;
+export interface ArraySchemaObject extends BaseSchemaObject {
   type: ArraySchemaObjectType;
   items: ReferenceObject | SchemaObject;
 }
-interface NonArraySchemaObject extends BaseSchemaObject {
+export interface NonArraySchemaObject extends BaseSchemaObject {
   type?: NonArraySchemaObjectType;
 }
-interface BaseSchemaObject {
+export interface BaseSchemaObject {
   title?: string;
   description?: string;
   format?: string;
@@ -170,29 +170,29 @@ interface BaseSchemaObject {
   example?: any;
   deprecated?: boolean;
 }
-interface DiscriminatorObject {
+export interface DiscriminatorObject {
   propertyName: string;
   mapping?: {
     [value: string]: string;
   };
 }
-interface XMLObject {
+export interface XMLObject {
   name?: string;
   namespace?: string;
   prefix?: string;
   attribute?: boolean;
   wrapped?: boolean;
 }
-interface ReferenceObject {
+export interface ReferenceObject {
   $ref: string;
 }
-interface ExampleObject {
+export interface ExampleObject {
   summary?: string;
   description?: string;
   value?: any;
   externalValue?: string;
 }
-interface MediaTypeObject {
+export interface MediaTypeObject {
   schema?: ReferenceObject | SchemaObject;
   example?: any;
   examples?: {
@@ -202,7 +202,7 @@ interface MediaTypeObject {
     [media: string]: EncodingObject;
   };
 }
-interface EncodingObject {
+export interface EncodingObject {
   contentType?: string;
   headers?: {
     [header: string]: ReferenceObject | HeaderObject;
@@ -211,17 +211,17 @@ interface EncodingObject {
   explode?: boolean;
   allowReserved?: boolean;
 }
-interface RequestBodyObject {
+export interface RequestBodyObject {
   description?: string;
   content: {
     [media: string]: MediaTypeObject;
   };
   required?: boolean;
 }
-interface ResponsesObject {
+export interface ResponsesObject {
   [code: string]: ReferenceObject | ResponseObject;
 }
-interface ResponseObject {
+export interface ResponseObject {
   description: string;
   headers?: {
     [header: string]: ReferenceObject | HeaderObject;
@@ -233,7 +233,7 @@ interface ResponseObject {
     [link: string]: ReferenceObject | LinkObject;
   };
 }
-interface LinkObject {
+export interface LinkObject {
   operationRef?: string;
   operationId?: string;
   parameters?: {
@@ -243,13 +243,13 @@ interface LinkObject {
   description?: string;
   server?: ServerObject;
 }
-interface CallbackObject {
+export interface CallbackObject {
   [url: string]: PathItemObject;
 }
-interface SecurityRequirementObject {
+export interface SecurityRequirementObject {
   [name: string]: string[];
 }
-interface ComponentsObject {
+export interface ComponentsObject {
   schemas?: {
     [key: string]: ReferenceObject | SchemaObject;
   };
@@ -278,24 +278,24 @@ interface ComponentsObject {
     [key: string]: ReferenceObject | CallbackObject;
   };
 }
-type SecuritySchemeObject =
+export type SecuritySchemeObject =
   | HttpSecurityScheme
   | ApiKeySecurityScheme
   | OAuth2SecurityScheme
   | OpenIdSecurityScheme;
-interface HttpSecurityScheme {
+export interface HttpSecurityScheme {
   type: "http";
   description?: string;
   scheme: string;
   bearerFormat?: string;
 }
-interface ApiKeySecurityScheme {
+export interface ApiKeySecurityScheme {
   type: "apiKey";
   description?: string;
   name: string;
   in: string;
 }
-interface OAuth2SecurityScheme {
+export interface OAuth2SecurityScheme {
   type: "oauth2";
   description?: string;
   flows: {
@@ -330,12 +330,12 @@ interface OAuth2SecurityScheme {
     };
   };
 }
-interface OpenIdSecurityScheme {
+export interface OpenIdSecurityScheme {
   type: "openIdConnect";
   description?: string;
   openIdConnectUrl: string;
 }
-interface TagObject {
+export interface TagObject {
   name: string;
   description?: string;
   externalDocs?: ExternalDocumentationObject;

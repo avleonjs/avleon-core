@@ -10,6 +10,7 @@ import path from "path";
 import fs from "fs";
 import { Service } from "typedi";
 import { EnvironmentVariableNotFound, SystemUseError } from "./exceptions/system-exception";
+
 dotenv.config({ path: path.join(process.cwd(), ".env") });
 
 @Service()

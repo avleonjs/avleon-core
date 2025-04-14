@@ -5,6 +5,7 @@
  * @url https://github.com/xtareq
  */
 
+//
 type Constructor<T = any> = new (...args: any[]) => T;
 
 export function PartialType<T>(

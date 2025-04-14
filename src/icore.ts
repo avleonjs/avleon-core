@@ -53,6 +53,8 @@ import { Environment } from "./environment-variables";
 import cors, { FastifyCorsOptions } from "@fastify/cors";
 import fastifyMultipart, { FastifyMultipartOptions } from "@fastify/multipart";
 import { MultipartFile } from "./multipart";
+import { validateOrThrow } from "./validation";
+
 
 export type FuncRoute = {
   handler: any;
@@ -172,6 +174,7 @@ export interface IAvleonApplication {
   ): void;
   useSwagger(options: OpenApiUiOptions): Promise<void>; // Deprecated
   useMultipart(options: MultipartOptions): void;
+
   useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]): void;
   useAuthoriztion<T extends any>(middleware: Constructor<T>): void;
   mapRoute<T extends (...args: any[]) => any>(
@@ -180,6 +183,7 @@ export interface IAvleonApplication {
     fn: T,
   ): Promise<void>;
   mapGet<T extends (...args: any[]) => any>(path: string, fn: T): any;
+
   mapPost<T extends (...args: any[]) => any>(path: string, fn: T): any;
   mapPut<T extends (...args: any[]) => any>(path: string, fn: T): any;
   mapDelete<T extends (...args: any[]) => any>(path: string, fn: T): any;
@@ -211,8 +215,12 @@ export class AvleonApplication implements IAvleonApplication {
   private multipartOptions: FastifyMultipartOptions | undefined;
   private constructor() {
     this.app = fastify();
+  
     this.appConfig = new AppConfig();
     // this.app.setValidatorCompiler(() => () => true);
+    
+    // Register the view engine plugin
+
   }
 
   private isTest() { }
@@ -243,6 +251,7 @@ export class AvleonApplication implements IAvleonApplication {
     const env = container.get(Environment);
     return env.get("NODE_ENV") == "development";
   }
+
 
   private async initSwagger(options: OpenApiUiOptions) {
     const { routePrefix, logo, ui, theme, configuration, ...restOptions } =
@@ -428,6 +437,34 @@ export class AvleonApplication implements IAvleonApplication {
             }
           }
           const args = await this._mapArgs(reqClone, allMeta);
+
+          for (let paramMeta of allMeta.params) {
+            if (paramMeta.required) {
+              validateOrThrow({ [paramMeta.key]: args[paramMeta.index] }, { [paramMeta.key]: { type: paramMeta.dataType } }, { location: 'param' })
+            }
+          }
+
+
+          for (let queryMeta of allMeta.query) {
+            if (queryMeta.validatorClass) {
+              const err = await validateObjectByInstance(
+                queryMeta.dataType,
+                args[queryMeta.index],
+              );
+              if (err) {
+                return await res.code(400).send({
+                  code: 400,
+                  error: "ValidationError",
+                  errors: err,
+                  message: err.message,
+                });
+              }
+            }
+            if (queryMeta.required) {
+              validateOrThrow({ [queryMeta.key]: args[queryMeta.index] }, { [queryMeta.key]: { type: queryMeta.dataType } }, { location: 'queryparam' })
+            }
+          }
+
           for (let bodyMeta of allMeta.body) {
             if (bodyMeta.validatorClass) {
               const err = await validateObjectByInstance(
@@ -708,6 +745,13 @@ export class AvleonApplication implements IAvleonApplication {
     return route;
   }
 
+
+  mapView<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+
+    return this.app.get('/', fn);
+  }
+
+
   mapGet<T extends (...args: any[]) => any>(path: string = "", fn: T) {
     return this._routeHandler(path, "GET", fn);
   }
@@ -765,7 +809,7 @@ export class AvleonApplication implements IAvleonApplication {
     });
     this.app.setErrorHandler(async (error, req, res) => {
       const handledErr = this._handleError(error);
-      if (error instanceof ValidationErrorException) {
+      if (error instanceof ValidationErrorException || error instanceof BadRequestException) {
         return res.status(handledErr.code).send({
           code: handledErr.code,
           error: handledErr.error,
@@ -921,6 +965,8 @@ export class Builder implements IAppBuilder {
     }
     return Builder.instance;
   }
+
+
 
   async registerPlugin<T extends Function, S extends {}>(
     plugin: T,

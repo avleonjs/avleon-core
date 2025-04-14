@@ -46,11 +46,19 @@ export type ValidationProps = {
   [key: string]: ValidationRule;
 };
 
+export type ValidateOptons = {
+  location?:'header' | 'queryparam' | 'param' | 'body' | 'custom'
+}
+
 class Validator {
   private rules: PValidationRule<any>[] = [];
+  private options:ValidateOptons = {}
 
-  constructor(obj: ValidationProps) {
+  constructor(obj: ValidationProps, options?:ValidateOptons) {
     this.init(obj);
+    if (options) {
+      this.options = options;
+    }
   }
 
   private init(obj: ValidationProps) {
@@ -62,7 +70,7 @@ class Validator {
     });
   }
 
-  validate(obj: any | Array<any>) {
+  validate(obj: any | Array<any>, options?:ValidateOptons) {
     const erors: any[] = [];
 
     this.rules.forEach((k) => {
@@ -103,7 +111,8 @@ class Validator {
       if (messages.length > 0) {
         erors.push({
           path: k.name,
-          messages: messages,
+          ...(this.options.location ? { location: this.options.location } :{}),
+          constraints: messages,
         });
       }
     });
@@ -135,8 +144,8 @@ const parseBoolean = (val: any): boolean => {
   return false; // Default for unsupported types (null, undefined, objects, etc.)
 };
 
-export function validateOrThrow<T extends {}>(obj: T, rules: ValidationProps) {
-  const valid = new Validator(rules);
+export function validateOrThrow<T extends {}>(obj: T, rules: ValidationProps, options?:ValidateOptons) {
+  const valid = new Validator(rules, options);
   const errors = valid.validate(obj);
 
   if (errors[0].length > 0) {
