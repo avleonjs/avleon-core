@@ -7,7 +7,7 @@
 import * as sw from "./swagger-schema";
 export * from "./icore";
 export * from "./testing";
-export { inject, validateRequestBody } from "./helpers";
+export { inject, validateRequestBody,pick, exclude } from "./helpers";
 export * from "./decorators";
 export * from "./middleware";
 export * from "./config";

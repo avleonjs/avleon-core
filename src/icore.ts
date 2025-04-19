@@ -30,6 +30,7 @@ import container, {
   AUTHORIZATION_META_KEY,
   REQUEST_BODY_FILES_KEY,
   REQUEST_BODY_FILE_KEY,
+  FEATURE_KEY,
 } from "./container";
 import {
   Constructor,
@@ -54,6 +55,7 @@ import cors, { FastifyCorsOptions } from "@fastify/cors";
 import fastifyMultipart, { FastifyMultipartOptions } from "@fastify/multipart";
 import { MultipartFile } from "./multipart";
 import { validateOrThrow } from "./validation";
+import { optionalRequire } from "./utils";
 
 
 export type FuncRoute = {
@@ -70,6 +72,8 @@ export interface IRequest extends FastifyRequest {
   headers: any;
   user?: any;
 }
+
+
 
 export interface DoneFunction extends HookHandlerDoneFunction { }
 // IResponse
@@ -165,6 +169,13 @@ export interface AvleonTestAppliction {
 export interface IAvleonApplication {
   isDevelopment(): boolean;
   useCors(corsOptions?: FastifyCorsOptions): void;
+  useDataSource<
+  T extends IConfig<R>,
+  R = ReturnType<InstanceType<Constructable<T>>["config"]>,
+>(
+  ConfigClass: Constructable<T>,
+  modifyConfig?: (config: R) => R,
+): void;
   useOpenApi<
     T extends IConfig<R>,
     R = ReturnType<InstanceType<Constructable<T>>["config"]>,
@@ -194,7 +205,7 @@ export interface IAvleonApplication {
 }
 
 // InternalApplication
-export class AvleonApplication implements IAvleonApplication {
+export class AvleonApplication {
   private static instance: AvleonApplication;
   private static buildOptions: any = {};
   private app!: FastifyInstance;
@@ -210,20 +221,24 @@ export class AvleonApplication implements IAvleonApplication {
   private authorizeMiddleware?: any = undefined;
   private appConfig: AppConfig;
   private dataSource?: DataSource = undefined;
+  private isMapFeatures = false;
 
   private metaCache = new Map<string, MethodParamMeta>();
   private multipartOptions: FastifyMultipartOptions | undefined;
   private constructor() {
     this.app = fastify();
-  
     this.appConfig = new AppConfig();
-    // this.app.setValidatorCompiler(() => () => true);
-    
-    // Register the view engine plugin
-
   }
 
   private isTest() { }
+
+  static getApp(): AvleonApplication {
+    let isTestEnv = process.env.NODE_ENV == "test";
+    if (!AvleonApplication.instance) {
+      AvleonApplication.instance = new AvleonApplication();
+    }
+    return AvleonApplication.instance;
+  }
 
   static getInternalApp(buildOptions: any): AvleonApplication {
     let isTestEnv = process.env.NODE_ENV == "test";
@@ -266,7 +281,11 @@ export class AvleonApplication implements IAvleonApplication {
     const rPrefix = routePrefix ? routePrefix : "/docs";
 
     if (options.ui && options.ui == "scalar") {
-      await this.app.register(require("@scalar/fastify-api-reference"), {
+      const scalarPlugin = optionalRequire("@scalar/fastify-api-reference", {
+        failOnMissing: true,
+        customMessage: 'Install "@scalar/fastify-api-reference" to enable API docs.\n\n  npm install @scalar/fastify-api-reference',
+      });
+      await this.app.register(scalarPlugin, {
         routePrefix: rPrefix as any,
         configuration: configuration
           ? configuration
@@ -280,18 +299,15 @@ export class AvleonApplication implements IAvleonApplication {
           },
       });
     } else {
-      await this.app.register(require("@fastify/swagger-ui"), {
+
+      const fastifySwaggerUi = optionalRequire("@fastify/swagger-ui", {
+        failOnMissing: true,
+        customMessage: 'Install "@fastify/swagger-ui" to enable API docs.\n\n  npm install @fastify/swagger-ui',
+      });
+      await this.app.register(fastifySwaggerUi, {
         logo: logo ? logo : null,
         theme: theme ? theme : {},
         routePrefix: rPrefix as any,
-        configuration: {
-          metaData: {
-            title: "Avleon Api",
-            ogTitle: "Avleon",
-          },
-          theme: "kepler",
-          favicon: "/static/favicon.png",
-        },
       });
     }
   }
@@ -312,15 +328,17 @@ export class AvleonApplication implements IAvleonApplication {
     this.hasSwagger = true;
   }
 
-  /**
-   * @deprecated
-   * Will remove in next major version
-   */
-  async useSwagger(options: OpenApiUiOptions) {
-    this.hasSwagger = true;
-    this.globalSwaggerOptions = options;
-  }
 
+
+/**
+ * Registers the fastify-multipart plugin with the Fastify instance.
+ * This enables handling of multipart/form-data requests, typically used for file uploads.
+ *
+ * @param {MultipartOptions} options - Options to configure the fastify-multipart plugin.
+ * @param {FastifyInstance} this.app - The Fastify instance to register the plugin with.
+ * @property {MultipartOptions} this.multipartOptions - Stores the provided multipart options.
+ * @see {@link https://github.com/fastify/fastify-multipart} for more details on available options.
+ */
   useMultipart(options: MultipartOptions) {
     this.multipartOptions = options;
     this.app.register(fastifyMultipart, {
@@ -328,6 +346,104 @@ export class AvleonApplication implements IAvleonApplication {
       attachFieldsToBody: true,
     });
   }
+
+
+/**
+ * Configures and initializes a TypeORM DataSource based on the provided configuration class.
+ * It retrieves the configuration from the application's configuration service and allows for optional modification.
+ * The initialized DataSource is then stored and registered within a dependency injection container.
+ *
+ * @template T - A generic type extending the `IConfig` interface, representing the configuration class.
+ * @template R - A generic type representing the return type of the configuration method of the `ConfigClass`.
+ * @param {Constructable<T>} ConfigClass - The constructor of the configuration class to be used for creating the DataSource.
+ * @param {(config: R) => R} [modifyConfig] - An optional function that takes the initial configuration and returns a modified configuration.
+ * @returns {void}
+ * @property {DataSourceOptions} this.dataSourceOptions - Stores the final DataSource options after potential modification.
+ * @property {DataSource} this.dataSource - Stores the initialized TypeORM DataSource instance.
+ * @see {@link https://typeorm.io/} for more information about TypeORM.
+ */
+  useDataSource<
+  T extends IConfig<R>,
+  R = ReturnType<InstanceType<Constructable<T>>["config"]>,
+>(ConfigClass: Constructable<T>, modifyConfig?: (config: R) => R) {
+  const dsConfig: R = this.appConfig.get(ConfigClass);
+  if (modifyConfig) {
+    const modifiedConfig: R = modifyConfig(dsConfig);
+    this.dataSourceOptions = modifiedConfig as unknown as DataSourceOptions;
+  } else {
+    this.dataSourceOptions = dsConfig as unknown as DataSourceOptions;
+  }
+
+  const typeorm = require("typeorm");
+  const datasource = new typeorm.DataSource(
+    dsConfig,
+  ) as DataSource;
+
+  this.dataSource = datasource;
+
+  Container.set<DataSource>("idatasource",
+    datasource,
+  );
+}
+
+
+/**
+ * Registers an array of middleware classes to be executed before request handlers.
+ * It retrieves instances of the middleware classes from the dependency injection container
+ * and adds them as 'preHandler' hooks to the Fastify application.
+ *
+ * @template T - A generic type extending the `AppMiddleware` interface, representing the middleware class.
+ * @param {Constructor<T>[]} mclasses - An array of middleware class constructors to be registered.
+ * @returns {void}
+ * @property {Map<string, T>} this.middlewares - Stores the registered middleware instances, keyed by their class names.
+ * @see {@link https://www.fastify.io/docs/latest/Reference/Hooks/#prehandler} for more information about Fastify preHandler hooks.
+ */
+useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
+    for (const mclass of mclasses) {
+      const cls = Container.get<T>(mclass);
+      this.middlewares.set(mclass.name, cls);
+      this.app.addHook("preHandler", cls.invoke);
+    }
+  }
+
+
+/**
+ * Registers a middleware constructor to be used for authorization purposes.
+ * The specific implementation and usage of this middleware will depend on the application's authorization logic.
+ *
+ * @template T - A generic type representing the constructor of the authorization middleware.
+ * @param {Constructor<T>} middleware - The constructor of the middleware to be used for authorization.
+ * @returns {void}
+ * @property {any} this.authorizeMiddleware - Stores the constructor of the authorization middleware.
+ */
+  useAuthoriztion<T extends any>(middleware: Constructor<T>) {
+    this.authorizeMiddleware = middleware as any;
+  }
+
+
+
+/**
+ * Registers the `@fastify/static` plugin to serve static files.
+ * It configures the root directory and URL prefix for serving static assets.
+ *
+ * @param {StaticFileOptions} [options={ path: undefined, prefix: undefined }] - Optional configuration for serving static files.
+ * @param {string} [options.path] - The absolute path to the static files directory. Defaults to 'process.cwd()/public'.
+ * @param {string} [options.prefix] - The URL prefix for serving static files. Defaults to '/static/'.
+ * @returns {void}
+ * @see {@link https://github.com/fastify/fastify-static} for more details on available options.
+ */
+  useStaticFiles(
+    options: StaticFileOptions = { path: undefined, prefix: undefined },
+  ) {
+    this.app.register(require("@fastify/static"), {
+      root: options.path ? options.path : path.join(process.cwd(), "public"),
+      prefix: options.prefix ? options.prefix : "/static/",
+    });
+  }
+
+
+
+
 
   private handleMiddlewares<T extends AppMiddleware>(
     mclasses: Constructor<T>[],
@@ -372,12 +488,6 @@ export class AvleonApplication implements IAvleonApplication {
       AUTHORIZATION_META_KEY,
       ctrl.constructor,
     ) || { authorize: false, options: undefined };
-
-    if (authClsMeata.authorize && this.authorizeMiddleware) {
-      this.app.addHook("preHandler", (req, res) => {
-        return this.authorizeMiddleware.authorize(req);
-      });
-    }
 
     for await (const method of methods) {
       const methodMeta = Reflect.getMetadata(ROUTE_META_KEY, prototype, method);
@@ -424,6 +534,16 @@ export class AvleonApplication implements IAvleonApplication {
         schema: { ...schema },
         handler: async (req, res) => {
           let reqClone = req as IRequest;
+
+          
+          // class level authrization
+          if (authClsMeata.authorize && this.authorizeMiddleware) {
+            const cls = container.get(this.authorizeMiddleware) as any;
+            await cls.authorize(reqClone, authClsMeata.options);
+            if (res.sent) return;
+          }
+
+          // method level authorization
           if (authClsMethodMeata.authorize && this.authorizeMiddleware) {
             const cls = container.get(this.authorizeMiddleware) as any;
             await cls.authorize(reqClone, authClsMethodMeata.options);
@@ -443,7 +563,6 @@ export class AvleonApplication implements IAvleonApplication {
               validateOrThrow({ [paramMeta.key]: args[paramMeta.index] }, { [paramMeta.key]: { type: paramMeta.dataType } }, { location: 'param' })
             }
           }
-
 
           for (let queryMeta of allMeta.query) {
             if (queryMeta.validatorClass) {
@@ -604,7 +723,6 @@ export class AvleonApplication implements IAvleonApplication {
         const module = await import(filePath);
         for (const exported of Object.values(module)) {
           if (typeof exported === "function" && isApiController(exported)) {
-            //controllers.push(exported);
             this.buildController(exported);
           }
         }
@@ -614,6 +732,16 @@ export class AvleonApplication implements IAvleonApplication {
 
   mapControllers(controllers: Function[]) {
     this.controllers = controllers;
+  }
+
+  // addFeature(feature:{controllers:Function[]}){
+  //   feature.controllers.forEach(c=> this.controllers.push(c))
+  // }
+
+  mapFeature(){
+    if(!this.isMapFeatures){
+      this.isMapFeatures = true;
+    }
   }
 
   private async _mapControllers() {
@@ -639,23 +767,10 @@ export class AvleonApplication implements IAvleonApplication {
 
   private async mapFn(fn: Function) {
     const original = fn;
-
     fn = function () { };
-
     return fn;
   }
 
-  useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
-    for (const mclass of mclasses) {
-      const cls = Container.get<T>(mclass);
-      this.middlewares.set(mclass.name, cls);
-      this.app.addHook("preHandler", cls.invoke);
-    }
-  }
-
-  useAuthoriztion<T extends any>(middleware: Constructor<T>) {
-    this.authorizeMiddleware = middleware as any;
-  }
 
   private _handleError(error: any): {
     code: number;
@@ -733,7 +848,7 @@ export class AvleonApplication implements IAvleonApplication {
         return route;
       },
 
-      useSwagger: (options: OpenApiOptions) => {
+      useOpenApi: (options: OpenApiOptions) => {
         const r = this.rMap.get(routeKey);
         if (r) {
           r.schema = options;
@@ -743,12 +858,6 @@ export class AvleonApplication implements IAvleonApplication {
     };
 
     return route;
-  }
-
-
-  mapView<T extends (...args: any[]) => any>(path: string = "", fn: T) {
-
-    return this.app.get('/', fn);
   }
 
 
@@ -768,13 +877,10 @@ export class AvleonApplication implements IAvleonApplication {
     return this._routeHandler(path, "DELETE", fn);
   }
 
-  useStaticFiles(
-    options: StaticFileOptions = { path: undefined, prefix: undefined },
-  ) {
-    this.app.register(require("@fastify/static"), {
-      root: options.path ? options.path : path.join(process.cwd(), "public"),
-      prefix: options.prefix ? options.prefix : "/static/",
-    });
+
+  private _mapFeatures(){
+    const features = Container.get('features');
+    console.log('Features', features);
   }
 
   async initializeDatabase() {
@@ -783,7 +889,7 @@ export class AvleonApplication implements IAvleonApplication {
     }
   }
 
-  async run(port: number = 4000): Promise<void> {
+  async run(port: number = 4000, fn?:CallableFunction): Promise<void> {
     if (this.alreadyRun) throw new SystemUseError("App already running");
     this.alreadyRun = true;
 
@@ -791,7 +897,9 @@ export class AvleonApplication implements IAvleonApplication {
       await this.initSwagger(this.globalSwaggerOptions);
     }
     await this.initializeDatabase();
-
+    if(this.isMapFeatures){
+      this._mapFeatures();
+    }
     await this._mapControllers();
 
     this.rMap.forEach((value, key) => {
@@ -945,60 +1053,12 @@ export class TestBuilder {
   }
 }
 
-export class Builder implements IAppBuilder {
-  private static instance: Builder;
-  private alreadyBuilt = false;
-  private database: boolean = false;
-  private dataSource?: DataSource;
-  private multipartOptions: FastifyMultipartOptions | undefined;
-  private dataSourceOptions?: DataSourceOptions | undefined;
-  private testBuilder = false;
-  private appConfig: AppConfig;
+export class Builder {
 
-  private constructor() {
-    this.appConfig = new AppConfig();
-  }
-
-  static createAppBuilder(): Builder {
-    if (!Builder.instance) {
-      Builder.instance = new Builder();
-    }
-    return Builder.instance;
+  static createApplication(){
+    const app =  AvleonApplication.getApp();
+    return app
   }
 
 
-
-  async registerPlugin<T extends Function, S extends {}>(
-    plugin: T,
-    options: S,
-  ) {
-    container.set<T>(plugin, plugin.prototype);
-  }
-
-  addDataSource<
-    T extends IConfig<R>,
-    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
-  >(ConfigClass: Constructable<T>, modifyConfig?: (config: R) => R) {
-    const openApiConfig: R = this.appConfig.get(ConfigClass);
-    if (modifyConfig) {
-      const modifiedConfig: R = modifyConfig(openApiConfig);
-      this.dataSourceOptions = modifiedConfig as unknown as DataSourceOptions;
-    } else {
-      this.dataSourceOptions = openApiConfig as unknown as DataSourceOptions;
-    }
-  }
-
-  build<T extends IAvleonApplication>(): T {
-    if (this.alreadyBuilt) {
-      throw new Error("Already built");
-    }
-    this.alreadyBuilt = true;
-
-    const app = AvleonApplication.getInternalApp({
-      database: this.database,
-      multipartOptions: this.multipartOptions,
-      dataSourceOptions: this.dataSourceOptions,
-    });
-    return app as unknown as T;
-  }
 }

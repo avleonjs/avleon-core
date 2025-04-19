@@ -38,31 +38,6 @@ export function Authorize(target: { new (...args: any[]): AuthorizeClass }) {
   }
   Service()(target);
 }
-// export function Authorize<T extends AuthorizeMiddleware>(target: Constructor<T>) {
-//   if (typeof target.prototype.authorize !== "function") {
-//     throw new Error(`Class "${target.name}" must implement an "authorize" method.`);
-//   }
-//   Service()(target); 
-// }
-
-
-
-// export function Authorized(target: Function): void;
-// export function Authorized(roles?: string[]): MethodDecorator | ClassDecorator;
-// export function Authorized(targetOrRoles?: Function | string[]): MethodDecorator | ClassDecorator | void {
-//   if (typeof targetOrRoles === "function") {
-//     Reflect.defineMetadata(AUTHORIZATION_META_KEY, [], targetOrRoles);
-//     return;
-//   }
-//   return function (target: any, propertyKey?: string, descriptor?: PropertyDescriptor) {
-//     if (propertyKey && descriptor) {
-//       Reflect.defineMetadata(AUTHORIZATION_META_KEY, targetOrRoles || [], target, propertyKey);
-//     } else {
-//       Reflect.defineMetadata(AUTHORIZATION_META_KEY, targetOrRoles || [], target);
-//     }
-//   };
-//}
-
 
 
 // export function Authorized(target: Function): void;
@@ -89,16 +64,6 @@ export function Middleware(target: Constructor<AppMiddleware>) {
   Service()(target);
 }
 
-
-// export function CurrentUser(): ParameterDecorator {
-//   return (target, propertyKey, parameterIndex) => {
-//     const existingMetadata =
-//       Reflect.getMetadata("currentUser:params", target, propertyKey!) || [];
-
-//     existingMetadata.push(parameterIndex);
-//     Reflect.defineMetadata("currentUser:params", existingMetadata, target, propertyKey!);
-//   };
-// }
 
 export function UseMiddleware<T extends AppMiddleware | (new (...args: any[]) => AppMiddleware)>(
   options: T | T[],

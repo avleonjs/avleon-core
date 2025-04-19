@@ -157,9 +157,9 @@ class AsynchronousCollection<T extends ObjectLiteral> {
 
   getRepository() {
     if (!this.repo) {
-      const dataSourceKey =
-        process.env.NODE_ENV === "test" ? "itestdatasource" : "idatasource";
+      const dataSourceKey = "idatasource";
       const dataSource = Container.get(dataSourceKey) as DataSource;
+      console.log('datasource', dataSource);
       const repository = dataSource.getRepository<T>(this.model);
       this.repo = repository;
       return repository;
@@ -219,6 +219,7 @@ export function InjectRepository<T extends Repository<T>>(
         index,
         value: (containerInstance) => {
           const dataSource = containerInstance.get<DataSource>("idatasource");
+    
           repo = dataSource
             .getRepository<T>(model)
             .extend({ paginate: () => {} });
