@@ -20,7 +20,7 @@ export * from "./validation";
 export * from "./environment-variables";
 export * from "./collection";
 export * from "./queue";
-export * from "./security";
+export * from "./utils/hash";
 export * from "./multipart";
 export * from "./file-storage";
 export * from "./logger";
