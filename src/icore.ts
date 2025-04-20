@@ -164,7 +164,7 @@ export type TestAppOptions = {
 export interface AvleonTestAppliction {
   addDataSource: (dataSourceOptions: DataSourceOptions) => void;
   getApp: (options?: TestAppOptions) => any;
-  getController: <T>(controller: Constructor<T>) => T;
+  getController: <T>(controller: Constructor<T>, deps:any[]) => T;
 }
 export interface IAvleonApplication {
   isDevelopment(): boolean;
@@ -730,8 +730,14 @@ useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
     }
   }
 
-  mapControllers(controllers: Function[]) {
+  mapControllers(controllers: Constructor[]) {
     this.controllers = controllers;
+
+    controllers.forEach(controller => {
+      if(!this.controllers.includes(controller)){
+        this.controllers.push(controller)
+      }
+    })
   }
 
   // addFeature(feature:{controllers:Function[]}){
@@ -975,8 +981,15 @@ useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
           this.app.inject({ method: "DELETE", url, ...options }),
         options: async (url: string, options?: InjectOptions) =>
           this.app.inject({ method: "OPTIONS", url, ...options }),
-        getController: <T>(controller: Constructor<T>) => {
-          return Container.get<T>(controller);
+        getController: <T>(controller: Constructor<T>, deps:any[]= []) => {
+          const paramTypes = Reflect.getMetadata('design:paramtypes', controller) || [];
+
+          deps.forEach((dep, i) => {
+            Container.set(paramTypes[i], dep);
+          });
+        
+          return Container.get(controller);
+         
         },
       };
     } catch (error) {
@@ -1028,13 +1041,21 @@ export class TestBuilder {
     this.dataSourceOptions = options;
   }
 
-  private getController<T>(controller: Constructor<T>) {
+  getController<T>(controller: Constructor<T>, deps:any[]=[]) {
+    const paramTypes = Reflect.getMetadata('design:paramtypes', controller) || [];
+
+    deps.forEach((dep, i) => {
+      Container.set(paramTypes[i], dep);
+    });
+  
     return Container.get(controller);
   }
 
   private getService<T>(service: Constructor<T>) {
     return Container.get(service);
   }
+
+
 
   getTestApplication(options: TestAppOptions) {
     const app = AvleonApplication.getInternalApp({
