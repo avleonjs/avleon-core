@@ -27,22 +27,19 @@ export function inject<T>(cls: new (...args: any[]) => T): T {
 export type Constructor<T = any> = new (...args: any[]) => T;
 
 export function isConstructor(func: any): boolean {
-  // Check if the func is a function
+
   if (typeof func !== "function") {
     return false;
   }
 
-  // Check if it's an arrow function or a built-in JavaScript function
   if (func === Function.prototype.bind || func instanceof RegExp) {
     return false;
   }
 
-  // Check if it has a `prototype` property
   if (func.prototype && typeof func.prototype === "object") {
     return true;
   }
 
-  // If it's not a constructor, check if it can be called with the new keyword
   try {
     const instance = new (func as any)();
     return typeof instance === "object";
@@ -276,3 +273,56 @@ export function validateRequestBody(
       : error.map((x) => ({ path: x.property, constraints: x.constraints }));
   return { count: error.length, errors } as ValidationError;
 }
+
+export function pick<T extends object>(obj: T, paths: string[]): Partial<T> {
+  const result: any = {};
+
+  for (const path of paths) {
+    const keys = path.split(".");
+    let source: any = obj;
+    let target: any = result;
+
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+
+      if (!(key in source)) break;
+
+      if (i === keys.length - 1) {
+        target[key] = source[key];
+      } else {
+        source = source[key];
+        target[key] = target[key] || {};
+        target = target[key];
+      }
+    }
+  }
+
+  return result;
+}
+
+
+export function exclude<T extends object>(
+  obj: T | T[],
+  paths: string[],
+): Partial<T> | Partial<T>[] {
+  if (Array.isArray(obj)) {
+    return obj.map((item) => exclude(item, paths) as Partial<T>);
+  }
+
+  const clone = structuredClone(obj); // Or use lodash.cloneDeep
+  for (const path of paths) {
+    const keys = path.split(".");
+    let target: any = clone;
+
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (!(keys[i] in target)) break;
+      target = target[keys[i]];
+    }
+
+    delete target?.[keys[keys.length - 1]];
+  }
+
+  return clone;
+}
+
+

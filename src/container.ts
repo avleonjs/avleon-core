@@ -7,6 +7,7 @@
 import TypediContainer, { ContainerInstance, Token } from "typedi";
 import { DataSource } from "typeorm";
 
+export const FEATURE_KEY = Symbol.for("features");
 export const ROUTE_META_KEY = Symbol("iroute:options");
 export const CONTROLLER_META_KEY = Symbol("icontroller:options");
 export const PARAM_META_KEY = Symbol("iparam:options");

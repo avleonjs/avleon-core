@@ -1,6 +1,6 @@
 {
   "name": "@avleon/core",
-  "version": "0.0.22",
+  "version": "0.0.24",
   "main": "./dist/index.js",
   "scripts": {
     "build": "npm run clean && tsc",
@@ -42,9 +42,15 @@
     "reflect-metadata": "^0.2.2",
     "typedi": "^0.10.0"
   },
-  "optionalDependencies": {
-    "@scalar/fastify-api-reference": "^1.25.119"
-  },
+"peerDependencies": {
+  "@scalar/fastify-api-reference": "*"
+},
+"peerDependenciesMeta": {
+  "@scalar/fastify-api-reference": {
+    "optional": true
+  }
+},
+
   "directories": {
     "test": "tests"
   },
