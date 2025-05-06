@@ -134,7 +134,7 @@ export class AvleonTestBuilder {
     });
 
     // Map controllers
-    app.mapControllers(this.controllers);
+    app.useControllers(this.controllers);
 
     // Get test application
     return app.getTestApp();

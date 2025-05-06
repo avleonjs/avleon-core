@@ -7,6 +7,9 @@
 import { Container, Service, Constructable } from "typedi";
 import { Environment } from "./environment-variables";
 
+
+
+
 export interface IConfig<T = any> {
   config(env: Environment): T;
 }

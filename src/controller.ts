@@ -5,7 +5,6 @@
  * @url https://github.com/xtareq
  */
 
-
 import Container, { Service } from "typedi";
 import container, {
   API_CONTROLLER_METADATA_KEY,
@@ -100,7 +99,7 @@ export function ApiController(
   options?: ControllerOptions,
 ): ClassDecorator;
 export function ApiController(
-  pathOrOptions: Function |string | ControllerOptions = "/",
+  pathOrOptions: Function | string | ControllerOptions = "/",
   mayBeOptions?: ControllerOptions,
 ): any {
   if (typeof pathOrOptions == 'function') {

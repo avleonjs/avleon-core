@@ -2,7 +2,36 @@ import Container from "typedi";
 import { Constructor } from "./helpers";
 import fastify, { FastifyInstance, RouteShorthandMethod } from "fastify";
 
+export interface AvleonApplication{
+    // all public
+    useCors: () => void
+    useOpenApi:() => void
+    useView:()=> void;
+    useAuth:() => void
+    useMultipart:()=> void
+    useDataSource: () => void
+    useMiddlewares: () => void
+    useControllers: () => void
+    useAutoControllers:() => void
+    useStaticFiles: () => void
+    useCustomErrorHandler: () => void
 
+
+
+
+    // all mapping
+    mapGroup:() => any;
+    mapGet:()=> any;
+    mapPost:()=> any;
+    mapPut: () => any;
+    mapPatch: () => any;
+    mapDelete: () => any;
+    mapView: () => any;
+
+    // run
+    run:(port:number) => void
+
+}
 
 
 export interface InlineRoutes{

@@ -159,23 +159,29 @@ type AvleonApp = FastifyInstance;
 
 export type TestAppOptions = {
   controllers: Constructor[];
+  dataSource?: DataSource
 };
 
 export interface AvleonTestAppliction {
   addDataSource: (dataSourceOptions: DataSourceOptions) => void;
   getApp: (options?: TestAppOptions) => any;
-  getController: <T>(controller: Constructor<T>, deps:any[]) => T;
+  getController: <T>(controller: Constructor<T>, deps: any[]) => T;
+}
+
+export type AutoControllerOptions = {
+  auto: true,
+  path?: string
 }
 export interface IAvleonApplication {
   isDevelopment(): boolean;
   useCors(corsOptions?: FastifyCorsOptions): void;
   useDataSource<
-  T extends IConfig<R>,
-  R = ReturnType<InstanceType<Constructable<T>>["config"]>,
->(
-  ConfigClass: Constructable<T>,
-  modifyConfig?: (config: R) => R,
-): void;
+    T extends IConfig<R>,
+    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
+  >(
+    ConfigClass: Constructable<T>,
+    modifyConfig?: (config: R) => R,
+  ): void;
   useOpenApi<
     T extends IConfig<R>,
     R = ReturnType<InstanceType<Constructable<T>>["config"]>,
@@ -183,8 +189,9 @@ export interface IAvleonApplication {
     ConfigClass: Constructable<T>,
     modifyConfig?: (config: R) => R,
   ): void;
-  useSwagger(options: OpenApiUiOptions): Promise<void>; // Deprecated
+
   useMultipart(options: MultipartOptions): void;
+  useCache(options: any): void
 
   useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]): void;
   useAuthoriztion<T extends any>(middleware: Constructor<T>): void;
@@ -198,12 +205,15 @@ export interface IAvleonApplication {
   mapPost<T extends (...args: any[]) => any>(path: string, fn: T): any;
   mapPut<T extends (...args: any[]) => any>(path: string, fn: T): any;
   mapDelete<T extends (...args: any[]) => any>(path: string, fn: T): any;
-  mapControllers(controllers: any[]): any;
+  useControllers(controllers: any[]): any;
+  useControllers(controllersOptions: AutoControllerOptions): any;
+  useControllers(controllersOrOptions: any[] | AutoControllerOptions): any;
   useStaticFiles(options?: StaticFileOptions): void;
   run(port?: number): Promise<void>;
   getTestApp(): TestApplication;
 }
-
+type OpenApiConfigClass<T = any> = Constructable<IConfig<T>>;
+type OpenApiConfigInput<T = any> = OpenApiConfigClass<T> | T;
 // InternalApplication
 export class AvleonApplication {
   private static instance: AvleonApplication;
@@ -222,6 +232,8 @@ export class AvleonApplication {
   private appConfig: AppConfig;
   private dataSource?: DataSource = undefined;
   private isMapFeatures = false;
+  private registerControllerAuto = false;
+  private registerControllerPath = './src';
 
   private metaCache = new Map<string, MethodParamMeta>();
   private multipartOptions: FastifyMultipartOptions | undefined;
@@ -314,31 +326,48 @@ export class AvleonApplication {
   useCors(corsOptions: FastifyCorsOptions = {}) {
     this.app.register(cors, corsOptions);
   }
-  useOpenApi<
-    T extends IConfig<R>,
-    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
-  >(ConfigClass: Constructable<T>, modifyConfig?: (config: R) => R) {
-    const openApiConfig: R = this.appConfig.get(ConfigClass);
+
+  useOpenApi<T = OpenApiUiOptions>(
+    configOrClass: OpenApiConfigInput<T>,
+    modifyConfig?: (config: T) => T
+  ) {
+    let openApiConfig: T;
+
+    const isClass = (input: any): input is OpenApiConfigClass<T> => {
+      return (
+        typeof input === 'function' &&
+        typeof input.prototype === 'object' &&
+        input.prototype?.constructor === input
+      );
+    };
+
+    if (isClass(configOrClass)) {
+      // It's a class constructor
+      openApiConfig = this.appConfig.get(configOrClass);
+    } else {
+      // It's a plain object
+      openApiConfig = configOrClass as T;
+    }
+
     if (modifyConfig) {
-      const modifiedConfig: R = modifyConfig(openApiConfig);
-      this.globalSwaggerOptions = modifiedConfig;
+      this.globalSwaggerOptions = modifyConfig(openApiConfig);
     } else {
       this.globalSwaggerOptions = openApiConfig;
     }
+
     this.hasSwagger = true;
   }
 
 
-
-/**
- * Registers the fastify-multipart plugin with the Fastify instance.
- * This enables handling of multipart/form-data requests, typically used for file uploads.
- *
- * @param {MultipartOptions} options - Options to configure the fastify-multipart plugin.
- * @param {FastifyInstance} this.app - The Fastify instance to register the plugin with.
- * @property {MultipartOptions} this.multipartOptions - Stores the provided multipart options.
- * @see {@link https://github.com/fastify/fastify-multipart} for more details on available options.
- */
+  /**
+   * Registers the fastify-multipart plugin with the Fastify instance.
+   * This enables handling of multipart/form-data requests, typically used for file uploads.
+   *
+   * @param {MultipartOptions} options - Options to configure the fastify-multipart plugin.
+   * @param {FastifyInstance} this.app - The Fastify instance to register the plugin with.
+   * @property {MultipartOptions} this.multipartOptions - Stores the provided multipart options.
+   * @see {@link https://github.com/fastify/fastify-multipart} for more details on available options.
+   */
   useMultipart(options: MultipartOptions) {
     this.multipartOptions = options;
     this.app.register(fastifyMultipart, {
@@ -348,57 +377,60 @@ export class AvleonApplication {
   }
 
 
-/**
- * Configures and initializes a TypeORM DataSource based on the provided configuration class.
- * It retrieves the configuration from the application's configuration service and allows for optional modification.
- * The initialized DataSource is then stored and registered within a dependency injection container.
- *
- * @template T - A generic type extending the `IConfig` interface, representing the configuration class.
- * @template R - A generic type representing the return type of the configuration method of the `ConfigClass`.
- * @param {Constructable<T>} ConfigClass - The constructor of the configuration class to be used for creating the DataSource.
- * @param {(config: R) => R} [modifyConfig] - An optional function that takes the initial configuration and returns a modified configuration.
- * @returns {void}
- * @property {DataSourceOptions} this.dataSourceOptions - Stores the final DataSource options after potential modification.
- * @property {DataSource} this.dataSource - Stores the initialized TypeORM DataSource instance.
- * @see {@link https://typeorm.io/} for more information about TypeORM.
- */
+  /**
+   * Configures and initializes a TypeORM DataSource based on the provided configuration class.
+   * It retrieves the configuration from the application's configuration service and allows for optional modification.
+   * The initialized DataSource is then stored and registered within a dependency injection container.
+   *
+   * @template T - A generic type extending the `IConfig` interface, representing the configuration class.
+   * @template R - A generic type representing the return type of the configuration method of the `ConfigClass`.
+   * @param {Constructable<T>} ConfigClass - The constructor of the configuration class to be used for creating the DataSource.
+   * @param {(config: R) => R} [modifyConfig] - An optional function that takes the initial configuration and returns a modified configuration.
+   * @returns {void}
+   * @property {DataSourceOptions} this.dataSourceOptions - Stores the final DataSource options after potential modification.
+   * @property {DataSource} this.dataSource - Stores the initialized TypeORM DataSource instance.
+   * @see {@link https://typeorm.io/} for more information about TypeORM.
+   */
   useDataSource<
-  T extends IConfig<R>,
-  R = ReturnType<InstanceType<Constructable<T>>["config"]>,
->(ConfigClass: Constructable<T>, modifyConfig?: (config: R) => R) {
-  const dsConfig: R = this.appConfig.get(ConfigClass);
-  if (modifyConfig) {
-    const modifiedConfig: R = modifyConfig(dsConfig);
-    this.dataSourceOptions = modifiedConfig as unknown as DataSourceOptions;
-  } else {
-    this.dataSourceOptions = dsConfig as unknown as DataSourceOptions;
+    T extends IConfig<R>,
+    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
+  >(ConfigClass: Constructable<T>, modifyConfig?: (config: R) => R) {
+    const dsConfig: R = this.appConfig.get(ConfigClass);
+    if (modifyConfig) {
+      const modifiedConfig: R = modifyConfig(dsConfig);
+      this.dataSourceOptions = modifiedConfig as unknown as DataSourceOptions;
+    } else {
+      this.dataSourceOptions = dsConfig as unknown as DataSourceOptions;
+    }
+
+    const typeorm = require("typeorm");
+    const datasource = new typeorm.DataSource(
+      dsConfig,
+    ) as DataSource;
+
+    this.dataSource = datasource;
+
+    Container.set<DataSource>("idatasource",
+      datasource,
+    );
   }
 
-  const typeorm = require("typeorm");
-  const datasource = new typeorm.DataSource(
-    dsConfig,
-  ) as DataSource;
+  useCache(options: any) {
 
-  this.dataSource = datasource;
+  }
 
-  Container.set<DataSource>("idatasource",
-    datasource,
-  );
-}
-
-
-/**
- * Registers an array of middleware classes to be executed before request handlers.
- * It retrieves instances of the middleware classes from the dependency injection container
- * and adds them as 'preHandler' hooks to the Fastify application.
- *
- * @template T - A generic type extending the `AppMiddleware` interface, representing the middleware class.
- * @param {Constructor<T>[]} mclasses - An array of middleware class constructors to be registered.
- * @returns {void}
- * @property {Map<string, T>} this.middlewares - Stores the registered middleware instances, keyed by their class names.
- * @see {@link https://www.fastify.io/docs/latest/Reference/Hooks/#prehandler} for more information about Fastify preHandler hooks.
- */
-useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
+  /**
+   * Registers an array of middleware classes to be executed before request handlers.
+   * It retrieves instances of the middleware classes from the dependency injection container
+   * and adds them as 'preHandler' hooks to the Fastify application.
+   *
+   * @template T - A generic type extending the `AppMiddleware` interface, representing the middleware class.
+   * @param {Constructor<T>[]} mclasses - An array of middleware class constructors to be registered.
+   * @returns {void}
+   * @property {Map<string, T>} this.middlewares - Stores the registered middleware instances, keyed by their class names.
+   * @see {@link https://www.fastify.io/docs/latest/Reference/Hooks/#prehandler} for more information about Fastify preHandler hooks.
+   */
+  useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
     for (const mclass of mclasses) {
       const cls = Container.get<T>(mclass);
       this.middlewares.set(mclass.name, cls);
@@ -407,31 +439,31 @@ useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
   }
 
 
-/**
- * Registers a middleware constructor to be used for authorization purposes.
- * The specific implementation and usage of this middleware will depend on the application's authorization logic.
- *
- * @template T - A generic type representing the constructor of the authorization middleware.
- * @param {Constructor<T>} middleware - The constructor of the middleware to be used for authorization.
- * @returns {void}
- * @property {any} this.authorizeMiddleware - Stores the constructor of the authorization middleware.
- */
+  /**
+   * Registers a middleware constructor to be used for authorization purposes.
+   * The specific implementation and usage of this middleware will depend on the application's authorization logic.
+   *
+   * @template T - A generic type representing the constructor of the authorization middleware.
+   * @param {Constructor<T>} middleware - The constructor of the middleware to be used for authorization.
+   * @returns {void}
+   * @property {any} this.authorizeMiddleware - Stores the constructor of the authorization middleware.
+   */
   useAuthoriztion<T extends any>(middleware: Constructor<T>) {
     this.authorizeMiddleware = middleware as any;
   }
 
 
 
-/**
- * Registers the `@fastify/static` plugin to serve static files.
- * It configures the root directory and URL prefix for serving static assets.
- *
- * @param {StaticFileOptions} [options={ path: undefined, prefix: undefined }] - Optional configuration for serving static files.
- * @param {string} [options.path] - The absolute path to the static files directory. Defaults to 'process.cwd()/public'.
- * @param {string} [options.prefix] - The URL prefix for serving static files. Defaults to '/static/'.
- * @returns {void}
- * @see {@link https://github.com/fastify/fastify-static} for more details on available options.
- */
+  /**
+   * Registers the `@fastify/static` plugin to serve static files.
+   * It configures the root directory and URL prefix for serving static assets.
+   *
+   * @param {StaticFileOptions} [options={ path: undefined, prefix: undefined }] - Optional configuration for serving static files.
+   * @param {string} [options.path] - The absolute path to the static files directory. Defaults to 'process.cwd()/public'.
+   * @param {string} [options.prefix] - The URL prefix for serving static files. Defaults to '/static/'.
+   * @returns {void}
+   * @see {@link https://github.com/fastify/fastify-static} for more details on available options.
+   */
   useStaticFiles(
     options: StaticFileOptions = { path: undefined, prefix: undefined },
   ) {
@@ -535,7 +567,7 @@ useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
         handler: async (req, res) => {
           let reqClone = req as IRequest;
 
-          
+
           // class level authrization
           if (authClsMeata.authorize && this.authorizeMiddleware) {
             const cls = container.get(this.authorizeMiddleware) as any;
@@ -714,43 +746,74 @@ useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
     return meta;
   }
 
-  async autoControllers() {
-    const controllers: Function[] = [];
-    const files = await fs.readdir(controllerDir);
+  private _resolveControllerDir(dir?: string) {
+    const isTsNode =
+      process.env.TS_NODE_DEV ||
+      process.env.TS_NODE_PROJECT ||
+      (process as any)[Symbol.for("ts-node.register.instance")];
+    const controllerDir = path.join(
+      process.cwd(),
+      this.registerControllerPath
+    );
+
+    return isTsNode ? controllerDir : controllerDir.replace('src', 'dist')
+  }
+
+  private async autoControllers(controllersPath?: string) {
+    const conDir = this._resolveControllerDir(controllersPath);
+
+    const files = await fs.readdir(conDir, { recursive: true });
     for (const file of files) {
+      const isTestFile = /\.(test|spec|e2e-spec)\.ts$/.test(file);
+      if (isTestFile) continue;
       if (isTsNode ? file.endsWith(".ts") : file.endsWith(".js")) {
-        const filePath = path.join(controllerDir, file);
+        const filePath = path.join(conDir, file);
         const module = await import(filePath);
         for (const exported of Object.values(module)) {
           if (typeof exported === "function" && isApiController(exported)) {
-            this.buildController(exported);
+            console.log('adding', exported.name)
+            if (!this.controllers.some(con => exported.name == con.name)) {
+              this.controllers.push(exported)
+            }
+
+            //this.buildController(exported);
           }
         }
       }
     }
   }
 
-  mapControllers(controllers: Constructor[]) {
-    this.controllers = controllers;
+  useControllers(controllers: Constructor[] | AutoControllerOptions) {
 
-    controllers.forEach(controller => {
-      if(!this.controllers.includes(controller)){
-        this.controllers.push(controller)
+    if (Array.isArray(controllers)) {
+      this.controllers = controllers;
+
+      controllers.forEach(controller => {
+        if (!this.controllers.includes(controller)) {
+          this.controllers.push(controller)
+        }
+      })
+    } else {
+      this.registerControllerAuto = true;
+      if (controllers.path) {
+        this.registerControllerPath = controllers.path;
       }
-    })
+    }
+
   }
 
   // addFeature(feature:{controllers:Function[]}){
   //   feature.controllers.forEach(c=> this.controllers.push(c))
   // }
 
-  mapFeature(){
-    if(!this.isMapFeatures){
-      this.isMapFeatures = true;
-    }
-  }
+  // mapFeature(){
+  //   if(!this.isMapFeatures){
+  //     this.isMapFeatures = true;
+  //   }
+  // }
 
   private async _mapControllers() {
+
     if (this.controllers.length > 0) {
       for (let controller of this.controllers) {
         if (isApiController(controller)) {
@@ -762,14 +825,11 @@ useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
     }
   }
 
-  mapControllersAuto() {
-    const isExists = existsSync(controllerDir);
-    if (isExists) {
-      this.autoControllers();
-    }
-  }
+  // useControllersAuto(controllerPath?:string) {
+  //     this.registerControllerAuto = true;
+  //     //this.autoControllers();
+  // }
 
-  async handleRoute(args: any) { }
 
   private async mapFn(fn: Function) {
     const original = fn;
@@ -833,8 +893,7 @@ useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
       middlewares: [],
       schema: {},
     });
-
-    this.mapFn(fn);
+    //    this.mapFn(fn);
 
     const route = {
       useMiddleware: <M extends AppMiddleware>(
@@ -884,7 +943,7 @@ useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
   }
 
 
-  private _mapFeatures(){
+  private _mapFeatures() {
     const features = Container.get('features');
     console.log('Features', features);
   }
@@ -895,7 +954,7 @@ useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
     }
   }
 
-  async run(port: number = 4000, fn?:CallableFunction): Promise<void> {
+  async run(port: number = 4000, fn?: CallableFunction): Promise<void> {
     if (this.alreadyRun) throw new SystemUseError("App already running");
     this.alreadyRun = true;
 
@@ -903,8 +962,12 @@ useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
       await this.initSwagger(this.globalSwaggerOptions);
     }
     await this.initializeDatabase();
-    if(this.isMapFeatures){
+    if (this.isMapFeatures) {
       this._mapFeatures();
+    }
+
+    if (this.registerControllerAuto) {
+      await this.autoControllers();
     }
     await this._mapControllers();
 
@@ -981,15 +1044,15 @@ useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
           this.app.inject({ method: "DELETE", url, ...options }),
         options: async (url: string, options?: InjectOptions) =>
           this.app.inject({ method: "OPTIONS", url, ...options }),
-        getController: <T>(controller: Constructor<T>, deps:any[]= []) => {
+        getController: <T>(controller: Constructor<T>, deps: any[] = []) => {
           const paramTypes = Reflect.getMetadata('design:paramtypes', controller) || [];
 
           deps.forEach((dep, i) => {
             Container.set(paramTypes[i], dep);
           });
-        
+
           return Container.get(controller);
-         
+
         },
       };
     } catch (error) {
@@ -1022,32 +1085,25 @@ export interface IAppBuilder {
   build<T extends IAvleonApplication>(): T;
 }
 
-export class TestBuilder {
-  private static instance: TestBuilder;
+export class AvleonTest {
+  private static instance: AvleonTest;
   private app: any;
   private dataSourceOptions?: DataSourceOptions | undefined;
   private constructor() {
     process.env.NODE_ENV = "test";
   }
 
-  static createBuilder() {
-    if (!TestBuilder.instance) {
-      TestBuilder.instance = new TestBuilder();
-    }
-    return TestBuilder.instance;
-  }
-
-  addDatasource(options: DataSourceOptions) {
+  private addDatasource(options: DataSourceOptions) {
     this.dataSourceOptions = options;
   }
 
-  getController<T>(controller: Constructor<T>, deps:any[]=[]) {
+  getController<T>(controller: Constructor<T>, deps: any[] = []) {
     const paramTypes = Reflect.getMetadata('design:paramtypes', controller) || [];
 
     deps.forEach((dep, i) => {
       Container.set(paramTypes[i], dep);
     });
-  
+
     return Container.get(controller);
   }
 
@@ -1056,28 +1112,27 @@ export class TestBuilder {
   }
 
 
-
-  getTestApplication(options: TestAppOptions) {
+  static createTestApplication(options: TestAppOptions) {
     const app = AvleonApplication.getInternalApp({
-      dataSourceOptions: this.dataSourceOptions,
+      dataSourceOptions: options.dataSource ? options.dataSource : null,
     });
-    app.mapControllers([...options.controllers]);
+    app.useControllers([...options.controllers]);
     return app.getTestApp();
   }
 
-  build(app: IAvleonApplication) {
+  static from(app: AvleonApplication) {
     return app.getTestApp();
   }
 
-  fromApplication(app: IAvleonApplication) {
-    return app.getTestApp();
+  static clean() {
+    Container.reset();
   }
 }
 
-export class Builder {
+export class Avleon {
 
-  static createApplication(){
-    const app =  AvleonApplication.getApp();
+  static createApplication() {
+    const app = AvleonApplication.getApp();
     return app
   }
 

@@ -11,7 +11,7 @@ export abstract class BaseHttpException extends Error {
     super(JSON.stringify(message));
   }
   isCustomException() {
-    return true;
+    return true;  
   }
 }
 
