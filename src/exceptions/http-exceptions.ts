@@ -61,7 +61,7 @@ export class ForbiddenException extends BaseHttpException {
   }
 }
 
-export type HttpException =
+export type HttpExceptionTypes =
   | NotFoundException
   | BadRequestException
   | UnauthorizedException
@@ -76,11 +76,11 @@ export type HttpException =
 //   Forbidden: (message: any) => ForbiddenException,
 //   InternalError: (message: any) => InternalErrorException
 // }
-// export const httpExcepitoins: HttpExceptions = {
-//   NotFound:(message:any)=>new NotFoundException(message),
-//   ValidationError:(message:any)=>new ValidationErrorException(message),
-//   BadRequest:(message:any)=>new BadRequestException(message),
-//   Unauthorized:(message:any)=>new UnauthorizedException(message),
-//   Forbidden:(message:any)=>new ForbiddenException(message),
-//   InternalError: (message:any)=> new InternalErrorException(message)
-// }
+export const HttpExceptions = {
+  notFound:(message:any="")=>new NotFoundException(message),
+  validationError:(message:any="")=>new ValidationErrorException(message),
+  badRequest:(message:any="")=>new BadRequestException(message),
+  unauthorized:(message:any="")=>new UnauthorizedException(message),
+  forbidden:(message:any="")=>new ForbiddenException(message),
+  internalError: (message:any="")=> new InternalErrorException(message)
+}
