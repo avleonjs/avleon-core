@@ -1,6 +1,6 @@
 {
   "name": "@avleon/core",
-  "version": "0.0.25",
+  "version": "0.0.27",
   "main": "./dist/index.js",
   "types": ["./dist/icore.d.ts"],
   "scripts": {
@@ -58,7 +58,10 @@
     },
     "sharp": {
       "optional": true
-    }
+    },
+    "typeorm": {
+      "optional": true
+    },
   },
   "directories": {
     "test": "tests"
