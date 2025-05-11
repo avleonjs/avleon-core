@@ -201,7 +201,6 @@ export interface IAvleonApplication {
     fn: T,
   ): Promise<void>;
   mapGet<T extends (...args: any[]) => any>(path: string, fn: T): any;
-
   mapPost<T extends (...args: any[]) => any>(path: string, fn: T): any;
   mapPut<T extends (...args: any[]) => any>(path: string, fn: T): any;
   mapDelete<T extends (...args: any[]) => any>(path: string, fn: T): any;
@@ -214,6 +213,9 @@ export interface IAvleonApplication {
 }
 type OpenApiConfigClass<T = any> = Constructable<IConfig<T>>;
 type OpenApiConfigInput<T = any> = OpenApiConfigClass<T> | T;
+
+type ConfigClass<T = any> = Constructable<IConfig<T>>;
+type ConfigInput<T = any> = ConfigClass<T> | T;
 // InternalApplication
 export class AvleonApplication {
   private static instance: AvleonApplication;
@@ -242,7 +244,6 @@ export class AvleonApplication {
     this.appConfig = new AppConfig();
   }
 
-  private isTest() { }
 
   static getApp(): AvleonApplication {
     let isTestEnv = process.env.NODE_ENV == "test";
@@ -323,89 +324,71 @@ export class AvleonApplication {
       });
     }
   }
-  useCors(corsOptions: FastifyCorsOptions = {}) {
-    this.app.register(cors, corsOptions);
+
+  private _isConfigClass<T>(input: any): input is ConfigClass<T> {
+    return (
+      typeof input === 'function' &&
+      typeof input.prototype === 'object' &&
+      input.prototype?.constructor === input
+    );
+  }
+  useCors<T = FastifyCorsOptions>(corsOptions?: ConfigInput<T>) {
+    let coptions: any = {};
+    if (corsOptions) {
+      if (this._isConfigClass<T>(corsOptions)) {
+        coptions = this.appConfig.get(corsOptions) as T;
+      } else {
+        coptions = corsOptions as T;
+      }
+    }
+    this.app.register(cors, coptions);
   }
 
   useOpenApi<T = OpenApiUiOptions>(
-    configOrClass: OpenApiConfigInput<T>,
-    modifyConfig?: (config: T) => T
+    configOrClass: OpenApiConfigInput<T>
   ) {
     let openApiConfig: T;
-
-    const isClass = (input: any): input is OpenApiConfigClass<T> => {
-      return (
-        typeof input === 'function' &&
-        typeof input.prototype === 'object' &&
-        input.prototype?.constructor === input
-      );
-    };
-
-    if (isClass(configOrClass)) {
-      // It's a class constructor
+    if (this._isConfigClass(configOrClass)) {
       openApiConfig = this.appConfig.get(configOrClass);
     } else {
-      // It's a plain object
       openApiConfig = configOrClass as T;
     }
-
-    if (modifyConfig) {
-      this.globalSwaggerOptions = modifyConfig(openApiConfig);
-    } else {
-      this.globalSwaggerOptions = openApiConfig;
-    }
-
+    this.globalSwaggerOptions = openApiConfig;
     this.hasSwagger = true;
   }
 
-
-  /**
-   * Registers the fastify-multipart plugin with the Fastify instance.
-   * This enables handling of multipart/form-data requests, typically used for file uploads.
-   *
-   * @param {MultipartOptions} options - Options to configure the fastify-multipart plugin.
-   * @param {FastifyInstance} this.app - The Fastify instance to register the plugin with.
-   * @property {MultipartOptions} this.multipartOptions - Stores the provided multipart options.
-   * @see {@link https://github.com/fastify/fastify-multipart} for more details on available options.
-   */
-  useMultipart(options: MultipartOptions) {
-    this.multipartOptions = options;
-    this.app.register(fastifyMultipart, {
-      ...this.multipartOptions,
-      attachFieldsToBody: true,
-    });
+  useMultipart<T extends MultipartOptions>(options: ConfigInput<T>) {
+    let multipartOptions: T;
+    if (this._isConfigClass(options)) {
+      multipartOptions = this.appConfig.get(options);
+    } else {
+      multipartOptions = options as T;
+    }
+    if (multipartOptions) {
+      this.multipartOptions = multipartOptions;
+      this.app.register(fastifyMultipart, {
+        ...this.multipartOptions,
+        attachFieldsToBody: true,
+      });
+    }
   }
 
 
-  /**
-   * Configures and initializes a TypeORM DataSource based on the provided configuration class.
-   * It retrieves the configuration from the application's configuration service and allows for optional modification.
-   * The initialized DataSource is then stored and registered within a dependency injection container.
-   *
-   * @template T - A generic type extending the `IConfig` interface, representing the configuration class.
-   * @template R - A generic type representing the return type of the configuration method of the `ConfigClass`.
-   * @param {Constructable<T>} ConfigClass - The constructor of the configuration class to be used for creating the DataSource.
-   * @param {(config: R) => R} [modifyConfig] - An optional function that takes the initial configuration and returns a modified configuration.
-   * @returns {void}
-   * @property {DataSourceOptions} this.dataSourceOptions - Stores the final DataSource options after potential modification.
-   * @property {DataSource} this.dataSource - Stores the initialized TypeORM DataSource instance.
-   * @see {@link https://typeorm.io/} for more information about TypeORM.
-   */
-  useDataSource<
-    T extends IConfig<R>,
-    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
-  >(ConfigClass: Constructable<T>, modifyConfig?: (config: R) => R) {
-    const dsConfig: R = this.appConfig.get(ConfigClass);
-    if (modifyConfig) {
-      const modifiedConfig: R = modifyConfig(dsConfig);
-      this.dataSourceOptions = modifiedConfig as unknown as DataSourceOptions;
+  useDataSource<T extends DataSourceOptions>(options: ConfigInput<T>) {
+
+    let dataSourceOptions: T;
+    if (this._isConfigClass(options)) {
+      dataSourceOptions = this.appConfig.get(options);
     } else {
-      this.dataSourceOptions = dsConfig as unknown as DataSourceOptions;
+      dataSourceOptions = options as T;
     }
 
+    if (!dataSourceOptions) throw new SystemUseError("Invlaid datasource options.")
+
+    this.dataSourceOptions = dataSourceOptions;
     const typeorm = require("typeorm");
     const datasource = new typeorm.DataSource(
-      dsConfig,
+      dataSourceOptions,
     ) as DataSource;
 
     this.dataSource = datasource;
@@ -413,23 +396,16 @@ export class AvleonApplication {
     Container.set<DataSource>("idatasource",
       datasource,
     );
-  }
 
-  useCache(options: any) {
 
   }
 
-  /**
-   * Registers an array of middleware classes to be executed before request handlers.
-   * It retrieves instances of the middleware classes from the dependency injection container
-   * and adds them as 'preHandler' hooks to the Fastify application.
-   *
-   * @template T - A generic type extending the `AppMiddleware` interface, representing the middleware class.
-   * @param {Constructor<T>[]} mclasses - An array of middleware class constructors to be registered.
-   * @returns {void}
-   * @property {Map<string, T>} this.middlewares - Stores the registered middleware instances, keyed by their class names.
-   * @see {@link https://www.fastify.io/docs/latest/Reference/Hooks/#prehandler} for more information about Fastify preHandler hooks.
-   */
+  private _useCache(options: any) {
+
+  }
+
+
+
   useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
     for (const mclass of mclasses) {
       const cls = Container.get<T>(mclass);
@@ -439,31 +415,11 @@ export class AvleonApplication {
   }
 
 
-  /**
-   * Registers a middleware constructor to be used for authorization purposes.
-   * The specific implementation and usage of this middleware will depend on the application's authorization logic.
-   *
-   * @template T - A generic type representing the constructor of the authorization middleware.
-   * @param {Constructor<T>} middleware - The constructor of the middleware to be used for authorization.
-   * @returns {void}
-   * @property {any} this.authorizeMiddleware - Stores the constructor of the authorization middleware.
-   */
   useAuthoriztion<T extends any>(middleware: Constructor<T>) {
     this.authorizeMiddleware = middleware as any;
   }
 
 
-
-  /**
-   * Registers the `@fastify/static` plugin to serve static files.
-   * It configures the root directory and URL prefix for serving static assets.
-   *
-   * @param {StaticFileOptions} [options={ path: undefined, prefix: undefined }] - Optional configuration for serving static files.
-   * @param {string} [options.path] - The absolute path to the static files directory. Defaults to 'process.cwd()/public'.
-   * @param {string} [options.prefix] - The URL prefix for serving static files. Defaults to '/static/'.
-   * @returns {void}
-   * @see {@link https://github.com/fastify/fastify-static} for more details on available options.
-   */
   useStaticFiles(
     options: StaticFileOptions = { path: undefined, prefix: undefined },
   ) {
@@ -472,10 +428,6 @@ export class AvleonApplication {
       prefix: options.prefix ? options.prefix : "/static/",
     });
   }
-
-
-
-
 
   private handleMiddlewares<T extends AppMiddleware>(
     mclasses: Constructor<T>[],
@@ -1086,18 +1038,10 @@ export interface IAppBuilder {
 }
 
 export class AvleonTest {
-  private static instance: AvleonTest;
-  private app: any;
-  private dataSourceOptions?: DataSourceOptions | undefined;
   private constructor() {
     process.env.NODE_ENV = "test";
   }
-
-  private addDatasource(options: DataSourceOptions) {
-    this.dataSourceOptions = options;
-  }
-
-  getController<T>(controller: Constructor<T>, deps: any[] = []) {
+  static getController<T>(controller: Constructor<T>, deps: any[] = []) {
     const paramTypes = Reflect.getMetadata('design:paramtypes', controller) || [];
 
     deps.forEach((dep, i) => {

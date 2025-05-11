@@ -6,7 +6,7 @@
  */
 import { Service } from "typedi";
 import { IRequest, IResponse } from "./icore";
-import { HttpException, UnauthorizedException } from "./exceptions";
+import { HttpExceptionTypes as HttpException, UnauthorizedException } from "./exceptions";
 import Container, { AUTHORIZATION_META_KEY } from "./container";
 
 export abstract class AppMiddleware {
