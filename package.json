@@ -47,7 +47,8 @@
   "peerDependencies": {
     "@scalar/fastify-api-reference": "*",
     "ioredis": "*",
-    "sharp": "*"
+    "sharp": "*",
+    "typeorm":"*"
   },
   "peerDependenciesMeta": {
     "@scalar/fastify-api-reference": {
@@ -61,8 +62,11 @@
     },
     "typeorm": {
       "optional": true
-    },
+    }
   },
+"optionalDependencies": {
+  "typeorm": "*"
+},
   "directories": {
     "test": "tests"
   },

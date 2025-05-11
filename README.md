@@ -1,14 +1,30 @@
-# Avleon Core Framework
+# AvleonJs
+## ⚠️ WARNING: NOT FOR PRODUCTION USE
+
+> **🚧 This project is in active development.**
+>
+> It is **not stable** and **not ready** for live environments.  
+> Use **only for testing, experimentation, or internal evaluation**.
+>
+> ####❗ Risks of using this in production:
+> - 🔄 Breaking changes may be introduced at any time
+> - 🧪 Features are experimental and may be unstable
+> - 🔐 Security has not been audited
+> - 💥 Potential for data loss or critical errors
+>
+> **Please do not deploy this in production environments.**
+
 
 ## Overview
 
 Avleon is a powerful, TypeScript-based web framework built on top of Fastify, designed to simplify API development with a focus on decorators, dependency injection, and OpenAPI documentation. It provides a robust set of tools for building scalable, maintainable web applications with minimal boilerplate code.
 
 ## Table of Contents
-
 - [Features](#features)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+  - [Route Based](#route-based)
+  - [Controller Based](#controller-based)
 - [Core Concepts](#core-concepts)
   - [Application Creation](#application-creation)
   - [Controllers](#controllers)
@@ -59,30 +75,33 @@ pnpm add @avleon/core
 
 ## Quick Start
 
+### Route Based
+```typescript
+import { Avleon, ApiController, Get, Results } from '@avleon/core';
+
+const app = Avleon.createApplication();
+app.mapGet('/', () => 'Hello, Avleon');
+app.run(); // or app.run(3000);
+```
+
+### Controller Based
 ```typescript
 import { Avleon, ApiController, Get, Results } from '@avleon/core';
 
 // Define a controller
-@ApiController('/hello')
+@ApiController
 class HelloController {
-  @Get('/')
-  async sayHello() {
-    return Results.Ok({ message: 'Hello, Avleon!' });
+
+  @Get()
+  sayHello() {
+    return 'Hello, Avleon!';
   }
 }
 
 // Create and start the application
-const app = new Avleon({
-  controllers: [HelloController],
-  openapi: {
-    info: {
-      title: 'My Avleon API',
-      version: '1.0.0',
-    },
-  },
-});
-
-app.start();
+const app = Avleon.createApplication();
+app.useControllers([HelloController]);
+app.run();
 ```
 
 ## Core Concepts
@@ -92,16 +111,15 @@ app.start();
 Avleon provides a builder pattern for creating applications:
 
 ```typescript
-import { Builder } from '@avleon/core';
+import { Avleon } from '@avleon/core';
 
-// Create an application using the builder
-const builder = Builder.createAppBuilder();
-const app = builder.build();
+// Create an application 
+const app = Avleon.createApplication();
 
-// Configure and start the application
+// Configure and run the application
 app.useCors();
-app.mapControllers([UserController]);
-app.start(3000);
+app.useControllers([UserController]);
+app.run(3000);
 ```
 
 ### Controllers
@@ -110,20 +128,6 @@ Controllers are the entry points for your API requests. They are defined using t
 
 ```typescript
 @ApiController('/users')
-class UserController {
-  // Route handlers go here
-}
-```
-
-You can also specify controller options:
-
-```typescript
-@ApiController({
-  path: '/users',
-  name: 'User Management',
-  version: '1.0.0',
-  since: '2024-01-01'
-})
 class UserController {
   // Route handlers go here
 }
@@ -156,7 +160,6 @@ async deleteUser(@Param('id') id: string) {
 ```
 
 ### Parameter Decorators
-
 Extract data from requests using parameter decorators:
 
 ```typescript
@@ -171,7 +174,7 @@ async getUser(
 }
 ```
 
-You can also access the current user and files:
+<!-- You can also access the current user and files:
 
 ```typescript
 @Post('/upload')
@@ -188,11 +191,11 @@ async uploadFiles(
 ) {
   // Access multiple uploaded files
 }
-```
+``` -->
 
-### Response Handling
+### Error Handling
 
-Return standardized responses using the `Results` class:
+Return standardized responses using the `HttpResponse` and `HttpExceptions` class:
 
 ```typescript
 @Get('/:id')
@@ -200,10 +203,10 @@ async getUser(@Param('id') id: string) {
   const user = await this.userService.findById(id);
   
   if (!user) {
-    return Results.NotFound('User not found');
+    throw HttpExceptions.NotFound('User not found');
   }
   
-  return Results.Ok(user);
+  return HttpResponse.Ok(user);
 }
 ```
 
@@ -246,7 +249,7 @@ Secure your API with authentication and authorization:
 
 ```typescript
 @Authorize
-class JwtAuthMiddleware extends AuthorizeMiddleware {
+class JwtAuthorization extends AuthorizeMiddleware {
   authorize(roles: string[]) {
     return async (req: IRequest) => {
       // Implement JWT authentication logic
@@ -254,17 +257,36 @@ class JwtAuthMiddleware extends AuthorizeMiddleware {
     };
   }
 }
+```
+Now register the authrization class to our app by `useAuthorization` function;
 
+```typescript
+app.useAuthorization(JwtAuthorization);
+```
+
+Then you have access the `AuthUser` on class lavel or method lavel depending on how you use the `@Authorized()` decorator.
+
+```typescript
+// admin.controller.ts
 @Authorized()
 @ApiController('/admin')
 class AdminController {
   // Protected controller methods
+
+
+  // protected controller has access to AuthUser in each route method
+  @Get()
+  async account(@AuthUser() user:User){
+      ///
+  }
 }
 
 // Or protect specific routes with roles
 @ApiController('/admin')
 class AdminController {
-  @Authorized(['admin'])
+  @Authorized({
+    roles: ['admin']
+  })
   @Get('/')
   async adminDashboard() {
     // Only users with 'admin' role can access this
@@ -294,7 +316,7 @@ class UserDto {
 @Post('/')
 async createUser(@Body() user: UserDto) {
   // User data is automatically validated
-  return Results.Created(user);
+  return user;
 }
 ```
 
@@ -351,14 +373,6 @@ app.useOpenApi(OpenApiConfig, (config) => {
   return config;
 });
 
-// Or use Swagger UI with custom options
-app.useSwagger({
-  routePrefix: '/api-docs',
-  ui: 'default', // or 'scalar' for Scalar UI
-  theme: {
-    // Custom theme options
-  }
-});
 ```
 
 ## Advanced Features
@@ -368,9 +382,8 @@ app.useSwagger({
 Connect to databases using TypeORM:
 
 ```typescript
-const app = new Avleon({
-  controllers: [UserController],
-  database: {
+const app = Avleon.createApplication();
+app.useDataSource({
     type: 'postgres',
     host: 'localhost',
     port: 5432,
@@ -379,16 +392,40 @@ const app = new Avleon({
     database: 'avleon',
     entities: [User],
     synchronize: true,
-  },
-});
+  });
 ```
 
-Or use the builder pattern:
+Or use the config class:
 
 ```typescript
-const builder = Builder.createAppBuilder();
-builder.addDataSource(DatabaseConfig);
-const app = builder.build();
+// datasource.config.ts
+import { Config, IConfig } from '@avleon/core';
+
+@Config
+export class DataSourceConfig implements IConfig{
+
+  // config method is mendatory
+  // config method has access to environment variables by default
+  config(env: Environment){
+    return {
+      type: env.get('type') || 'postgres',
+      host: 'localhost',
+      port: 5432,
+      username: 'postgres',
+      password: 'password',
+      database: 'avleon',
+      entities: [User],
+      synchronize: true,
+    }
+  }
+}
+```
+
+```typescript
+// app.ts
+const app = Avleon.createApplication();
+app.useDataSource(DataSourceConfig);
+// ... other impments
 ```
 
 ### File Uploads
@@ -408,7 +445,7 @@ app.useMultipart({
 @Post('/upload')
 async uploadFile(@File() file: any) {
   // Process uploaded file
-  return Results.Ok({ filename: file.filename });
+  return HttpResponse.Ok({ filename: file.filename });
 }
 ```
 
@@ -465,7 +502,6 @@ const app = new Avleon({
 ```
 
 ## Route Mapping
-
 Avleon provides several methods for mapping routes in your application:
 
 ### mapGet
