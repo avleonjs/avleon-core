@@ -5,8 +5,8 @@
  * @url https://github.com/xtareq
  */
 
-import { Service as _service } from "typedi";
-import container, { registerService } from "./container";
+import { Service as _service } from 'typedi';
+import container, { registerService } from './container';
 export function AppService(target: any): void;
 export function AppService(): any;
 export function AppService(target?: any) {
@@ -19,9 +19,9 @@ export function AppService(target?: any) {
   }
 }
 
-export * from "./controller";
-export * from "./route-methods";
-export * from "./openapi";
+export * from './controller';
+export * from './route-methods';
+export * from './openapi';
 export const Utility = _service;
 export const Helper = _service;
-export * from "./params";
+export * from './params';

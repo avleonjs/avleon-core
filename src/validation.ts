@@ -5,7 +5,7 @@
  * @url https://github.com/xtareq
  */
 
-import { BadRequestException } from "./exceptions";
+import { BadRequestException } from './exceptions';
 
 class PValidationRule<T> {
   name: string;
@@ -26,18 +26,18 @@ type BaseRule = {
 };
 
 type StringRule = BaseRule & {
-  type: "string";
+  type: 'string';
 };
 
 type NumberRule = BaseRule & {
-  type: "number";
+  type: 'number';
   min?: number;
   max?: number;
   exact?: number;
 };
 
 type BooleanRule = BaseRule & {
-  type: "boolean";
+  type: 'boolean';
 };
 
 export type ValidationRule = StringRule | NumberRule | BooleanRule;
@@ -47,14 +47,14 @@ export type ValidationProps = {
 };
 
 export type ValidateOptons = {
-  location?:'header' | 'queryparam' | 'param' | 'body' | 'custom'
-}
+  location?: 'header' | 'queryparam' | 'param' | 'body' | 'custom';
+};
 
 class Validator {
   private rules: PValidationRule<any>[] = [];
-  private options:ValidateOptons = {}
+  private options: ValidateOptons = {};
 
-  constructor(obj: ValidationProps, options?:ValidateOptons) {
+  constructor(obj: ValidationProps, options?: ValidateOptons) {
     this.init(obj);
     if (options) {
       this.options = options;
@@ -70,48 +70,48 @@ class Validator {
     });
   }
 
-  validate(obj: any | Array<any>, options?:ValidateOptons) {
+  validate(obj: any | Array<any>, options?: ValidateOptons) {
     const erors: any[] = [];
 
     this.rules.forEach((k) => {
       const r = Object.keys(obj).find((key) => key == k.name);
       let messages: any = [];
-      if (!r || obj[r] == undefined || obj[r] == "") {
+      if (!r || obj[r] == undefined || obj[r] == '') {
         messages.push({
-          constraint: "required",
-          message: k.name + " is required",
+          constraint: 'required',
+          message: k.name + ' is required',
         });
       }
 
-      if (k.type == "string" && typeof obj[k.name] != "string") {
+      if (k.type == 'string' && typeof obj[k.name] != 'string') {
         messages.push({
-          constraint: "type",
+          constraint: 'type',
           message: `${k.name} must be type ${k.type}`,
         });
       }
-      if (k.type == "number" && !parseInt(obj[k.name])) {
+      if (k.type == 'number' && !parseInt(obj[k.name])) {
         messages.push({
-          constraint: "type",
+          constraint: 'type',
           message: `${k.name} must be type ${k.type}`,
         });
       }
 
-      if (k.type == "number") {
+      if (k.type == 'number') {
         obj[k.name] = parseInt(obj[k.name]);
       }
-      if (k.type == "boolean" && !isBool(obj[k.name])) {
+      if (k.type == 'boolean' && !isBool(obj[k.name])) {
         messages.push({
-          constraint: "type",
+          constraint: 'type',
           message: `${k.name} must be type ${k.type}`,
         });
       }
-      if (k.type == "boolean") {
+      if (k.type == 'boolean') {
         obj[k.name] = parseBoolean(obj[k.name]);
       }
       if (messages.length > 0) {
         erors.push({
           path: k.name,
-          ...(this.options.location ? { location: this.options.location } :{}),
+          ...(this.options.location ? { location: this.options.location } : {}),
           constraints: messages,
         });
       }
@@ -122,29 +122,33 @@ class Validator {
 }
 
 const isBool = (val: any) => {
-  if (typeof val == "boolean") return true;
+  if (typeof val == 'boolean') return true;
   if (parseInt(val) == 0 || parseInt(val) == 1) return true;
-  if (val == "true" || val == "false") return true;
+  if (val == 'true' || val == 'false') return true;
 
   return false;
 };
 
 const parseBoolean = (val: any): boolean => {
-  if (typeof val === "boolean") return val;
+  if (typeof val === 'boolean') return val;
 
   // if (typeof val === "number") {
   //   return val !== 0; // Common convention: 0 → false, any other number → true
   // }
 
   if (parseInt(val) == 1) return true;
-  if (typeof val === "string") {
+  if (typeof val === 'string') {
     const normalized = val.trim().toLowerCase();
-    return normalized === "true";
+    return normalized === 'true';
   }
   return false; // Default for unsupported types (null, undefined, objects, etc.)
 };
 
-export function validateOrThrow<T extends {}>(obj: T, rules: ValidationProps, options?:ValidateOptons) {
+export function validateOrThrow<T extends {}>(
+  obj: T,
+  rules: ValidationProps,
+  options?: ValidateOptons,
+) {
   const valid = new Validator(rules, options);
   const errors = valid.validate(obj);
 

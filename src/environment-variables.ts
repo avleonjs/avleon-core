@@ -5,22 +5,24 @@
  * @url https://github.com/xtareq
  */
 
-import dotenv from "dotenv";
-import path from "path";
-import fs, { existsSync } from "fs";
-import { Service } from "typedi";
-import { EnvironmentVariableNotFound, SystemUseError } from "./exceptions/system-exception";
+import dotenv from 'dotenv';
+import path from 'path';
+import fs, { existsSync } from 'fs';
+import { Service } from 'typedi';
+import {
+  EnvironmentVariableNotFound,
+  SystemUseError,
+} from './exceptions/system-exception';
 
-dotenv.config({ path: path.join(process.cwd(), ".env") });
+dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 @Service()
 export class Environment {
   private parseEnvFile(filePath: string): any {
     try {
-
       const isExis = existsSync(filePath);
-      if(!isExis){
-        return {...process.env};
+      if (!isExis) {
+        return { ...process.env };
       }
       const fileContent = fs.readFileSync(filePath, 'utf8');
       const parsedEnv = dotenv.parse(fileContent);
@@ -31,7 +33,6 @@ export class Environment {
     }
   }
 
-
   get<T = any>(key: string): T {
     const parsedEnv = this.parseEnvFile(path.join(process.cwd(), '.env'));
     return parsedEnv[key] as T;
@@ -40,7 +41,7 @@ export class Environment {
   getOrThrow<T = any>(key: string): T {
     const parsedEnv = this.parseEnvFile(path.join(process.cwd(), '.env'));
     if (!Object(parsedEnv).hasOwnProperty(key)) {
-      throw new EnvironmentVariableNotFound(key)
+      throw new EnvironmentVariableNotFound(key);
     }
     return parsedEnv[key] as T;
   }

@@ -1,28 +1,35 @@
-import Container from "typedi";
-import { CreateConfig, GetConfig } from "./config"
+import 'reflect-metadata';
+import { Config, CreateConfig, GetConfig, IConfig } from './config';
+import { Environment } from './environment-variables';
 
+type AppConfig = { name: string; os: string };
 
 describe('Config', () => {
+  describe('class', () => {
+    it('should be call by get config', () => {
+      @Config
+      class MyConfig {
+        config(env: Environment) {
+          return {
+            name: 'avleon',
+          };
+        }
+      }
+      const mConfig = GetConfig(MyConfig);
+      expect(mConfig).toHaveProperty('name');
+      expect(mConfig['name']).toBe('avleon');
+    });
+  });
 
-     type MyConfig = {name:string, os:string};
-     const MyConfigToken = Symbol();
-    describe('CreateConfig', ()=> {
-
-        beforeAll(()=>{
-            CreateConfig<MyConfig>(MyConfigToken, (env) => ({name: 'tareq', tareq:'h', os: env.get('LOGO')}));
-        })
-
-        afterAll(()=>{
-            Container.reset();
-        })
-
-        it('should be call by get config', () => {
-         
-            const mConfig = GetConfig<MyConfig>(MyConfigToken);
-            expect(mConfig).toHaveProperty('name');
-            expect(mConfig.name).toBe('tareq');
-            expect(mConfig.os).toBeUndefined
-           //expect(mConfig['name']).toBe('tareq');
-        })
-    })
-})
+  describe('createConfig()', () => {
+    it('it should create config and called with GetConfig', () => {
+      CreateConfig('myconfig', (env) => ({
+        firstname: 'tareq',
+        os: env.get('name'),
+      }));
+      const mConfig = GetConfig('myconfig');
+      expect(mConfig).toHaveProperty('firstname');
+      expect(mConfig.firstname).toBe('tareq');
+    });
+  });
+});

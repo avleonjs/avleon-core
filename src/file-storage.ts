@@ -1,19 +1,19 @@
-import fs, { createReadStream, PathLike } from "fs";
-import path from "path";
-import { pipeline } from "stream/promises";
+import fs, { createReadStream, PathLike } from 'fs';
+import path from 'path';
+import { pipeline } from 'stream/promises';
 import {
   BadRequestException,
   InternalErrorException,
-} from "./exceptions/http-exceptions";
-import { MultipartFile } from "./multipart";
-import { AppService } from "./decorators";
-import os from "os";
-import { SystemUseError } from "./exceptions/system-exception";
-import { SavedMultipartFile } from "@fastify/multipart";
+} from './exceptions/http-exceptions';
+import { MultipartFile } from './multipart';
+import { AppService } from './decorators';
+import os from 'os';
+import { SystemUseError } from './exceptions/system-exception';
+import { SavedMultipartFile } from '@fastify/multipart';
 
 interface TransformOptions {
   resize?: { width: number; height: number };
-  format?: "jpeg" | "png" | "webp" | "avif";
+  format?: 'jpeg' | 'png' | 'webp' | 'avif';
   quality?: number;
   // Add other sharp options as needed
 }
@@ -44,11 +44,11 @@ export interface FileStorageInterface {
   transform(options: TransformOptions): FileStorage;
   save(
     file: MultipartFile,
-    options?: SaveOptionsSingle
+    options?: SaveOptionsSingle,
   ): Promise<MultipartFile | undefined>;
   saveAll(
     files: MultipartFile[],
-    options?: SaveOptions
+    options?: SaveOptions,
   ): Promise<MultipartFile[] | undefined>;
 
   remove(filepath: PathLike): Promise<void>;
@@ -81,26 +81,26 @@ export class FileStorage implements FileStorageInterface {
       overwrite: options && options.overwrite ? options.overwrite : true,
     };
     try {
-      if (f.type == "file") {
+      if (f.type == 'file') {
         const fname = path.join(process.cwd(), `public/${f.filename}`);
 
         if (!foptions.overwrite && this.isFileExists(fname)) {
-          throw new SystemUseError("File already exits.");
+          throw new SystemUseError('File already exits.');
         }
 
         await pipeline(f.file, fs.createWriteStream(fname));
         return f;
       }
     } catch (err) {
-      throw new SystemUseError("Can't upload file");
+      throw new SystemUseError('Can\'t upload file');
     }
   }
 
   async remove(filepath: PathLike) {
-    if (!this.isFileExists(path.join(process.cwd(), "public/" + filepath))) {
-      throw new SystemUseError("File doesn't exists.");
+    if (!this.isFileExists(path.join(process.cwd(), 'public/' + filepath))) {
+      throw new SystemUseError('File doesn\'t exists.');
     }
-    return fs.unlinkSync(path.join(process.cwd(), "public/" + filepath));
+    return fs.unlinkSync(path.join(process.cwd(), 'public/' + filepath));
   }
 
   async saveAll(files: MultipartFile[], options?: SaveOptions) {
@@ -109,7 +109,7 @@ export class FileStorage implements FileStorageInterface {
         overwrite: options && options.overwrite ? options.overwrite : true,
       };
       for (let f of files) {
-        let uploadPath = `public`;
+        let uploadPath = 'public';
         if (options?.to) {
           uploadPath = `public/${options.to}`;
         }
@@ -121,7 +121,7 @@ export class FileStorage implements FileStorageInterface {
           const fp = f as SavedMultipartFile;
           await pipeline(
             fs.createReadStream(fp.filepath),
-            fs.createWriteStream(fname)
+            fs.createWriteStream(fname),
           );
           fs.unlinkSync(fp.filepath);
         }
@@ -129,44 +129,44 @@ export class FileStorage implements FileStorageInterface {
       return files;
     } catch (error) {
       console.error(error);
-      throw new SystemUseError("Can't upload file");
+      throw new SystemUseError('Can\'t upload file');
     }
   }
 
   private async processImage(
     fileStream: NodeJS.ReadableStream,
-    outputPath: string
+    outputPath: string,
   ) {
     try {
-      const sharp = await import("sharp"); // Lazy import sharp
+      const sharp = await import('sharp'); // Lazy import sharp
 
       let sharpPipeline = sharp.default();
 
       if (this.transformOptions?.resize) {
         sharpPipeline = sharpPipeline.resize(
           this.transformOptions.resize.width,
-          this.transformOptions.resize.height
+          this.transformOptions.resize.height,
         );
       }
 
       if (this.transformOptions?.format) {
         switch (this.transformOptions.format) {
-          case "jpeg":
+          case 'jpeg':
             sharpPipeline = sharpPipeline.jpeg({
               quality: this.transformOptions.quality || 80,
             });
             break;
-          case "png":
+          case 'png':
             sharpPipeline = sharpPipeline.png({
               quality: this.transformOptions.quality || 80,
             });
             break;
-          case "webp":
+          case 'webp':
             sharpPipeline = sharpPipeline.webp({
               quality: this.transformOptions.quality || 80,
             });
             break;
-          case "avif":
+          case 'avif':
             sharpPipeline = sharpPipeline.avif({
               quality: this.transformOptions.quality || 80,
             });
@@ -179,19 +179,19 @@ export class FileStorage implements FileStorageInterface {
       await pipeline(
         fileStream,
         sharpPipeline,
-        fs.createWriteStream(outputPath)
+        fs.createWriteStream(outputPath),
       );
     } catch (error: any) {
       if (
-        error.code === "MODULE_NOT_FOUND" &&
-        error.message.includes("sharp")
+        error.code === 'MODULE_NOT_FOUND' &&
+        error.message.includes('sharp')
       ) {
         throw new InternalErrorException(
-          "sharp module not found. Please install sharp to use image transformations."
+          'sharp module not found. Please install sharp to use image transformations.',
         );
       }
-      console.error("Image processing failed:", error);
-      throw new InternalErrorException("Image processing failed.");
+      console.error('Image processing failed:', error);
+      throw new InternalErrorException('Image processing failed.');
     } finally {
       this.transformOptions = null; // Reset transform options after processing
     }

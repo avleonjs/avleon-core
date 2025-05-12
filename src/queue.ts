@@ -5,9 +5,9 @@
  * @url https://github.com/xtareq
  */
 
-import { promises as fs } from "fs";
-import { join } from "path";
-import { uuid } from "./helpers";
+import { promises as fs } from 'fs';
+import { join } from 'path';
+import { uuid } from './helpers';
 
 interface Job {
   id: string;
@@ -28,7 +28,7 @@ export class FileQueueAdapter implements QueueAdapter {
 
   async loadJobs(): Promise<Job[]> {
     try {
-      const data = await fs.readFile(this.queueFile, "utf-8");
+      const data = await fs.readFile(this.queueFile, 'utf-8');
       return JSON.parse(data);
     } catch (error) {
       return [];
@@ -36,7 +36,7 @@ export class FileQueueAdapter implements QueueAdapter {
   }
 
   async saveJobs(jobs: Job[]) {
-    await fs.writeFile(this.queueFile, JSON.stringify(jobs, null, 2), "utf-8");
+    await fs.writeFile(this.queueFile, JSON.stringify(jobs, null, 2), 'utf-8');
   }
 }
 

@@ -4,16 +4,16 @@
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
-import Container from "typedi";
-import { NotFoundException } from "./exceptions";
+import Container from 'typedi';
+import { NotFoundException } from './exceptions';
 import {
   DataSource,
   EntityTarget,
   FindOneOptions,
   ObjectLiteral,
   Repository,
-} from "typeorm";
-import { UpsertOptions } from "typeorm/repository/UpsertOptions";
+} from 'typeorm';
+import { UpsertOptions } from 'typeorm/repository/UpsertOptions';
 
 type ObjKey<T> = keyof T;
 type ObjKeys<T> = ObjKey<T>[];
@@ -43,9 +43,8 @@ type LogicalOperators<T> =
 
 type Where<T> = WhereCondition<T> | LogicalOperators<T>;
 
-
 export interface IFindOneOptions<T = any> {
-  where: Where<T>
+  where: Where<T>;
 }
 
 export type PaginationResult<T> = {
@@ -65,11 +64,13 @@ type ICollection<T> = {
 type EntityCollection<T extends ObjectLiteral> = {};
 
 export interface BasicCollection<T> {
-  clear():void;
+  clear(): void;
   find(predicate?: Predicate<T>): T[];
   findAsync(predicate?: Predicate<T>): Promise<T[]>;
   findOne(predicate: Predicate<T> | IFindOneOptions<T>): T | undefined;
-  findOneAsync(predicate: Predicate<T>| IFindOneOptions<T>): Promise<T|undefined>;
+  findOneAsync(
+    predicate: Predicate<T> | IFindOneOptions<T>,
+  ): Promise<T | undefined>;
 }
 class BasicCollectionImpl<T> implements BasicCollection<T> {
   private items: T[];
@@ -82,12 +83,12 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
     return new BasicCollectionImpl(items);
   }
 
-  clear(){
+  clear() {
     this.items = [];
   }
 
   find(predicate?: Predicate<T>) {
-      if (this.isFunction(predicate)) {
+    if (this.isFunction(predicate)) {
       return this.items.filter(predicate as Predicate<T>) as T[];
     }
     const results = Array.from(this.items);
@@ -101,11 +102,11 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
 
   private _matches<T>(item: T, where: Where<T>): boolean {
     if ('$or' in where) {
-      return where.$or.some(cond => this._matches(item, cond));
+      return where.$or.some((cond) => this._matches(item, cond));
     }
 
     if ('$and' in where) {
-      return where.$and.every(cond => this._matches(item, cond));
+      return where.$and.every((cond) => this._matches(item, cond));
     }
 
     if ('$not' in where) {
@@ -115,7 +116,11 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
     // Field-based matching
     return Object.entries(where).every(([key, condition]) => {
       const itemValue = item[key as keyof T];
-      if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
+      if (
+        condition &&
+        typeof condition === 'object' &&
+        !Array.isArray(condition)
+      ) {
         const op = condition as ValueOperator<any>;
 
         if ('$in' in op && Array.isArray(op.$in)) {
@@ -125,30 +130,33 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
 
       return itemValue === condition;
     });
-}
-
+  }
 
   findOne(predicate: Predicate<T> | IFindOneOptions<T>): T | undefined {
     if (this.isFunction(predicate)) {
       return this.items.find(predicate as Predicate<T>) as T;
     }
-    const result =  this.items.filter(item=> this._matches(item, predicate.where));
-    if(result.length > 0){
+    const result = this.items.filter((item) =>
+      this._matches(item, predicate.where),
+    );
+    if (result.length > 0) {
       return result[0];
     }
     return undefined;
   }
 
-  async findOneAsync(predicate: Predicate<T> | IFindOneOptions<T>): Promise<T | undefined> {
+  async findOneAsync(
+    predicate: Predicate<T> | IFindOneOptions<T>,
+  ): Promise<T | undefined> {
     if (this.isFunction(predicate)) {
       return this.items.find(predicate as Predicate<T>) as T;
     }
-    return this.items.find(item=> this._matches(item, predicate.where));
+    return this.items.find((item) => this._matches(item, predicate.where));
   }
 
   // Utility function to check if a value is a function
   private isFunction(value: unknown): value is Function {
-    return typeof value === "function";
+    return typeof value === 'function';
   }
 
   add(item: Partial<T>): T;
@@ -166,7 +174,7 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
       const index = this.items.indexOf(item)!;
       this.items[index] = { ...item, ...updater };
     } else {
-      throw new NotFoundException("Item not found");
+      throw new NotFoundException('Item not found');
     }
   }
 
@@ -218,8 +226,8 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
   }
 
   private getDeepValue(item: any, path: string | keyof T): any {
-    if (typeof path !== "string") return item[path];
-    return path.split(".").reduce((acc, key) => acc?.[key], item);
+    if (typeof path !== 'string') return item[path];
+    return path.split('.').reduce((acc, key) => acc?.[key], item);
   }
 }
 
@@ -239,7 +247,7 @@ class AsynchronousCollection<T extends ObjectLiteral> {
 
   getRepository() {
     if (!this.repo) {
-      const dataSourceKey = "idatasource";
+      const dataSourceKey = 'idatasource';
       const dataSource = Container.get(dataSourceKey) as DataSource;
       console.log('datasource', dataSource);
       const repository = dataSource.getRepository<T>(this.model);
@@ -300,8 +308,8 @@ export function InjectRepository<T extends Repository<T>>(
         propertyName,
         index,
         value: (containerInstance) => {
-          const dataSource = containerInstance.get<DataSource>("idatasource");
-    
+          const dataSource = containerInstance.get<DataSource>('idatasource');
+
           repo = dataSource
             .getRepository<T>(model)
             .extend({ paginate: () => {} });
@@ -328,8 +336,8 @@ export function InjectRepository<T extends Repository<T>>(
       });
     } catch (error: any) {
       console.log(error);
-      if (error.name && error.name == "ServiceNotFoundError") {
-        console.log("Database didn't initialized.");
+      if (error.name && error.name == 'ServiceNotFoundError') {
+        console.log('Database didn\'t initialized.');
       }
     }
   };
