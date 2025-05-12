@@ -4,13 +4,13 @@
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
-import { Service } from 'typedi';
-import { IRequest, IResponse } from './icore';
+import { Service } from "typedi";
+import { IRequest, IResponse } from "./icore";
 import {
   HttpExceptionTypes as HttpException,
   UnauthorizedException,
-} from './exceptions';
-import Container, { AUTHORIZATION_META_KEY } from './container';
+} from "./exceptions";
+import Container, { AUTHORIZATION_META_KEY } from "./container";
 
 export abstract class AppMiddleware {
   abstract invoke(
@@ -38,7 +38,7 @@ interface AuthorizeClass {
 }
 
 export function Authorize(target: { new (...args: any[]): AuthorizeClass }) {
-  if (typeof target.prototype.authorize !== 'function') {
+  if (typeof target.prototype.authorize !== "function") {
     throw new Error(
       `Class "${target.name}" must implement an "authorize" method.`,
     );
@@ -75,7 +75,7 @@ export function Authorized(
 }
 
 export function Middleware(target: Constructor<AppMiddleware>) {
-  if (typeof target.prototype.invoke !== 'function') {
+  if (typeof target.prototype.invoke !== "function") {
     throw new Error(
       `Class "${target.name}" must implement an "invoke" method.`,
     );
@@ -93,23 +93,23 @@ export function UseMiddleware<
     descriptor?: PropertyDescriptor,
   ) {
     const normalizeMiddleware = (middleware: any) =>
-      typeof middleware === 'function' ? new middleware() : middleware;
+      typeof middleware === "function" ? new middleware() : middleware;
     const middlewareList = (Array.isArray(options) ? options : [options]).map(
       normalizeMiddleware,
     );
-    if (typeof target === 'function' && !propertyKey) {
+    if (typeof target === "function" && !propertyKey) {
       const existingMiddlewares =
-        Reflect.getMetadata('controller:middleware', target) || [];
+        Reflect.getMetadata("controller:middleware", target) || [];
       Reflect.defineMetadata(
-        'controller:middleware',
+        "controller:middleware",
         [...existingMiddlewares, ...middlewareList],
         target,
       );
     } else if (descriptor) {
       const existingMiddlewares =
-        Reflect.getMetadata('route:middleware', target, propertyKey!) || [];
+        Reflect.getMetadata("route:middleware", target, propertyKey!) || [];
       Reflect.defineMetadata(
-        'route:middleware',
+        "route:middleware",
         [...existingMiddlewares, ...middlewareList],
         target,
         propertyKey!,

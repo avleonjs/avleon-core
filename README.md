@@ -1,4 +1,5 @@
 # AvleonJs
+
 ## ⚠️ WARNING: NOT FOR PRODUCTION USE
 
 > **🚧 This project is in active development.**
@@ -7,6 +8,7 @@
 > Use **only for testing, experimentation, or internal evaluation**.
 >
 > ####❗ Risks of using this in production:
+>
 > - 🔄 Breaking changes may be introduced at any time
 > - 🧪 Features are experimental and may be unstable
 > - 🔐 Security has not been audited
@@ -14,12 +16,12 @@
 >
 > **Please do not deploy this in production environments.**
 
-
 ## Overview
 
 Avleon is a powerful, TypeScript-based web framework built on top of Fastify, designed to simplify API development with a focus on decorators, dependency injection, and OpenAPI documentation. It provides a robust set of tools for building scalable, maintainable web applications with minimal boilerplate code.
 
 ## Table of Contents
+
 - [Features](#features)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -76,25 +78,26 @@ pnpm add @avleon/core
 ## Quick Start
 
 ### Route Based
+
 ```typescript
-import { Avleon, ApiController, Get, Results } from '@avleon/core';
+import { Avleon, ApiController, Get, Results } from "@avleon/core";
 
 const app = Avleon.createApplication();
-app.mapGet('/', () => 'Hello, Avleon');
+app.mapGet("/", () => "Hello, Avleon");
 app.run(); // or app.run(3000);
 ```
 
 ### Controller Based
+
 ```typescript
-import { Avleon, ApiController, Get, Results } from '@avleon/core';
+import { Avleon, ApiController, Get, Results } from "@avleon/core";
 
 // Define a controller
 @ApiController
 class HelloController {
-
   @Get()
   sayHello() {
-    return 'Hello, Avleon!';
+    return "Hello, Avleon!";
   }
 }
 
@@ -111,9 +114,9 @@ app.run();
 Avleon provides a builder pattern for creating applications:
 
 ```typescript
-import { Avleon } from '@avleon/core';
+import { Avleon } from "@avleon/core";
 
-// Create an application 
+// Create an application
 const app = Avleon.createApplication();
 
 // Configure and run the application
@@ -127,7 +130,7 @@ app.run(3000);
 Controllers are the entry points for your API requests. They are defined using the `@ApiController` decorator:
 
 ```typescript
-@ApiController('/users')
+@ApiController("/users")
 class UserController {
   // Route handlers go here
 }
@@ -160,6 +163,7 @@ async deleteUser(@Param('id') id: string) {
 ```
 
 ### Parameter Decorators
+
 Extract data from requests using parameter decorators:
 
 ```typescript
@@ -201,11 +205,11 @@ Return standardized responses using the `HttpResponse` and `HttpExceptions` clas
 @Get('/:id')
 async getUser(@Param('id') id: string) {
   const user = await this.userService.findById(id);
-  
+
   if (!user) {
     throw HttpExceptions.NotFound('User not found');
   }
-  
+
   return HttpResponse.Ok(user);
 }
 ```
@@ -224,7 +228,7 @@ class LoggingMiddleware extends AppMiddleware {
 }
 
 @UseMiddleware(LoggingMiddleware)
-@ApiController('/users')
+@ApiController("/users")
 class UserController {
   // Controller methods
 }
@@ -233,10 +237,10 @@ class UserController {
 You can also apply middleware to specific routes:
 
 ```typescript
-@ApiController('/users')
+@ApiController("/users")
 class UserController {
   @UseMiddleware(LoggingMiddleware)
-  @Get('/')
+  @Get("/")
   async getUsers() {
     // Only this route will use the LoggingMiddleware
   }
@@ -258,6 +262,7 @@ class JwtAuthorization extends AuthorizeMiddleware {
   }
 }
 ```
+
 Now register the authrization class to our app by `useAuthorization` function;
 
 ```typescript
@@ -269,25 +274,24 @@ Then you have access the `AuthUser` on class lavel or method lavel depending on 
 ```typescript
 // admin.controller.ts
 @Authorized()
-@ApiController('/admin')
+@ApiController("/admin")
 class AdminController {
   // Protected controller methods
 
-
   // protected controller has access to AuthUser in each route method
   @Get()
-  async account(@AuthUser() user:User){
-      ///
+  async account(@AuthUser() user: User) {
+    ///
   }
 }
 
 // Or protect specific routes with roles
-@ApiController('/admin')
+@ApiController("/admin")
 class AdminController {
   @Authorized({
-    roles: ['admin']
+    roles: ["admin"],
   })
-  @Get('/')
+  @Get("/")
   async adminDashboard() {
     // Only users with 'admin' role can access this
   }
@@ -303,10 +307,10 @@ class UserDto {
   @IsString()
   @IsNotEmpty()
   name: string;
-  
+
   @IsEmail()
   email: string;
-  
+
   @IsNumber()
   @Min(0)
   @Max(120)
@@ -325,17 +329,17 @@ You can also use custom validation rules:
 ```typescript
 class UserDto {
   @Validate({
-    type: 'string',
+    type: "string",
     required: true,
-    message: 'Name is required'
+    message: "Name is required",
   })
   name: string;
-  
+
   @Validate({
-    type: 'number',
+    type: "number",
     min: 0,
     max: 120,
-    message: 'Age must be between 0 and 120'
+    message: "Age must be between 0 and 120",
   })
   age: number;
 }
@@ -350,14 +354,14 @@ const app = new Avleon({
   controllers: [UserController],
   openapi: {
     info: {
-      title: 'User API',
-      version: '1.0.0',
-      description: 'API for managing users',
+      title: "User API",
+      version: "1.0.0",
+      description: "API for managing users",
     },
     servers: [
       {
-        url: 'http://localhost:3000',
-        description: 'Development server',
+        url: "http://localhost:3000",
+        description: "Development server",
       },
     ],
   },
@@ -369,10 +373,9 @@ You can also customize the OpenAPI UI:
 ```typescript
 app.useOpenApi(OpenApiConfig, (config) => {
   // Modify the OpenAPI configuration
-  config.info.title = 'Custom API Title';
+  config.info.title = "Custom API Title";
   return config;
 });
-
 ```
 
 ## Advanced Features
@@ -384,39 +387,38 @@ Connect to databases using TypeORM:
 ```typescript
 const app = Avleon.createApplication();
 app.useDataSource({
-    type: 'postgres',
-    host: 'localhost',
-    port: 5432,
-    username: 'postgres',
-    password: 'password',
-    database: 'avleon',
-    entities: [User],
-    synchronize: true,
-  });
+  type: "postgres",
+  host: "localhost",
+  port: 5432,
+  username: "postgres",
+  password: "password",
+  database: "avleon",
+  entities: [User],
+  synchronize: true,
+});
 ```
 
 Or use the config class:
 
 ```typescript
 // datasource.config.ts
-import { Config, IConfig } from '@avleon/core';
+import { Config, IConfig } from "@avleon/core";
 
 @Config
-export class DataSourceConfig implements IConfig{
-
+export class DataSourceConfig implements IConfig {
   // config method is mendatory
   // config method has access to environment variables by default
-  config(env: Environment){
+  config(env: Environment) {
     return {
-      type: env.get('type') || 'postgres',
-      host: 'localhost',
+      type: env.get("type") || "postgres",
+      host: "localhost",
       port: 5432,
-      username: 'postgres',
-      password: 'password',
-      database: 'avleon',
+      username: "postgres",
+      password: "password",
+      database: "avleon",
       entities: [User],
       synchronize: true,
-    }
+    };
   }
 }
 ```
@@ -455,8 +457,8 @@ Serve static files:
 
 ```typescript
 app.useStaticFiles({
-  path: path.join(process.cwd(), 'public'),
-  prefix: '/static/'
+  path: path.join(process.cwd(), "public"),
+  prefix: "/static/",
 });
 ```
 
@@ -465,15 +467,15 @@ app.useStaticFiles({
 Test your API endpoints with the built-in testing utilities:
 
 ```typescript
-import { TestBuilder } from '@avleon/core';
+import { TestBuilder } from "@avleon/core";
 
 const testBuilder = TestBuilder.createBuilder();
 const app = testBuilder.getTestApplication({
-  controllers: [UserController]
+  controllers: [UserController],
 });
 
 // Test your API endpoints
-const response = await app.get('/users');
+const response = await app.get("/users");
 expect(response.statusCode).toBe(200);
 ```
 
@@ -502,6 +504,7 @@ const app = new Avleon({
 ```
 
 ## Route Mapping
+
 Avleon provides several methods for mapping routes in your application:
 
 ### mapGet
@@ -558,34 +561,35 @@ app.mapDelete("/users/:id", async (req, res) => {
 Each of these methods returns a route object that can be used to add middleware or Swagger documentation to the route.
 
 ```typescript
-app.mapGet("/users", async (req, res) => {
-  // Handler function
-})
-.useMiddleware([AuthMiddleware])
-.useSwagger({
-  summary: "Get all users",
-  description: "Retrieves a list of all users",
-  tags: ["users"],
-  response: {
-    200: {
-      description: "Successful response",
-      content: {
-        "application/json": {
-          schema: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                id: { type: "string" },
-                name: { type: "string" }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-});
+app
+  .mapGet("/users", async (req, res) => {
+    // Handler function
+  })
+  .useMiddleware([AuthMiddleware])
+  .useSwagger({
+    summary: "Get all users",
+    description: "Retrieves a list of all users",
+    tags: ["users"],
+    response: {
+      200: {
+        description: "Successful response",
+        content: {
+          "application/json": {
+            schema: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  name: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
 ```
 
 ## License

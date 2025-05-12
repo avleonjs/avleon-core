@@ -9,13 +9,13 @@ import {
   MultipartFile as FsM,
   MultipartValue,
   SavedMultipartFile,
-} from '@fastify/multipart';
-import { IRequest } from './icore';
-import fs from 'fs';
-import path from 'path';
-import { pipeline } from 'stream/promises';
-import { InternalErrorException } from './exceptions';
-import { REQUEST_BODY_FILE_KEY, REQUEST_BODY_FILES_KEY } from './container';
+} from "@fastify/multipart";
+import { IRequest } from "./icore";
+import fs from "fs";
+import path from "path";
+import { pipeline } from "stream/promises";
+import { InternalErrorException } from "./exceptions";
+import { REQUEST_BODY_FILE_KEY, REQUEST_BODY_FILES_KEY } from "./container";
 
 export function UploadFile(fieldName: string) {
   return function (
@@ -62,7 +62,7 @@ export function UploadFiles(fieldName?: string) {
       index: number;
     }[];
     existingMetadata.push({
-      fieldName: fieldName ? fieldName : 'all',
+      fieldName: fieldName ? fieldName : "all",
       index: parameterIndex,
     });
     Reflect.defineMetadata(
@@ -88,8 +88,8 @@ export function UploadFileFromRequest(req: IRequest, options?: Foptions) {
         if (options) {
           if (options.dest) {
             fname = options.saveAs
-              ? options.dest + '/' + options.saveAs
-              : options.dest + '/' + f.filename;
+              ? options.dest + "/" + options.saveAs
+              : options.dest + "/" + f.filename;
           } else {
             fname = path.join(
               process.cwd(),
@@ -101,7 +101,7 @@ export function UploadFileFromRequest(req: IRequest, options?: Foptions) {
         }
 
         if (fs.existsSync(fname)) {
-          throw new InternalErrorException('File already exists.');
+          throw new InternalErrorException("File already exists.");
         }
 
         await pipeline(f.file!, fs.createWriteStream(fname));

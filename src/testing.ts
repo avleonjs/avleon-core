@@ -1,7 +1,7 @@
-import 'reflect-metadata';
-import { Container } from 'typedi';
-import { DataSource, DataSourceOptions } from 'typeorm';
-import { AvleonApplication } from './icore';
+import "reflect-metadata";
+import { Container } from "typedi";
+import { DataSource, DataSourceOptions } from "typeorm";
+import { AvleonApplication } from "./icore";
 
 // Enhanced Test Utilities
 export class AvleonTestUtility {

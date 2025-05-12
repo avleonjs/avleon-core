@@ -1,12 +1,9 @@
-
-
 interface AvleonApplication {
-
   // all use
   useCors: () => void;
   /**
-   * function for register database 
-   * @param options datasource options. options can be plain object or avleon config class 
+   * function for register database
+   * @param options datasource options. options can be plain object or avleon config class
    * */
   useDatasource: () => void;
   useMultipart: () => void;
@@ -22,19 +19,14 @@ interface AvleonApplication {
    * */
   useHttps: () => void;
 
-
-  // all map 
+  // all map
   mapGet: () => void;
   mapPost: () => void;
   mapPut: () => void;
   mapPatch: () => void;
   mapOptions: () => void;
   mapGroup: () => void;
-  // all others 
-  // run 
+  // all others
+  // run
   run: () => void;
 }
-
-
-
-

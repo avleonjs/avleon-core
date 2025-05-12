@@ -1,6 +1,6 @@
-import Container from 'typedi';
-import { Constructor } from './helpers';
-import fastify, { FastifyInstance, RouteShorthandMethod } from 'fastify';
+import Container from "typedi";
+import { Constructor } from "./helpers";
+import fastify, { FastifyInstance, RouteShorthandMethod } from "fastify";
 
 export interface AvleonApplication {
   // all public

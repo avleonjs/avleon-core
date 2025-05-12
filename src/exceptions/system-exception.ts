@@ -20,7 +20,7 @@ export class SystemUseError extends Error {
 export class DuplicateRouteException extends Error {
   constructor(params: IRouteDuplicateErr) {
     let sameController = params.controller == params.inverseController;
-    let message = `Duplicate route found for method ${params.method.toUpperCase()}:${params.path == '' ? '\'/\'' : params.path} `;
+    let message = `Duplicate route found for method ${params.method.toUpperCase()}:${params.path == "" ? "'/'" : params.path} `;
     message += sameController
       ? `in ${params.controller}`
       : `both in ${params.controller} and ${params.inverseController}`;

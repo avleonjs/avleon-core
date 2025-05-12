@@ -5,21 +5,21 @@
  * @url https://github.com/xtareq
  */
 
-import { CONTROLLER_META_KEY, ROUTE_META_KEY } from './container';
-import { OpenApiOptions } from './openapi';
-import { HttpResponse } from './response';
-import { Results } from './results';
+import { CONTROLLER_META_KEY, ROUTE_META_KEY } from "./container";
+import { OpenApiOptions } from "./openapi";
+import { HttpResponse } from "./response";
+import { Results } from "./results";
 export type RouteMethods =
-  | 'GET'
-  | 'POST'
-  | 'PUT'
-  | 'PATCH'
-  | 'DELETE'
-  | 'OPTIONS'
-  | 'ALL';
+  | "GET"
+  | "POST"
+  | "PUT"
+  | "PATCH"
+  | "DELETE"
+  | "OPTIONS"
+  | "ALL";
 
 const schema: OpenApiOptions = {
-  tags: ['hello'],
+  tags: ["hello"],
 };
 
 /**
@@ -53,7 +53,7 @@ export type RouteMethodOptions = {
 
 // Implementation
 export function createRouteDecorator(
-  method: RouteMethods = 'GET',
+  method: RouteMethods = "GET",
 ): (
   pathOrOptions: string | RouteMethodOptions,
   maybeOptions?: RouteMethodOptions,
@@ -67,22 +67,22 @@ export function createRouteDecorator(
       propertyKey: string | symbol,
       descriptor: PropertyDescriptor,
     ) {
-      let path = '/';
+      let path = "/";
       let options: RouteMethodOptions = {};
 
-      if (typeof pathOrOptions === 'string') {
+      if (typeof pathOrOptions === "string") {
         path = pathOrOptions;
         options = maybeOptions || {};
-      } else if (typeof pathOrOptions === 'object') {
+      } else if (typeof pathOrOptions === "object") {
         options = pathOrOptions;
-        path = options.name || '/';
+        path = options.name || "/";
       }
 
       // Define metadata
-      Reflect.defineMetadata('route:path', path, target, propertyKey);
+      Reflect.defineMetadata("route:path", path, target, propertyKey);
       Reflect.defineMetadata(
-        'route:method',
-        method || 'GET',
+        "route:method",
+        method || "GET",
         target,
         propertyKey,
       );
@@ -95,7 +95,7 @@ export function createRouteDecorator(
       );
 
       if (options) {
-        Reflect.defineMetadata('route:options', options, target, propertyKey);
+        Reflect.defineMetadata("route:options", options, target, propertyKey);
       }
     };
   };
@@ -119,11 +119,11 @@ export function Get(
   options?: RouteMethodOptions,
 ) {
   const parsedPath =
-    !path && !options ? '/' : (path as string | RouteMethodOptions);
+    !path && !options ? "/" : (path as string | RouteMethodOptions);
   if (options) {
-    return createRouteDecorator('GET')(parsedPath, options);
+    return createRouteDecorator("GET")(parsedPath, options);
   } else {
-    return createRouteDecorator('GET')(parsedPath);
+    return createRouteDecorator("GET")(parsedPath);
   }
 }
 
@@ -138,11 +138,11 @@ export function Post(
   options?: RouteMethodOptions,
 ) {
   const parsedPath =
-    !path && !options ? '/' : (path as string | RouteMethodOptions);
+    !path && !options ? "/" : (path as string | RouteMethodOptions);
   if (options) {
-    return createRouteDecorator('POST')(parsedPath, options);
+    return createRouteDecorator("POST")(parsedPath, options);
   } else {
-    return createRouteDecorator('POST')(parsedPath);
+    return createRouteDecorator("POST")(parsedPath);
   }
 }
 
@@ -154,11 +154,11 @@ export function Put(
   options?: RouteMethodOptions,
 ) {
   const parsedPath =
-    !path && !options ? '/' : (path as string | RouteMethodOptions);
+    !path && !options ? "/" : (path as string | RouteMethodOptions);
   if (options) {
-    return createRouteDecorator('PUT')(parsedPath, options);
+    return createRouteDecorator("PUT")(parsedPath, options);
   } else {
-    return createRouteDecorator('PUT')(parsedPath);
+    return createRouteDecorator("PUT")(parsedPath);
   }
 }
 
@@ -173,14 +173,14 @@ export function Delete(
   options?: RouteMethodOptions,
 ) {
   const parsedPath =
-    !path && !options ? '/' : (path as string | RouteMethodOptions);
+    !path && !options ? "/" : (path as string | RouteMethodOptions);
   if (options) {
-    return createRouteDecorator('DELETE')(parsedPath, options);
+    return createRouteDecorator("DELETE")(parsedPath, options);
   } else {
-    return createRouteDecorator('DELETE')(parsedPath);
+    return createRouteDecorator("DELETE")(parsedPath);
   }
 }
 
-export const Patch = createRouteDecorator('PATCH');
-export const Options = createRouteDecorator('OPTIONS');
-export const All = createRouteDecorator('ALL');
+export const Patch = createRouteDecorator("PATCH");
+export const Options = createRouteDecorator("OPTIONS");
+export const All = createRouteDecorator("ALL");

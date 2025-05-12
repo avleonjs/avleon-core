@@ -6,7 +6,7 @@
  */
 export abstract class BaseHttpException extends Error {
   code: number = 500;
-  name: string = 'HttpException';
+  name: string = "HttpException";
   constructor(message: any) {
     super(JSON.stringify(message));
   }
@@ -16,7 +16,7 @@ export abstract class BaseHttpException extends Error {
 }
 
 export class BadRequestException extends BaseHttpException {
-  name: string = 'BadRequest';
+  name: string = "BadRequest";
   code: number = 400;
 
   constructor(message: any) {
@@ -25,20 +25,20 @@ export class BadRequestException extends BaseHttpException {
 }
 
 export class ValidationErrorException extends BadRequestException {
-  name: string = 'ValidationError';
+  name: string = "ValidationError";
 }
 
 export class InternalErrorException extends BaseHttpException {
-  name: string = 'InternalError';
+  name: string = "InternalError";
   code: number = 500;
 
-  constructor(message: any = 'Something going wrong') {
+  constructor(message: any = "Something going wrong") {
     super(message);
   }
 }
 
 export class NotFoundException extends BaseHttpException {
-  name: string = 'NotFound';
+  name: string = "NotFound";
   code: number = 404;
   constructor(message: any) {
     super(message);
@@ -46,7 +46,7 @@ export class NotFoundException extends BaseHttpException {
 }
 
 export class UnauthorizedException extends BaseHttpException {
-  name: string = 'Unauthorized';
+  name: string = "Unauthorized";
   code: number = 401;
   constructor(message: any) {
     super(message);
@@ -54,7 +54,7 @@ export class UnauthorizedException extends BaseHttpException {
 }
 
 export class ForbiddenException extends BaseHttpException {
-  name: string = 'Forbidden';
+  name: string = "Forbidden";
   code: number = 403;
   constructor(message: any) {
     super(message);
@@ -77,10 +77,10 @@ export type HttpExceptionTypes =
 //   InternalError: (message: any) => InternalErrorException
 // }
 export const HttpExceptions = {
-  notFound: (message: any = '') => new NotFoundException(message),
-  validationError: (message: any = '') => new ValidationErrorException(message),
-  badRequest: (message: any = '') => new BadRequestException(message),
-  unauthorized: (message: any = '') => new UnauthorizedException(message),
-  forbidden: (message: any = '') => new ForbiddenException(message),
-  internalError: (message: any = '') => new InternalErrorException(message),
+  notFound: (message: any = "") => new NotFoundException(message),
+  validationError: (message: any = "") => new ValidationErrorException(message),
+  badRequest: (message: any = "") => new BadRequestException(message),
+  unauthorized: (message: any = "") => new UnauthorizedException(message),
+  forbidden: (message: any = "") => new ForbiddenException(message),
+  internalError: (message: any = "") => new InternalErrorException(message),
 };
