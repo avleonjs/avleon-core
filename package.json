@@ -1,16 +1,25 @@
 {
   "name": "@avleon/core",
-  "version": "0.0.27",
+  "version": "0.0.28",
   "main": "./dist/index.js",
-  "types": ["./dist/icore.d.ts"],
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "npm run clean && tsc",
     "clean": "rimraf dist",
     "watch": "tsc-watch",
+    "postinstall": "husky install",
+    "lint": "eslint . --ext .ts,.js",
+    "format": "prettier --write .",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "prepare": "husky install"
   },
-  "keywords": ["restapi", "avleon", "backend","fastify"],
+  "keywords": [
+    "restapi",
+    "avleon",
+    "backend",
+    "fastify"
+  ],
   "author": "Tareq Hossain",
   "license": "ISC",
   "devDependencies": {
@@ -18,9 +27,13 @@
     "@types/node": "^20.17.25",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "eslint": "^9.26.0",
+    "husky": "^8.0.0",
     "ioredis": "^5.6.1",
     "jest": "^29.7.0",
+    "lint-staged": "^16.0.0",
     "nodemon": "^3.1.7",
+    "prettier": "^3.5.3",
     "sharp": "^0.33.5",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
@@ -48,7 +61,7 @@
     "@scalar/fastify-api-reference": "*",
     "ioredis": "*",
     "sharp": "*",
-    "typeorm":"*"
+    "typeorm": "*"
   },
   "peerDependenciesMeta": {
     "@scalar/fastify-api-reference": {
@@ -64,9 +77,16 @@
       "optional": true
     }
   },
-"optionalDependencies": {
-  "typeorm": "*"
-},
+  "lint-staged": {
+    "*.{js,ts,json,md}": "prettier --write",
+    "*.{js,ts}": [
+      "eslint --fix",
+      "pnpm test -- --bail --findRelatedTests"
+    ]
+  },
+  "optionalDependencies": {
+    "typeorm": "*"
+  },
   "directories": {
     "test": "tests"
   },

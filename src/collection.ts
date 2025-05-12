@@ -24,6 +24,29 @@ type PaginationOptions = {
 
 type Predicate<T> = (item: T) => boolean;
 interface TypeormEnitity extends ObjectLiteral {}
+type Primitive = string | number | boolean | null;
+
+type ValueOperator<T> = {
+  $in?: T[];
+};
+
+type FieldCondition<T> = T | ValueOperator<T>;
+
+type WhereCondition<T> = {
+  [K in keyof T]?: FieldCondition<T[K]>;
+};
+
+type LogicalOperators<T> =
+  | { $and: Where<T>[] }
+  | { $or: Where<T>[] }
+  | { $not: Where<T> };
+
+type Where<T> = WhereCondition<T> | LogicalOperators<T>;
+
+
+export interface IFindOneOptions<T = any> {
+  where: Where<T>
+}
 
 export type PaginationResult<T> = {
   total: number;
@@ -41,27 +64,86 @@ type ICollection<T> = {
 
 type EntityCollection<T extends ObjectLiteral> = {};
 
-class BasicCollection<T> implements ICollection<T> {
+export interface BasicCollection<T> {
+  clear():void;
+  find(predicate?: Predicate<T>): T[];
+  findAsync(predicate?: Predicate<T>): Promise<T[]>;
+  findOne(predicate: Predicate<T> | IFindOneOptions<T>): T | undefined;
+  findOneAsync(predicate: Predicate<T>| IFindOneOptions<T>): Promise<T|undefined>;
+}
+class BasicCollectionImpl<T> implements BasicCollection<T> {
   private items: T[];
 
   private constructor(items: T[]) {
     this.items = items;
   }
 
-  static from<T>(items: T[]): BasicCollection<T> {
-    return new BasicCollection(items);
+  static from<T>(items: T[]): BasicCollectionImpl<T> {
+    return new BasicCollectionImpl(items);
   }
 
-  findAll(predicate?: Predicate<T>) {
+  clear(){
+    this.items = [];
+  }
+
+  find(predicate?: Predicate<T>) {
+      if (this.isFunction(predicate)) {
+      return this.items.filter(predicate as Predicate<T>) as T[];
+    }
     const results = Array.from(this.items);
     return results;
   }
 
-  findOne(predicate: Predicate<T> | FindOneOptions<T>): T | Promise<T | null> {
+  async findAsync(predicate?: Predicate<T>): Promise<T[]> {
+    const results = Array.from(this.items);
+    return results;
+  }
+
+  private _matches<T>(item: T, where: Where<T>): boolean {
+    if ('$or' in where) {
+      return where.$or.some(cond => this._matches(item, cond));
+    }
+
+    if ('$and' in where) {
+      return where.$and.every(cond => this._matches(item, cond));
+    }
+
+    if ('$not' in where) {
+      return !this._matches(item, where.$not);
+    }
+
+    // Field-based matching
+    return Object.entries(where).every(([key, condition]) => {
+      const itemValue = item[key as keyof T];
+      if (condition && typeof condition === 'object' && !Array.isArray(condition)) {
+        const op = condition as ValueOperator<any>;
+
+        if ('$in' in op && Array.isArray(op.$in)) {
+          return op.$in.includes(itemValue);
+        }
+      }
+
+      return itemValue === condition;
+    });
+}
+
+
+  findOne(predicate: Predicate<T> | IFindOneOptions<T>): T | undefined {
     if (this.isFunction(predicate)) {
       return this.items.find(predicate as Predicate<T>) as T;
     }
-    throw new Error("Invalid predicate type");
+    const result =  this.items.filter(item=> this._matches(item, predicate.where));
+    if(result.length > 0){
+      return result[0];
+    }
+    return undefined;
+  }
+
+  async findOneAsync(predicate: Predicate<T> | IFindOneOptions<T>): Promise<T | undefined> {
+    if (this.isFunction(predicate)) {
+      return this.items.find(predicate as Predicate<T>) as T;
+    }
+    return this.items.find(item=> this._matches(item, predicate.where));
   }
 
   // Utility function to check if a value is a function
@@ -191,7 +273,7 @@ export class Collection {
   private constructor() {}
 
   static from<T>(items: T[]): BasicCollection<T> {
-    return BasicCollection.from(items);
+    return BasicCollectionImpl.from(items);
   }
   // Example refactoring of Collection.fromRepository for better type safety
   static fromRepository<T extends ObjectLiteral>(
