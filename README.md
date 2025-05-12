@@ -80,24 +80,24 @@ pnpm add @avleon/core
 ### Route Based
 
 ```typescript
-import { Avleon, ApiController, Get, Results } from '@avleon/core';
+import { Avleon, ApiController, Get, Results } from "@avleon/core";
 
 const app = Avleon.createApplication();
-app.mapGet('/', () => 'Hello, Avleon');
+app.mapGet("/", () => "Hello, Avleon");
 app.run(); // or app.run(3000);
 ```
 
 ### Controller Based
 
 ```typescript
-import { Avleon, ApiController, Get, Results } from '@avleon/core';
+import { Avleon, ApiController, Get, Results } from "@avleon/core";
 
 // Define a controller
 @ApiController
 class HelloController {
   @Get()
   sayHello() {
-    return 'Hello, Avleon!';
+    return "Hello, Avleon!";
   }
 }
 
@@ -114,7 +114,7 @@ app.run();
 Avleon provides a builder pattern for creating applications:
 
 ```typescript
-import { Avleon } from '@avleon/core';
+import { Avleon } from "@avleon/core";
 
 // Create an application
 const app = Avleon.createApplication();
@@ -130,7 +130,7 @@ app.run(3000);
 Controllers are the entry points for your API requests. They are defined using the `@ApiController` decorator:
 
 ```typescript
-@ApiController('/users')
+@ApiController("/users")
 class UserController {
   // Route handlers go here
 }
@@ -228,7 +228,7 @@ class LoggingMiddleware extends AppMiddleware {
 }
 
 @UseMiddleware(LoggingMiddleware)
-@ApiController('/users')
+@ApiController("/users")
 class UserController {
   // Controller methods
 }
@@ -237,10 +237,10 @@ class UserController {
 You can also apply middleware to specific routes:
 
 ```typescript
-@ApiController('/users')
+@ApiController("/users")
 class UserController {
   @UseMiddleware(LoggingMiddleware)
-  @Get('/')
+  @Get("/")
   async getUsers() {
     // Only this route will use the LoggingMiddleware
   }
@@ -274,7 +274,7 @@ Then you have access the `AuthUser` on class lavel or method lavel depending on 
 ```typescript
 // admin.controller.ts
 @Authorized()
-@ApiController('/admin')
+@ApiController("/admin")
 class AdminController {
   // Protected controller methods
 
@@ -286,12 +286,12 @@ class AdminController {
 }
 
 // Or protect specific routes with roles
-@ApiController('/admin')
+@ApiController("/admin")
 class AdminController {
   @Authorized({
-    roles: ['admin'],
+    roles: ["admin"],
   })
-  @Get('/')
+  @Get("/")
   async adminDashboard() {
     // Only users with 'admin' role can access this
   }
@@ -329,17 +329,17 @@ You can also use custom validation rules:
 ```typescript
 class UserDto {
   @Validate({
-    type: 'string',
+    type: "string",
     required: true,
-    message: 'Name is required',
+    message: "Name is required",
   })
   name: string;
 
   @Validate({
-    type: 'number',
+    type: "number",
     min: 0,
     max: 120,
-    message: 'Age must be between 0 and 120',
+    message: "Age must be between 0 and 120",
   })
   age: number;
 }
@@ -354,14 +354,14 @@ const app = new Avleon({
   controllers: [UserController],
   openapi: {
     info: {
-      title: 'User API',
-      version: '1.0.0',
-      description: 'API for managing users',
+      title: "User API",
+      version: "1.0.0",
+      description: "API for managing users",
     },
     servers: [
       {
-        url: 'http://localhost:3000',
-        description: 'Development server',
+        url: "http://localhost:3000",
+        description: "Development server",
       },
     ],
   },
@@ -373,7 +373,7 @@ You can also customize the OpenAPI UI:
 ```typescript
 app.useOpenApi(OpenApiConfig, (config) => {
   // Modify the OpenAPI configuration
-  config.info.title = 'Custom API Title';
+  config.info.title = "Custom API Title";
   return config;
 });
 ```
@@ -387,12 +387,12 @@ Connect to databases using TypeORM:
 ```typescript
 const app = Avleon.createApplication();
 app.useDataSource({
-  type: 'postgres',
-  host: 'localhost',
+  type: "postgres",
+  host: "localhost",
   port: 5432,
-  username: 'postgres',
-  password: 'password',
-  database: 'avleon',
+  username: "postgres",
+  password: "password",
+  database: "avleon",
   entities: [User],
   synchronize: true,
 });
@@ -402,7 +402,7 @@ Or use the config class:
 
 ```typescript
 // datasource.config.ts
-import { Config, IConfig } from '@avleon/core';
+import { Config, IConfig } from "@avleon/core";
 
 @Config
 export class DataSourceConfig implements IConfig {
@@ -410,12 +410,12 @@ export class DataSourceConfig implements IConfig {
   // config method has access to environment variables by default
   config(env: Environment) {
     return {
-      type: env.get('type') || 'postgres',
-      host: 'localhost',
+      type: env.get("type") || "postgres",
+      host: "localhost",
       port: 5432,
-      username: 'postgres',
-      password: 'password',
-      database: 'avleon',
+      username: "postgres",
+      password: "password",
+      database: "avleon",
       entities: [User],
       synchronize: true,
     };
@@ -457,8 +457,8 @@ Serve static files:
 
 ```typescript
 app.useStaticFiles({
-  path: path.join(process.cwd(), 'public'),
-  prefix: '/static/',
+  path: path.join(process.cwd(), "public"),
+  prefix: "/static/",
 });
 ```
 
@@ -467,7 +467,7 @@ app.useStaticFiles({
 Test your API endpoints with the built-in testing utilities:
 
 ```typescript
-import { TestBuilder } from '@avleon/core';
+import { TestBuilder } from "@avleon/core";
 
 const testBuilder = TestBuilder.createBuilder();
 const app = testBuilder.getTestApplication({
@@ -475,7 +475,7 @@ const app = testBuilder.getTestApplication({
 });
 
 // Test your API endpoints
-const response = await app.get('/users');
+const response = await app.get("/users");
 expect(response.statusCode).toBe(200);
 ```
 
@@ -512,7 +512,7 @@ Avleon provides several methods for mapping routes in your application:
 The `mapGet` method is used to define GET routes in your application. It takes a path string and a handler function as parameters.
 
 ```typescript
-app.mapGet('/users', async (req, res) => {
+app.mapGet("/users", async (req, res) => {
   // Handle GET request to /users
   return { users: [] };
 });
@@ -523,7 +523,7 @@ app.mapGet('/users', async (req, res) => {
 The `mapPost` method is used to define POST routes in your application. It takes a path string and a handler function as parameters.
 
 ```typescript
-app.mapPost('/users', async (req, res) => {
+app.mapPost("/users", async (req, res) => {
   // Handle POST request to /users
   const userData = req.body;
   // Process user data
@@ -536,7 +536,7 @@ app.mapPost('/users', async (req, res) => {
 The `mapPut` method is used to define PUT routes in your application. It takes a path string and a handler function as parameters.
 
 ```typescript
-app.mapPut('/users/:id', async (req, res) => {
+app.mapPut("/users/:id", async (req, res) => {
   // Handle PUT request to /users/:id
   const userId = req.params.id;
   const userData = req.body;
@@ -550,7 +550,7 @@ app.mapPut('/users/:id', async (req, res) => {
 The `mapDelete` method is used to define DELETE routes in your application. It takes a path string and a handler function as parameters.
 
 ```typescript
-app.mapDelete('/users/:id', async (req, res) => {
+app.mapDelete("/users/:id", async (req, res) => {
   // Handle DELETE request to /users/:id
   const userId = req.params.id;
   // Delete user
@@ -562,26 +562,26 @@ Each of these methods returns a route object that can be used to add middleware 
 
 ```typescript
 app
-  .mapGet('/users', async (req, res) => {
+  .mapGet("/users", async (req, res) => {
     // Handler function
   })
   .useMiddleware([AuthMiddleware])
   .useSwagger({
-    summary: 'Get all users',
-    description: 'Retrieves a list of all users',
-    tags: ['users'],
+    summary: "Get all users",
+    description: "Retrieves a list of all users",
+    tags: ["users"],
     response: {
       200: {
-        description: 'Successful response',
+        description: "Successful response",
         content: {
-          'application/json': {
+          "application/json": {
             schema: {
-              type: 'array',
+              type: "array",
               items: {
-                type: 'object',
+                type: "object",
                 properties: {
-                  id: { type: 'string' },
-                  name: { type: 'string' },
+                  id: { type: "string" },
+                  name: { type: "string" },
                 },
               },
             },
