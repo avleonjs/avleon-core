@@ -5,12 +5,12 @@
  * @url https://github.com/xtareq
  */
 
-import Container, { Service } from 'typedi';
+import Container, { Service } from "typedi";
 import container, {
   API_CONTROLLER_METADATA_KEY,
   CONTROLLER_META_KEY,
   registerController,
-} from './container';
+} from "./container";
 
 /**
  * Options for configuring a controller.
@@ -37,7 +37,7 @@ export type ControllerOptions = {
 };
 
 export function createControllerDecorator(
-  type: 'api' | 'web' = 'web',
+  type: "api" | "web" = "web",
 ): (
   pathOrOptions?: string | ControllerOptions,
   maybeOptions?: ControllerOptions,
@@ -47,19 +47,19 @@ export function createControllerDecorator(
     maybeOptions?: ControllerOptions,
   ): ClassDecorator {
     return function (target: Function) {
-      let path = '/';
+      let path = "/";
       let options: ControllerOptions = {};
 
-      if (typeof pathOrOptions === 'string') {
+      if (typeof pathOrOptions === "string") {
         path = pathOrOptions;
         options = maybeOptions || {};
-      } else if (typeof pathOrOptions === 'object') {
+      } else if (typeof pathOrOptions === "object") {
         options = pathOrOptions;
-        path = options.path || '/';
+        path = options.path || "/";
       }
       Reflect.defineMetadata(API_CONTROLLER_METADATA_KEY, true, target);
       // Ensure Service is applied as a ClassDecorator
-      if (typeof Service === 'function') {
+      if (typeof Service === "function") {
         registerController(target); // Add to custom registry
         Service()(target); // Apply DI decorator
         Reflect.defineMetadata(
@@ -68,7 +68,7 @@ export function createControllerDecorator(
           target,
         );
       } else {
-        throw new Error('Service decorator is not a function');
+        throw new Error("Service decorator is not a function");
       }
     };
   };
@@ -99,27 +99,27 @@ export function ApiController(
   options?: ControllerOptions,
 ): ClassDecorator;
 export function ApiController(
-  pathOrOptions: Function | string | ControllerOptions = '/',
+  pathOrOptions: Function | string | ControllerOptions = "/",
   mayBeOptions?: ControllerOptions,
 ): any {
-  if (typeof pathOrOptions == 'function') {
+  if (typeof pathOrOptions == "function") {
     Reflect.defineMetadata(API_CONTROLLER_METADATA_KEY, true, pathOrOptions);
     // Ensure Service is applied as a ClassDecorator
-    if (typeof Service === 'function') {
+    if (typeof Service === "function") {
       registerController(pathOrOptions); // Add to custom registry
       Service()(pathOrOptions); // Apply DI decorator
       Reflect.defineMetadata(
         CONTROLLER_META_KEY,
-        { type: 'api', path: '/', options: {} },
+        { type: "api", path: "/", options: {} },
         pathOrOptions,
       );
     } else {
-      throw new Error('Service decorator is not a function');
+      throw new Error("Service decorator is not a function");
     }
   } else {
     if (mayBeOptions) {
-      return createControllerDecorator('api')(pathOrOptions, mayBeOptions);
+      return createControllerDecorator("api")(pathOrOptions, mayBeOptions);
     }
-    return createControllerDecorator('api')(pathOrOptions);
+    return createControllerDecorator("api")(pathOrOptions);
   }
 }

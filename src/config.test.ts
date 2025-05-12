@@ -1,35 +1,35 @@
-import 'reflect-metadata';
-import { Config, CreateConfig, GetConfig, IConfig } from './config';
-import { Environment } from './environment-variables';
+import "reflect-metadata";
+import { Config, CreateConfig, GetConfig, IConfig } from "./config";
+import { Environment } from "./environment-variables";
 
 type AppConfig = { name: string; os: string };
 
-describe('Config', () => {
-  describe('class', () => {
-    it('should be call by get config', () => {
+describe("Config", () => {
+  describe("class", () => {
+    it("should be call by get config", () => {
       @Config
       class MyConfig {
         config(env: Environment) {
           return {
-            name: 'avleon',
+            name: "avleon",
           };
         }
       }
       const mConfig = GetConfig(MyConfig);
-      expect(mConfig).toHaveProperty('name');
-      expect(mConfig['name']).toBe('avleon');
+      expect(mConfig).toHaveProperty("name");
+      expect(mConfig["name"]).toBe("avleon");
     });
   });
 
-  describe('createConfig()', () => {
-    it('it should create config and called with GetConfig', () => {
-      CreateConfig('myconfig', (env) => ({
-        firstname: 'tareq',
-        os: env.get('name'),
+  describe("createConfig()", () => {
+    it("it should create config and called with GetConfig", () => {
+      CreateConfig("myconfig", (env) => ({
+        firstname: "tareq",
+        os: env.get("name"),
       }));
-      const mConfig = GetConfig('myconfig');
-      expect(mConfig).toHaveProperty('firstname');
-      expect(mConfig.firstname).toBe('tareq');
+      const mConfig = GetConfig("myconfig");
+      expect(mConfig).toHaveProperty("firstname");
+      expect(mConfig.firstname).toBe("tareq");
     });
   });
 });

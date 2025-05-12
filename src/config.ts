@@ -4,9 +4,9 @@
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
-import { Container, Service, Constructable, Token } from 'typedi';
-import { Environment } from './environment-variables';
-import { inject } from './helpers';
+import { Container, Service, Constructable, Token } from "typedi";
+import { Environment } from "./environment-variables";
+import { inject } from "./helpers";
 
 export interface IConfig<T = any> {
   config(env: Environment): T;
@@ -41,7 +41,7 @@ export class AppConfig {
 
 export function GetConfig<
   T extends IConfig<R>,
-  R = ReturnType<InstanceType<Constructable<T>>['config']>,
+  R = ReturnType<InstanceType<Constructable<T>>["config"]>,
 >(ConfigClass: Constructable<T>): R;
 
 export function GetConfig<T = any>(config: string | symbol): T;
@@ -50,9 +50,9 @@ export function GetConfig<T = any>(config: string | symbol): T;
 export function GetConfig<R>(token: any): R {
   // 1. Class‐based: token.prototype.config is a function
   if (
-    typeof token === 'function' &&
+    typeof token === "function" &&
     token.prototype != null &&
-    typeof token.prototype.config === 'function'
+    typeof token.prototype.config === "function"
   ) {
     const instance = Container.get(token as Constructable<any>);
     if (!instance) {
@@ -64,7 +64,7 @@ export function GetConfig<R>(token: any): R {
   // 2. Functional: token is the callback itself
   const stored = Container.get(token);
   if (!stored) {
-    throw new Error('Config object is not registered.');
+    throw new Error("Config object is not registered.");
   }
   return stored as R;
 }

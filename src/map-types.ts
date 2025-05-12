@@ -17,14 +17,14 @@ export function PartialType<T>(
   // Collect properties from the base class (including inherited ones)
   while (currentPrototype && currentPrototype !== Object.prototype) {
     const properties = Object.getOwnPropertyNames(currentPrototype).filter(
-      (prop) => prop !== 'constructor', // Exclude the constructor
+      (prop) => prop !== "constructor", // Exclude the constructor
     );
 
     // Retrieve metadata for each property
     properties.forEach((key) => {
       // Check if the property has type metadata (design:type)
       const designType = Reflect.getMetadata(
-        'design:type',
+        "design:type",
         currentPrototype,
         key,
       );
@@ -45,12 +45,12 @@ export function PartialType<T>(
   // Define properties as optional and copy metadata
   baseProperties.forEach((key) => {
     const propertyType = Reflect.getMetadata(
-      'design:type',
+      "design:type",
       BaseClass.prototype,
       key,
     );
     Reflect.defineMetadata(
-      'design:type',
+      "design:type",
       propertyType,
       PartialClass.prototype,
       key,
@@ -94,8 +94,8 @@ export function PickType<T, K extends keyof T>(
     constructor() {
       (keys as string[]).forEach((key: string) => {
         Reflect.defineMetadata(
-          'design:type',
-          Reflect.getMetadata('design:type', BaseClass.prototype, key),
+          "design:type",
+          Reflect.getMetadata("design:type", BaseClass.prototype, key),
           this,
           key,
         );
@@ -103,7 +103,7 @@ export function PickType<T, K extends keyof T>(
     }
   }
 
-  Reflect.decorate([Reflect.metadata('design:properties', keys)], PickClass);
+  Reflect.decorate([Reflect.metadata("design:properties", keys)], PickClass);
 
   // Copy metadata from BaseClass to PickClass
   Reflect.getMetadataKeys(BaseClass.prototype).forEach((key) => {
@@ -124,7 +124,7 @@ export function OmitType<T, K extends keyof T>(
   BaseClass: Constructor<T>,
   keys: K[],
 ): Constructor<Omit<T, K>> {
-  const allKeys = Reflect.getMetadata('design:properties', BaseClass) || [];
+  const allKeys = Reflect.getMetadata("design:properties", BaseClass) || [];
   const omitKeys = new Set(keys);
   const finalKeys = allKeys.filter((key: string) => !omitKeys.has(key as any));
 
@@ -132,8 +132,8 @@ export function OmitType<T, K extends keyof T>(
     constructor() {
       finalKeys.forEach((key: string) => {
         Reflect.defineMetadata(
-          'design:type',
-          Reflect.getMetadata('design:type', BaseClass.prototype, key),
+          "design:type",
+          Reflect.getMetadata("design:type", BaseClass.prototype, key),
           this,
           key,
         );
@@ -142,7 +142,7 @@ export function OmitType<T, K extends keyof T>(
   }
 
   Reflect.decorate(
-    [Reflect.metadata('design:properties', finalKeys)],
+    [Reflect.metadata("design:properties", finalKeys)],
     OmitClass,
   );
 

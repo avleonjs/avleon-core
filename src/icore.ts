@@ -13,10 +13,10 @@ import fastify, {
   RouteGenericInterface,
   InjectOptions,
   LightMyRequestResponse,
-} from 'fastify';
-import Container, { Constructable } from 'typedi';
-import fs from 'fs/promises';
-import path from 'path';
+} from "fastify";
+import Container, { Constructable } from "typedi";
+import fs from "fs/promises";
+import path from "path";
 import container, {
   CONTROLLER_META_KEY,
   ROUTE_META_KEY,
@@ -31,31 +31,31 @@ import container, {
   REQUEST_BODY_FILES_KEY,
   REQUEST_BODY_FILE_KEY,
   FEATURE_KEY,
-} from './container';
+} from "./container";
 import {
   Constructor,
   formatUrl,
   isValidJsonString,
   validateObjectByInstance,
-} from './helpers';
-import { SystemUseError } from './exceptions/system-exception';
-import { existsSync, PathLike } from 'fs';
-import { DataSource, DataSourceOptions } from 'typeorm';
-import { AppMiddleware } from './middleware';
+} from "./helpers";
+import { SystemUseError } from "./exceptions/system-exception";
+import { existsSync, PathLike } from "fs";
+import { DataSource, DataSourceOptions } from "typeorm";
+import { AppMiddleware } from "./middleware";
 import {
   BadRequestException,
   BaseHttpException,
   ValidationErrorException,
-} from './exceptions';
-import { OpenApiOptions, OpenApiUiOptions } from './openapi';
-import swagger from '@fastify/swagger';
-import { AppConfig, IConfig } from './config';
-import { Environment } from './environment-variables';
-import cors, { FastifyCorsOptions } from '@fastify/cors';
-import fastifyMultipart, { FastifyMultipartOptions } from '@fastify/multipart';
-import { MultipartFile } from './multipart';
-import { validateOrThrow } from './validation';
-import { optionalRequire } from './utils';
+} from "./exceptions";
+import { OpenApiOptions, OpenApiUiOptions } from "./openapi";
+import swagger from "@fastify/swagger";
+import { AppConfig, IConfig } from "./config";
+import { Environment } from "./environment-variables";
+import cors, { FastifyCorsOptions } from "@fastify/cors";
+import fastifyMultipart, { FastifyMultipartOptions } from "@fastify/multipart";
+import { MultipartFile } from "./multipart";
+import { validateOrThrow } from "./validation";
+import { optionalRequire } from "./utils";
 
 export type FuncRoute = {
   handler: any;
@@ -100,18 +100,18 @@ export interface ParamMetaOptions {
   validatorClass: boolean;
   schema?: any;
   type:
-    | 'route:param'
-    | 'route:query'
-    | 'route:body'
-    | 'route:header'
-    | 'route:user'
-    | 'route:file'
-    | 'route:files';
+    | "route:param"
+    | "route:query"
+    | "route:body"
+    | "route:header"
+    | "route:user"
+    | "route:file"
+    | "route:files";
 }
 
 export interface ParamMetaFilesOptions {
   index: number;
-  type: 'route:files';
+  type: "route:files";
   files: MultipartFile[];
   fieldName: string;
 }
@@ -137,10 +137,10 @@ interface IRoute {
 const isTsNode =
   process.env.TS_NODE_DEV ||
   process.env.TS_NODE_PROJECT ||
-  (process as any)[Symbol.for('ts-node.register.instance')];
+  (process as any)[Symbol.for("ts-node.register.instance")];
 const controllerDir = path.join(
   process.cwd(),
-  isTsNode ? './src/controllers' : './dist/cotrollers',
+  isTsNode ? "./src/controllers" : "./dist/cotrollers",
 );
 
 type StaticFileOptions = {
@@ -174,14 +174,14 @@ export interface IAvleonApplication {
   useCors(corsOptions?: FastifyCorsOptions): void;
   useDataSource<
     T extends IConfig<R>,
-    R = ReturnType<InstanceType<Constructable<T>>['config']>,
+    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
   >(
     ConfigClass: Constructable<T>,
     modifyConfig?: (config: R) => R,
   ): void;
   useOpenApi<
     T extends IConfig<R>,
-    R = ReturnType<InstanceType<Constructable<T>>['config']>,
+    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
   >(
     ConfigClass: Constructable<T>,
     modifyConfig?: (config: R) => R,
@@ -193,7 +193,7 @@ export interface IAvleonApplication {
   useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]): void;
   useAuthoriztion<T extends any>(middleware: Constructor<T>): void;
   mapRoute<T extends (...args: any[]) => any>(
-    method: 'get' | 'post' | 'put' | 'delete',
+    method: "get" | "post" | "put" | "delete",
     path: string,
     fn: T,
   ): Promise<void>;
@@ -232,7 +232,7 @@ export class AvleonApplication {
   private dataSource?: DataSource = undefined;
   private isMapFeatures = false;
   private registerControllerAuto = false;
-  private registerControllerPath = './src';
+  private registerControllerPath = "./src";
 
   private metaCache = new Map<string, MethodParamMeta>();
   private multipartOptions: FastifyMultipartOptions | undefined;
@@ -242,7 +242,7 @@ export class AvleonApplication {
   }
 
   static getApp(): AvleonApplication {
-    let isTestEnv = process.env.NODE_ENV == 'test';
+    let isTestEnv = process.env.NODE_ENV == "test";
     if (!AvleonApplication.instance) {
       AvleonApplication.instance = new AvleonApplication();
     }
@@ -250,7 +250,7 @@ export class AvleonApplication {
   }
 
   static getInternalApp(buildOptions: any): AvleonApplication {
-    let isTestEnv = process.env.NODE_ENV == 'test';
+    let isTestEnv = process.env.NODE_ENV == "test";
     if (!AvleonApplication.instance) {
       AvleonApplication.instance = new AvleonApplication();
     }
@@ -258,12 +258,12 @@ export class AvleonApplication {
     if (buildOptions.dataSourceOptions) {
       AvleonApplication.instance.dataSourceOptions =
         buildOptions.dataSourceOptions;
-      const typeorm = require('typeorm');
+      const typeorm = require("typeorm");
       const datasource = new typeorm.DataSource(
         buildOptions.dataSourceOptions,
       ) as DataSource;
 
-      Container.set<DataSource>('idatasource', datasource);
+      Container.set<DataSource>("idatasource", datasource);
       AvleonApplication.instance.dataSource = datasource;
     }
     return AvleonApplication.instance;
@@ -271,7 +271,7 @@ export class AvleonApplication {
 
   isDevelopment() {
     const env = container.get(Environment);
-    return env.get('NODE_ENV') == 'development';
+    return env.get("NODE_ENV") == "development";
   }
 
   private async initSwagger(options: OpenApiUiOptions) {
@@ -280,17 +280,17 @@ export class AvleonApplication {
 
     this.app.register(swagger, {
       openapi: {
-        openapi: '3.0.0',
+        openapi: "3.0.0",
         ...restOptions,
       },
     });
-    const rPrefix = routePrefix ? routePrefix : '/docs';
+    const rPrefix = routePrefix ? routePrefix : "/docs";
 
-    if (options.ui && options.ui == 'scalar') {
-      const scalarPlugin = optionalRequire('@scalar/fastify-api-reference', {
+    if (options.ui && options.ui == "scalar") {
+      const scalarPlugin = optionalRequire("@scalar/fastify-api-reference", {
         failOnMissing: true,
         customMessage:
-          'Install "@scalar/fastify-api-reference" to enable API docs.\n\n  npm install @scalar/fastify-api-reference',
+          "Install \"@scalar/fastify-api-reference\" to enable API docs.\n\n  npm install @scalar/fastify-api-reference",
       });
       await this.app.register(scalarPlugin, {
         routePrefix: rPrefix as any,
@@ -298,18 +298,18 @@ export class AvleonApplication {
           ? configuration
           : {
               metaData: {
-                title: 'Avleon Api',
-                ogTitle: 'Avleon',
+                title: "Avleon Api",
+                ogTitle: "Avleon",
               },
-              theme: options.theme ? options.theme : 'kepler',
-              favicon: '/static/favicon.png',
+              theme: options.theme ? options.theme : "kepler",
+              favicon: "/static/favicon.png",
             },
       });
     } else {
-      const fastifySwaggerUi = optionalRequire('@fastify/swagger-ui', {
+      const fastifySwaggerUi = optionalRequire("@fastify/swagger-ui", {
         failOnMissing: true,
         customMessage:
-          'Install "@fastify/swagger-ui" to enable API docs.\n\n  npm install @fastify/swagger-ui',
+          "Install \"@fastify/swagger-ui\" to enable API docs.\n\n  npm install @fastify/swagger-ui",
       });
       await this.app.register(fastifySwaggerUi, {
         logo: logo ? logo : null,
@@ -321,8 +321,8 @@ export class AvleonApplication {
 
   private _isConfigClass<T>(input: any): input is ConfigClass<T> {
     return (
-      typeof input === 'function' &&
-      typeof input.prototype === 'object' &&
+      typeof input === "function" &&
+      typeof input.prototype === "object" &&
       input.prototype?.constructor === input
     );
   }
@@ -374,15 +374,15 @@ export class AvleonApplication {
     }
 
     if (!dataSourceOptions)
-      throw new SystemUseError('Invlaid datasource options.');
+      throw new SystemUseError("Invlaid datasource options.");
 
     this.dataSourceOptions = dataSourceOptions;
-    const typeorm = require('typeorm');
+    const typeorm = require("typeorm");
     const datasource = new typeorm.DataSource(dataSourceOptions) as DataSource;
 
     this.dataSource = datasource;
 
-    Container.set<DataSource>('idatasource', datasource);
+    Container.set<DataSource>("idatasource", datasource);
   }
 
   private _useCache(options: any) {}
@@ -391,7 +391,7 @@ export class AvleonApplication {
     for (const mclass of mclasses) {
       const cls = Container.get<T>(mclass);
       this.middlewares.set(mclass.name, cls);
-      this.app.addHook('preHandler', cls.invoke);
+      this.app.addHook("preHandler", cls.invoke);
     }
   }
 
@@ -402,9 +402,9 @@ export class AvleonApplication {
   useStaticFiles(
     options: StaticFileOptions = { path: undefined, prefix: undefined },
   ) {
-    this.app.register(require('@fastify/static'), {
-      root: options.path ? options.path : path.join(process.cwd(), 'public'),
-      prefix: options.prefix ? options.prefix : '/static/',
+    this.app.register(require("@fastify/static"), {
+      root: options.path ? options.path : path.join(process.cwd(), "public"),
+      prefix: options.prefix ? options.prefix : "/static/",
     });
   }
 
@@ -414,15 +414,15 @@ export class AvleonApplication {
     for (const mclass of mclasses) {
       const cls = Container.get<T>(mclass.constructor);
       this.middlewares.set(mclass.name, cls);
-      this.app.addHook('preHandler', cls.invoke);
+      this.app.addHook("preHandler", cls.invoke);
     }
   }
 
   private executeMiddlewares(target: any, propertyKey?: string) {
     const classMiddlewares =
-      Reflect.getMetadata('controller:middleware', target.constructor) || [];
+      Reflect.getMetadata("controller:middleware", target.constructor) || [];
     const methodMiddlewares = propertyKey
-      ? Reflect.getMetadata('route:middleware', target, propertyKey) || []
+      ? Reflect.getMetadata("route:middleware", target, propertyKey) || []
       : [];
 
     return [...classMiddlewares, ...methodMiddlewares];
@@ -442,11 +442,11 @@ export class AvleonApplication {
     if (!controllerMeta) return;
     const prototype = Object.getPrototypeOf(ctrl);
     const methods = Object.getOwnPropertyNames(prototype).filter(
-      (name) => name !== 'constructor',
+      (name) => name !== "constructor",
     );
-    const tag = ctrl.constructor.name.replace('Controller', '');
+    const tag = ctrl.constructor.name.replace("Controller", "");
     const swaggerControllerMeta =
-      Reflect.getMetadata('controller:openapi', ctrl.constructor) || {};
+      Reflect.getMetadata("controller:openapi", ctrl.constructor) || {};
     const authClsMeata = Reflect.getMetadata(
       AUTHORIZATION_META_KEY,
       ctrl.constructor,
@@ -467,7 +467,7 @@ export class AvleonApplication {
 
       // handle openapi data
       const swaggerMeta =
-        Reflect.getMetadata('route:openapi', prototype, method) || {};
+        Reflect.getMetadata("route:openapi", prototype, method) || {};
 
       const authClsMethodMeata = Reflect.getMetadata(
         AUTHORIZATION_META_KEY,
@@ -484,7 +484,7 @@ export class AvleonApplication {
       });
 
       const routePath =
-        methodmetaOptions.path == '' ? '/' : methodmetaOptions.path;
+        methodmetaOptions.path == "" ? "/" : methodmetaOptions.path;
 
       let schema = { ...swaggerControllerMeta, ...swaggerMeta, tags: [tag] };
       if (!swaggerMeta.body && bodySchema) {
@@ -525,7 +525,7 @@ export class AvleonApplication {
               validateOrThrow(
                 { [paramMeta.key]: args[paramMeta.index] },
                 { [paramMeta.key]: { type: paramMeta.dataType } },
-                { location: 'param' },
+                { location: "param" },
               );
             }
           }
@@ -539,7 +539,7 @@ export class AvleonApplication {
               if (err) {
                 return await res.code(400).send({
                   code: 400,
-                  error: 'ValidationError',
+                  error: "ValidationError",
                   errors: err,
                   message: err.message,
                 });
@@ -549,7 +549,7 @@ export class AvleonApplication {
               validateOrThrow(
                 { [queryMeta.key]: args[queryMeta.index] },
                 { [queryMeta.key]: { type: queryMeta.dataType } },
-                { location: 'queryparam' },
+                { location: "queryparam" },
               );
             }
           }
@@ -563,7 +563,7 @@ export class AvleonApplication {
               if (err) {
                 return await res.code(400).send({
                   code: 400,
-                  error: 'ValidationError',
+                  error: "ValidationError",
                   errors: err,
                   message: err.message,
                 });
@@ -584,8 +584,8 @@ export class AvleonApplication {
    * @returns
    */
   private async _mapArgs(req: IRequest, meta: MethodParamMeta): Promise<any[]> {
-    if (!req.hasOwnProperty('_argsCache')) {
-      Object.defineProperty(req, '_argsCache', {
+    if (!req.hasOwnProperty("_argsCache")) {
+      Object.defineProperty(req, "_argsCache", {
         value: new Map<string, any[]>(),
         enumerable: false,
       });
@@ -600,7 +600,7 @@ export class AvleonApplication {
 
     const args: any[] = meta.params.map((p) => req.params[p.key] || null);
     meta.query.forEach(
-      (q) => (args[q.index] = q.key === 'all' ? req.query : req.query[q.key]),
+      (q) => (args[q.index] = q.key === "all" ? req.query : req.query[q.key]),
     );
     meta.body.forEach(
       (body) => (args[body.index] = { ...req.body, ...req.formData }),
@@ -609,7 +609,7 @@ export class AvleonApplication {
     meta.headers.forEach(
       (header) =>
         (args[header.index] =
-          header.key === 'all' ? req.headers : req.headers[header.key]),
+          header.key === "all" ? req.headers : req.headers[header.key]),
     );
 
     if (meta.file) {
@@ -620,11 +620,11 @@ export class AvleonApplication {
 
     if (
       meta.files &&
-      req.headers['content-type']?.startsWith('multipart/form-data') === true
+      req.headers["content-type"]?.startsWith("multipart/form-data") === true
     ) {
       const files = await req.saveRequestFiles();
       if (!files || files.length === 0) {
-        throw new BadRequestException({ error: 'No files uploaded' });
+        throw new BadRequestException({ error: "No files uploaded" });
       }
 
       const fileInfo = files.map((file) => ({
@@ -638,13 +638,13 @@ export class AvleonApplication {
       }));
       for await (let f of meta.files) {
         const findex = fileInfo.findIndex((x) => x.fieldname == f.fieldName);
-        if (f.fieldName != 'all' && findex == -1) {
+        if (f.fieldName != "all" && findex == -1) {
           throw new BadRequestException(
             `${f.fieldName} doesn't exists in request files tree.`,
           );
         }
         args[f.index] =
-          f.fieldName == 'all'
+          f.fieldName == "all"
             ? fileInfo
             : fileInfo.filter((x) => x.fieldname == f.fieldName);
       }
@@ -688,10 +688,10 @@ export class AvleonApplication {
     const isTsNode =
       process.env.TS_NODE_DEV ||
       process.env.TS_NODE_PROJECT ||
-      (process as any)[Symbol.for('ts-node.register.instance')];
+      (process as any)[Symbol.for("ts-node.register.instance")];
     const controllerDir = path.join(process.cwd(), this.registerControllerPath);
 
-    return isTsNode ? controllerDir : controllerDir.replace('src', 'dist');
+    return isTsNode ? controllerDir : controllerDir.replace("src", "dist");
   }
 
   private async autoControllers(controllersPath?: string) {
@@ -701,12 +701,12 @@ export class AvleonApplication {
     for (const file of files) {
       const isTestFile = /\.(test|spec|e2e-spec)\.ts$/.test(file);
       if (isTestFile) continue;
-      if (isTsNode ? file.endsWith('.ts') : file.endsWith('.js')) {
+      if (isTsNode ? file.endsWith(".ts") : file.endsWith(".js")) {
         const filePath = path.join(conDir, file);
         const module = await import(filePath);
         for (const exported of Object.values(module)) {
-          if (typeof exported === 'function' && isApiController(exported)) {
-            console.log('adding', exported.name);
+          if (typeof exported === "function" && isApiController(exported)) {
+            console.log("adding", exported.name);
             if (!this.controllers.some((con) => exported.name == con.name)) {
               this.controllers.push(exported);
             }
@@ -751,7 +751,7 @@ export class AvleonApplication {
         if (isApiController(controller)) {
           this.buildController(controller);
         } else {
-          throw new SystemUseError('Not a api controller.');
+          throw new SystemUseError("Not a api controller.");
         }
       }
     }
@@ -784,14 +784,14 @@ export class AvleonApplication {
     }
     return {
       code: 500,
-      error: 'INTERNAL_ERROR',
-      message: error.message ? error.message : 'Something going wrong.',
+      error: "INTERNAL_ERROR",
+      message: error.message ? error.message : "Something going wrong.",
     };
   }
 
   async mapRoute<T extends (...args: any[]) => any>(
-    method: 'get' | 'post' | 'put' | 'delete',
-    path: string = '',
+    method: "get" | "post" | "put" | "delete",
+    path: string = "",
     fn: T,
   ) {
     await this.mapFn(fn); // Assuming mapFn is needed for all methods
@@ -800,7 +800,7 @@ export class AvleonApplication {
       // Dynamic method call
       try {
         const result = await fn.apply(this, [req, res]);
-        if (typeof result === 'object' && result !== null) {
+        if (typeof result === "object" && result !== null) {
           res.json(result); // Use res.json for objects
         } else {
           res.send(result); // Fallback for other types
@@ -817,7 +817,7 @@ export class AvleonApplication {
     method: string,
     fn: T,
   ) {
-    const routeKey = method + ':' + routePath;
+    const routeKey = method + ":" + routePath;
     this.rMap.set(routeKey, {
       handler: fn,
       middlewares: [],
@@ -855,25 +855,25 @@ export class AvleonApplication {
     return route;
   }
 
-  mapGet<T extends (...args: any[]) => any>(path: string = '', fn: T) {
-    return this._routeHandler(path, 'GET', fn);
+  mapGet<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+    return this._routeHandler(path, "GET", fn);
   }
 
-  mapPost<T extends (...args: any[]) => any>(path: string = '', fn: T) {
-    return this._routeHandler(path, 'POST', fn);
+  mapPost<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+    return this._routeHandler(path, "POST", fn);
   }
 
-  mapPut<T extends (...args: any[]) => any>(path: string = '', fn: T) {
-    return this._routeHandler(path, 'PUT', fn);
+  mapPut<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+    return this._routeHandler(path, "PUT", fn);
   }
 
-  mapDelete<T extends (...args: any[]) => any>(path: string = '', fn: T) {
-    return this._routeHandler(path, 'DELETE', fn);
+  mapDelete<T extends (...args: any[]) => any>(path: string = "", fn: T) {
+    return this._routeHandler(path, "DELETE", fn);
   }
 
   private _mapFeatures() {
-    const features = Container.get('features');
-    console.log('Features', features);
+    const features = Container.get("features");
+    console.log("Features", features);
   }
 
   async initializeDatabase() {
@@ -883,7 +883,7 @@ export class AvleonApplication {
   }
 
   async run(port: number = 4000, fn?: CallableFunction): Promise<void> {
-    if (this.alreadyRun) throw new SystemUseError('App already running');
+    if (this.alreadyRun) throw new SystemUseError("App already running");
     this.alreadyRun = true;
 
     if (this.hasSwagger) {
@@ -900,7 +900,7 @@ export class AvleonApplication {
     await this._mapControllers();
 
     this.rMap.forEach((value, key) => {
-      const [m, r] = key.split(':');
+      const [m, r] = key.split(":");
       this.app.route({
         method: m,
         url: r,
@@ -936,7 +936,7 @@ export class AvleonApplication {
       // this.initializeDatabase();
       this._mapControllers();
       this.rMap.forEach((value, key) => {
-        const [m, r] = key.split(':');
+        const [m, r] = key.split(":");
         this.app.route({
           method: m,
           url: r,
@@ -964,20 +964,20 @@ export class AvleonApplication {
       //
       return {
         get: async (url: string, options?: InjectOptions) =>
-          this.app.inject({ method: 'GET', url, ...options }),
+          this.app.inject({ method: "GET", url, ...options }),
         post: async (url: string, options?: InjectOptions) =>
-          this.app.inject({ method: 'POST', url, ...options }),
+          this.app.inject({ method: "POST", url, ...options }),
         put: async (url: string, options?: InjectOptions) =>
-          this.app.inject({ method: 'PUT', url, ...options }),
+          this.app.inject({ method: "PUT", url, ...options }),
         patch: async (url: string, options?: InjectOptions) =>
-          this.app.inject({ method: 'PATCH', url, ...options }),
+          this.app.inject({ method: "PATCH", url, ...options }),
         delete: async (url: string, options?: InjectOptions) =>
-          this.app.inject({ method: 'DELETE', url, ...options }),
+          this.app.inject({ method: "DELETE", url, ...options }),
         options: async (url: string, options?: InjectOptions) =>
-          this.app.inject({ method: 'OPTIONS', url, ...options }),
+          this.app.inject({ method: "OPTIONS", url, ...options }),
         getController: <T>(controller: Constructor<T>, deps: any[] = []) => {
           const paramTypes =
-            Reflect.getMetadata('design:paramtypes', controller) || [];
+            Reflect.getMetadata("design:paramtypes", controller) || [];
 
           deps.forEach((dep, i) => {
             Container.set(paramTypes[i], dep);
@@ -1008,7 +1008,7 @@ export interface IAppBuilder {
   ): Promise<void>;
   addDataSource<
     T extends IConfig<R>,
-    R = ReturnType<InstanceType<Constructable<T>>['config']>,
+    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
   >(
     ConfigClass: Constructable<T>,
     modifyConfig?: (config: R) => R,
@@ -1018,11 +1018,11 @@ export interface IAppBuilder {
 
 export class AvleonTest {
   private constructor() {
-    process.env.NODE_ENV = 'test';
+    process.env.NODE_ENV = "test";
   }
   static getController<T>(controller: Constructor<T>, deps: any[] = []) {
     const paramTypes =
-      Reflect.getMetadata('design:paramtypes', controller) || [];
+      Reflect.getMetadata("design:paramtypes", controller) || [];
 
     deps.forEach((dep, i) => {
       Container.set(paramTypes[i], dep);

@@ -4,13 +4,13 @@
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
-import { instanceToPlain, plainToInstance } from 'class-transformer';
-import { InternalErrorException } from './exceptions';
-import fs from 'fs';
-import container from './container';
-import { SystemUseError } from './exceptions/system-exception';
-import crypto, { UUID } from 'crypto';
-import { getMetadataStorage, validate, validateSync } from 'class-validator';
+import { instanceToPlain, plainToInstance } from "class-transformer";
+import { InternalErrorException } from "./exceptions";
+import fs from "fs";
+import container from "./container";
+import { SystemUseError } from "./exceptions/system-exception";
+import crypto, { UUID } from "crypto";
+import { getMetadataStorage, validate, validateSync } from "class-validator";
 
 export const uuid = crypto.randomUUID();
 
@@ -19,7 +19,7 @@ export function inject<T>(cls: new (...args: any[]) => T): T {
     return container.get(cls);
   } catch (error) {
     throw new SystemUseError(
-      'Not a project class. Maybe you wanna register it first.',
+      "Not a project class. Maybe you wanna register it first.",
     );
   }
 }
@@ -27,7 +27,7 @@ export function inject<T>(cls: new (...args: any[]) => T): T {
 export type Constructor<T = any> = new (...args: any[]) => T;
 
 export function isConstructor(func: any): boolean {
-  if (typeof func !== 'function') {
+  if (typeof func !== "function") {
     return false;
   }
 
@@ -35,29 +35,29 @@ export function isConstructor(func: any): boolean {
     return false;
   }
 
-  if (func.prototype && typeof func.prototype === 'object') {
+  if (func.prototype && typeof func.prototype === "object") {
     return true;
   }
 
   try {
     const instance = new (func as any)();
-    return typeof instance === 'object';
+    return typeof instance === "object";
   } catch (e) {
     return false;
   }
 }
 
 export function formatUrl(path: string): string {
-  if (typeof path !== 'string') {
-    throw new Error('The path must be a string');
+  if (typeof path !== "string") {
+    throw new Error("The path must be a string");
   }
   path = path.trim();
 
-  if (!path.startsWith('/')) {
-    path = '/' + path;
+  if (!path.startsWith("/")) {
+    path = "/" + path;
   }
-  path = path.replace(/\/\/+/g, '/');
-  if (path.endsWith('/')) {
+  path = path.replace(/\/\/+/g, "/");
+  if (path.endsWith("/")) {
     path = path.slice(0, -1);
   }
 
@@ -65,14 +65,14 @@ export function formatUrl(path: string): string {
 }
 
 export function parsedPath(ipath: string): string {
-  return !ipath.startsWith('/') ? '/' + ipath : ipath;
+  return !ipath.startsWith("/") ? "/" + ipath : ipath;
 }
 export const isClassValidator = (target: Constructor) => {
   try {
-    const clsval = require('class-validator');
+    const clsval = require("class-validator");
     const result = getMetadataStorage().getTargetValidationMetadatas(
       target,
-      '',
+      "",
       false,
       false,
     );
@@ -93,8 +93,8 @@ export const getLineNumber = (
 ): MatchLocation[] | null => {
   let numbers = [];
   try {
-    const fileContent = fs.readFileSync(filePath, 'utf8');
-    const lines = fileContent.split('\n');
+    const fileContent = fs.readFileSync(filePath, "utf8");
+    const lines = fileContent.split("\n");
     for (let i = 0; i < lines.length; i++) {
       const match = lines[i].match(rpath);
 
@@ -113,17 +113,17 @@ export const getLineNumber = (
   }
 };
 
-export function normalizePath(base: string = '/', subPath: string = '/') {
-  return `/${base}/${subPath}`.replace(/\/+/g, '/').replace(/\/$/, '');
+export function normalizePath(base: string = "/", subPath: string = "/") {
+  return `/${base}/${subPath}`.replace(/\/+/g, "/").replace(/\/$/, "");
 }
 
 export function extrctParamFromUrl(url: string) {
   const splitPart = url
-    .split('/')
-    .filter((x) => x.startsWith(':') || x.startsWith('?:'));
+    .split("/")
+    .filter((x) => x.startsWith(":") || x.startsWith("?:"));
   return splitPart.map((f) => ({
-    key: f.replace(/(\?|:)/g, ''),
-    required: !f.startsWith('?:'),
+    key: f.replace(/(\?|:)/g, ""),
+    required: !f.startsWith("?:"),
   }));
 }
 
@@ -144,17 +144,17 @@ export function findDuplicates(arr: string[]): string[] {
 
 export function getDataType(expectedType: any) {
   switch (expectedType.name) {
-    case 'Object':
+    case "Object":
       if (Array.isArray(expectedType)) {
-        return 'array';
+        return "array";
       }
-      return 'object';
-    case 'String':
-      return 'string';
-    case 'Number':
-      return 'number';
-    case 'Boolean':
-      return 'boolean';
+      return "object";
+    case "String":
+      return "string";
+    case "Number":
+      return "number";
+    case "Boolean":
+      return "boolean";
     default:
       return expectedType;
   }
@@ -163,12 +163,12 @@ export function isValidType(value: any, expectedType: any): boolean {
   if (value === undefined || value === null) return true;
 
   switch (expectedType.name) {
-    case 'String':
-      return typeof value === 'string';
-    case 'Number':
-      return typeof value === 'number' || !isNaN(Number(value));
-    case 'Boolean':
-      return typeof value === 'boolean';
+    case "String":
+      return typeof value === "string";
+    case "Number":
+      return typeof value === "number" || !isNaN(Number(value));
+    case "Boolean":
+      return typeof value === "boolean";
     default:
       return value instanceof expectedType;
   }
@@ -211,7 +211,7 @@ export function transformObjectByInstanceToObject(
 
 export const isClassValidatorClass = (target: Constructor) => {
   try {
-    const clsval = require('class-validator');
+    const clsval = require("class-validator");
     const result = clsval
       .getMetadataStorage()
       .getTargetValidationMetadatas(target, undefined, false, false);
@@ -224,16 +224,16 @@ export const isClassValidatorClass = (target: Constructor) => {
 export async function validateObjectByInstance(
   target: Constructor,
   value: object = {},
-  options: 'object' | 'array' = 'array',
+  options: "object" | "array" = "array",
 ) {
   try {
-    const { validateOrReject } = require('class-validator');
-    const { plainToInstance } = require('class-transformer');
+    const { validateOrReject } = require("class-validator");
+    const { plainToInstance } = require("class-transformer");
     await validateOrReject(plainToInstance(target, value));
   } catch (error: any) {
-    if (typeof error == 'object' && Array.isArray(error)) {
+    if (typeof error == "object" && Array.isArray(error)) {
       const errors =
-        options == 'object'
+        options == "object"
           ? error.reduce((acc: any, x: any) => {
               //acc[x.property] = Object.values(x.constraints);
               acc[x.property] = x.constraints;
@@ -258,12 +258,12 @@ type ValidationError = {
 export function validateRequestBody(
   target: Constructor,
   value: object,
-  options: 'object' | 'array' = 'array',
+  options: "object" | "array" = "array",
 ): ValidationError {
   if (!isClassValidatorClass(target)) return { count: 0, errors: {} };
   const error = validateSync(plainToInstance(target, value ? value : {}));
   const errors =
-    options == 'object'
+    options == "object"
       ? error.reduce((acc: any, x: any) => {
           //acc[x.property] = Object.values(x.constraints);
           acc[x.property] = x.constraints;
@@ -277,7 +277,7 @@ export function pick<T extends object>(obj: T, paths: string[]): Partial<T> {
   const result: any = {};
 
   for (const path of paths) {
-    const keys = path.split('.');
+    const keys = path.split(".");
     let source: any = obj;
     let target: any = result;
 
@@ -309,7 +309,7 @@ export function exclude<T extends object>(
 
   const clone = structuredClone(obj); // Or use lodash.cloneDeep
   for (const path of paths) {
-    const keys = path.split('.');
+    const keys = path.split(".");
     let target: any = clone;
 
     for (let i = 0; i < keys.length - 1; i++) {

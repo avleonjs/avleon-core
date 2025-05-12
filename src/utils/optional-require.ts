@@ -8,7 +8,7 @@ export function optionalRequire<T = any>(
   try {
     return require(moduleName);
   } catch (err: any) {
-    if (err.code === 'MODULE_NOT_FOUND' && err.message.includes(moduleName)) {
+    if (err.code === "MODULE_NOT_FOUND" && err.message.includes(moduleName)) {
       if (options.failOnMissing) {
         throw new Error(
           options.customMessage ||
@@ -33,8 +33,8 @@ export async function optionalImport<T = any>(
     return mod as T;
   } catch (err: any) {
     if (
-      (err.code === 'ERR_MODULE_NOT_FOUND' ||
-        err.code === 'MODULE_NOT_FOUND') &&
+      (err.code === "ERR_MODULE_NOT_FOUND" ||
+        err.code === "MODULE_NOT_FOUND") &&
       err.message.includes(moduleName)
     ) {
       if (options.failOnMissing) {

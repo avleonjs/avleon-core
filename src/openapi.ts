@@ -37,7 +37,7 @@ export interface ServerVariableObject {
 export type OpenApiUiOptions = {
   logo?: any;
   theme?: any;
-  ui?: 'default' | 'scalar';
+  ui?: "default" | "scalar";
   openapi?: string;
   configuration?: any;
   routePrefix?: string;
@@ -48,24 +48,24 @@ export type OpenApiUiOptions = {
   security?: SecurityRequirementObject[];
   tags?: TagObject[];
   externalDocs?: any;
-  'x-express-openapi-additional-middleware'?: (
+  "x-express-openapi-additional-middleware"?: (
     | ((request: any, response: any, next: any) => Promise<void>)
     | ((request: any, response: any, next: any) => void)
   )[];
-  'x-express-openapi-validation-strict'?: boolean;
+  "x-express-openapi-validation-strict"?: boolean;
 };
 export interface PathsObject<T extends {} = {}, P extends {} = {}> {
   [pattern: string]: (PathItemObject<T> & P) | undefined;
 }
 enum HttpMethods {
-  GET = 'get',
-  PUT = 'put',
-  POST = 'post',
-  DELETE = 'delete',
-  OPTIONS = 'options',
-  HEAD = 'head',
-  PATCH = 'patch',
-  TRACE = 'trace',
+  GET = "get",
+  PUT = "put",
+  POST = "post",
+  DELETE = "delete",
+  OPTIONS = "options",
+  HEAD = "head",
+  PATCH = "patch",
+  TRACE = "trace",
 }
 export type PathItemObject<T extends {} = {}> = {
   $ref?: string;
@@ -119,12 +119,12 @@ export interface ParameterBaseObject {
   };
 }
 export type NonArraySchemaObjectType =
-  | 'boolean'
-  | 'object'
-  | 'number'
-  | 'string'
-  | 'integer';
-export type ArraySchemaObjectType = 'array';
+  | "boolean"
+  | "object"
+  | "number"
+  | "string"
+  | "integer";
+export type ArraySchemaObjectType = "array";
 export type SchemaObject = ArraySchemaObject | NonArraySchemaObject;
 export interface ArraySchemaObject extends BaseSchemaObject {
   type: ArraySchemaObjectType;
@@ -284,19 +284,19 @@ export type SecuritySchemeObject =
   | OAuth2SecurityScheme
   | OpenIdSecurityScheme;
 export interface HttpSecurityScheme {
-  type: 'http';
+  type: "http";
   description?: string;
   scheme: string;
   bearerFormat?: string;
 }
 export interface ApiKeySecurityScheme {
-  type: 'apiKey';
+  type: "apiKey";
   description?: string;
   name: string;
   in: string;
 }
 export interface OAuth2SecurityScheme {
-  type: 'oauth2';
+  type: "oauth2";
   description?: string;
   flows: {
     implicit?: {
@@ -331,7 +331,7 @@ export interface OAuth2SecurityScheme {
   };
 }
 export interface OpenIdSecurityScheme {
-  type: 'openIdConnect';
+  type: "openIdConnect";
   description?: string;
   openIdConnectUrl: string;
 }
@@ -361,12 +361,12 @@ export function OpenApi(
     propertyKey?: string | symbol,
     descriptor?: PropertyDescriptor,
   ) {
-    if (typeof target === 'function' && !propertyKey) {
-      Reflect.defineMetadata('controller:openapi', options, target);
+    if (typeof target === "function" && !propertyKey) {
+      Reflect.defineMetadata("controller:openapi", options, target);
     } else if (descriptor) {
-      Reflect.defineMetadata('route:openapi', options, target, propertyKey!);
+      Reflect.defineMetadata("route:openapi", options, target, propertyKey!);
     } else if (propertyKey) {
-      Reflect.defineMetadata('property:openapi', options, target, propertyKey);
+      Reflect.defineMetadata("property:openapi", options, target, propertyKey);
     }
   };
 }

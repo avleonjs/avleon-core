@@ -1,4 +1,4 @@
-import type { Redis } from 'ioredis';
+import type { Redis } from "ioredis";
 
 type CacheEntry<T = any> = {
   data: T;
@@ -40,7 +40,7 @@ export class CacheManager {
     };
 
     if (this.redis) {
-      await this.redis.set(key, JSON.stringify(entry.data), 'EX', ttl);
+      await this.redis.set(key, JSON.stringify(entry.data), "EX", ttl);
       for (const tag of tags) {
         await this.redis.sadd(this.redisTagKey(tag), key);
       }
@@ -58,7 +58,7 @@ export class CacheManager {
       await this.redis.del(key);
 
       // Also clean up from any tag sets
-      const tagKeys = await this.redis.keys('cache-tags:*');
+      const tagKeys = await this.redis.keys("cache-tags:*");
       for (const tagKey of tagKeys) {
         await this.redis.srem(tagKey, key);
       }

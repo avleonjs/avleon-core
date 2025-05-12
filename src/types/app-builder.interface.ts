@@ -5,7 +5,7 @@
  * @url https://github.com/xtareq
  */
 
-import { IApplication } from './application.interface';
+import { IApplication } from "./application.interface";
 
 export interface IAppBuilder {
   createBuilder(): IAppBuilder;

@@ -9,7 +9,7 @@ import {
   plainToInstance,
   ClassConstructor,
   ClassTransformer,
-} from 'class-transformer';
+} from "class-transformer";
 
 export interface IHttpResponse<T extends any> {
   message: string;
@@ -21,7 +21,7 @@ function isClassTransformerClass(target: any): boolean {
   const keys = Reflect.getMetadataKeys(prototype);
 
   // Check for class-transformer metadata
-  return keys.some((key) => key.startsWith('class_transformer:'));
+  return keys.some((key) => key.startsWith("class_transformer:"));
 }
 
 function isClassTransformerType<T>(target: new () => T): boolean {
@@ -31,7 +31,7 @@ function isClassTransformerType<T>(target: new () => T): boolean {
 export class HttpResponse {
   static Ok<T>(obj: any, s?: ClassConstructor<T>): IHttpResponse<T> {
     if (s) {
-      const isPaginated = obj?.hasOwnProperty('total');
+      const isPaginated = obj?.hasOwnProperty("total");
       const dataToTransform = isPaginated ? obj.data : obj;
 
       const transformedData = plainToInstance(s, dataToTransform, {
@@ -44,12 +44,12 @@ export class HttpResponse {
         : { data: instanceToPlain(transformedData) };
 
       return {
-        message: 'success',
+        message: "success",
         ...transformedResult,
       };
     }
 
-    return { message: 'success', data: obj };
+    return { message: "success", data: obj };
   }
 
   static Created<T>(obj: any, s?: ClassConstructor<T>): IHttpResponse<T> {
@@ -60,15 +60,15 @@ export class HttpResponse {
       });
 
       return {
-        message: 'created',
+        message: "created",
         data: instanceToPlain(transformedData) as T,
       };
     }
 
-    return { message: 'created', data: obj };
+    return { message: "created", data: obj };
   }
 
   static NoContent(): IHttpResponse<null> {
-    return { message: 'no content', data: null };
+    return { message: "no content", data: null };
   }
 }
