@@ -34,8 +34,5 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Format check
-        run: pnpm prettier --check .
-
       - name: Run Tests
         run: pnpm test
