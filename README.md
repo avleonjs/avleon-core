@@ -1,4 +1,5 @@
 # AvleonJs
+
 ## ⚠️ WARNING: NOT FOR PRODUCTION USE
 
 > **🚧 This project is in active development.**
@@ -7,6 +8,7 @@
 > Use **only for testing, experimentation, or internal evaluation**.
 >
 > ####❗ Risks of using this in production:
+>
 > - 🔄 Breaking changes may be introduced at any time
 > - 🧪 Features are experimental and may be unstable
 > - 🔐 Security has not been audited
@@ -14,12 +16,12 @@
 >
 > **Please do not deploy this in production environments.**
 
-
 ## Overview
 
 Avleon is a powerful, TypeScript-based web framework built on top of Fastify, designed to simplify API development with a focus on decorators, dependency injection, and OpenAPI documentation. It provides a robust set of tools for building scalable, maintainable web applications with minimal boilerplate code.
 
 ## Table of Contents
+
 - [Features](#features)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -76,6 +78,7 @@ pnpm add @avleon/core
 ## Quick Start
 
 ### Route Based
+
 ```typescript
 import { Avleon, ApiController, Get, Results } from '@avleon/core';
 
@@ -85,13 +88,13 @@ app.run(); // or app.run(3000);
 ```
 
 ### Controller Based
+
 ```typescript
 import { Avleon, ApiController, Get, Results } from '@avleon/core';
 
 // Define a controller
 @ApiController
 class HelloController {
-
   @Get()
   sayHello() {
     return 'Hello, Avleon!';
@@ -113,7 +116,7 @@ Avleon provides a builder pattern for creating applications:
 ```typescript
 import { Avleon } from '@avleon/core';
 
-// Create an application 
+// Create an application
 const app = Avleon.createApplication();
 
 // Configure and run the application
@@ -160,6 +163,7 @@ async deleteUser(@Param('id') id: string) {
 ```
 
 ### Parameter Decorators
+
 Extract data from requests using parameter decorators:
 
 ```typescript
@@ -201,11 +205,11 @@ Return standardized responses using the `HttpResponse` and `HttpExceptions` clas
 @Get('/:id')
 async getUser(@Param('id') id: string) {
   const user = await this.userService.findById(id);
-  
+
   if (!user) {
     throw HttpExceptions.NotFound('User not found');
   }
-  
+
   return HttpResponse.Ok(user);
 }
 ```
@@ -258,6 +262,7 @@ class JwtAuthorization extends AuthorizeMiddleware {
   }
 }
 ```
+
 Now register the authrization class to our app by `useAuthorization` function;
 
 ```typescript
@@ -273,11 +278,10 @@ Then you have access the `AuthUser` on class lavel or method lavel depending on 
 class AdminController {
   // Protected controller methods
 
-
   // protected controller has access to AuthUser in each route method
   @Get()
-  async account(@AuthUser() user:User){
-      ///
+  async account(@AuthUser() user: User) {
+    ///
   }
 }
 
@@ -285,7 +289,7 @@ class AdminController {
 @ApiController('/admin')
 class AdminController {
   @Authorized({
-    roles: ['admin']
+    roles: ['admin'],
   })
   @Get('/')
   async adminDashboard() {
@@ -303,10 +307,10 @@ class UserDto {
   @IsString()
   @IsNotEmpty()
   name: string;
-  
+
   @IsEmail()
   email: string;
-  
+
   @IsNumber()
   @Min(0)
   @Max(120)
@@ -327,15 +331,15 @@ class UserDto {
   @Validate({
     type: 'string',
     required: true,
-    message: 'Name is required'
+    message: 'Name is required',
   })
   name: string;
-  
+
   @Validate({
     type: 'number',
     min: 0,
     max: 120,
-    message: 'Age must be between 0 and 120'
+    message: 'Age must be between 0 and 120',
   })
   age: number;
 }
@@ -372,7 +376,6 @@ app.useOpenApi(OpenApiConfig, (config) => {
   config.info.title = 'Custom API Title';
   return config;
 });
-
 ```
 
 ## Advanced Features
@@ -384,15 +387,15 @@ Connect to databases using TypeORM:
 ```typescript
 const app = Avleon.createApplication();
 app.useDataSource({
-    type: 'postgres',
-    host: 'localhost',
-    port: 5432,
-    username: 'postgres',
-    password: 'password',
-    database: 'avleon',
-    entities: [User],
-    synchronize: true,
-  });
+  type: 'postgres',
+  host: 'localhost',
+  port: 5432,
+  username: 'postgres',
+  password: 'password',
+  database: 'avleon',
+  entities: [User],
+  synchronize: true,
+});
 ```
 
 Or use the config class:
@@ -402,11 +405,10 @@ Or use the config class:
 import { Config, IConfig } from '@avleon/core';
 
 @Config
-export class DataSourceConfig implements IConfig{
-
+export class DataSourceConfig implements IConfig {
   // config method is mendatory
   // config method has access to environment variables by default
-  config(env: Environment){
+  config(env: Environment) {
     return {
       type: env.get('type') || 'postgres',
       host: 'localhost',
@@ -416,7 +418,7 @@ export class DataSourceConfig implements IConfig{
       database: 'avleon',
       entities: [User],
       synchronize: true,
-    }
+    };
   }
 }
 ```
@@ -456,7 +458,7 @@ Serve static files:
 ```typescript
 app.useStaticFiles({
   path: path.join(process.cwd(), 'public'),
-  prefix: '/static/'
+  prefix: '/static/',
 });
 ```
 
@@ -469,7 +471,7 @@ import { TestBuilder } from '@avleon/core';
 
 const testBuilder = TestBuilder.createBuilder();
 const app = testBuilder.getTestApplication({
-  controllers: [UserController]
+  controllers: [UserController],
 });
 
 // Test your API endpoints
@@ -502,6 +504,7 @@ const app = new Avleon({
 ```
 
 ## Route Mapping
+
 Avleon provides several methods for mapping routes in your application:
 
 ### mapGet
@@ -509,7 +512,7 @@ Avleon provides several methods for mapping routes in your application:
 The `mapGet` method is used to define GET routes in your application. It takes a path string and a handler function as parameters.
 
 ```typescript
-app.mapGet("/users", async (req, res) => {
+app.mapGet('/users', async (req, res) => {
   // Handle GET request to /users
   return { users: [] };
 });
@@ -520,7 +523,7 @@ app.mapGet("/users", async (req, res) => {
 The `mapPost` method is used to define POST routes in your application. It takes a path string and a handler function as parameters.
 
 ```typescript
-app.mapPost("/users", async (req, res) => {
+app.mapPost('/users', async (req, res) => {
   // Handle POST request to /users
   const userData = req.body;
   // Process user data
@@ -533,7 +536,7 @@ app.mapPost("/users", async (req, res) => {
 The `mapPut` method is used to define PUT routes in your application. It takes a path string and a handler function as parameters.
 
 ```typescript
-app.mapPut("/users/:id", async (req, res) => {
+app.mapPut('/users/:id', async (req, res) => {
   // Handle PUT request to /users/:id
   const userId = req.params.id;
   const userData = req.body;
@@ -547,7 +550,7 @@ app.mapPut("/users/:id", async (req, res) => {
 The `mapDelete` method is used to define DELETE routes in your application. It takes a path string and a handler function as parameters.
 
 ```typescript
-app.mapDelete("/users/:id", async (req, res) => {
+app.mapDelete('/users/:id', async (req, res) => {
   // Handle DELETE request to /users/:id
   const userId = req.params.id;
   // Delete user
@@ -558,34 +561,35 @@ app.mapDelete("/users/:id", async (req, res) => {
 Each of these methods returns a route object that can be used to add middleware or Swagger documentation to the route.
 
 ```typescript
-app.mapGet("/users", async (req, res) => {
-  // Handler function
-})
-.useMiddleware([AuthMiddleware])
-.useSwagger({
-  summary: "Get all users",
-  description: "Retrieves a list of all users",
-  tags: ["users"],
-  response: {
-    200: {
-      description: "Successful response",
-      content: {
-        "application/json": {
-          schema: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                id: { type: "string" },
-                name: { type: "string" }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-});
+app
+  .mapGet('/users', async (req, res) => {
+    // Handler function
+  })
+  .useMiddleware([AuthMiddleware])
+  .useSwagger({
+    summary: 'Get all users',
+    description: 'Retrieves a list of all users',
+    tags: ['users'],
+    response: {
+      200: {
+        description: 'Successful response',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
 ```
 
 ## License

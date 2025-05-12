@@ -1,7 +1,6 @@
 // eslint.config.js
 import eslintPluginTs from '@typescript-eslint/eslint-plugin';
 import parserTs from '@typescript-eslint/parser';
-import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default [
   {
@@ -24,7 +23,6 @@ export default [
     },
     plugins: {
       '@typescript-eslint': eslintPluginTs,
-      prettier: eslintConfigPrettier,
     },
     rules: {
       semi: ['error', 'always'],

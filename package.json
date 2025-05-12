@@ -53,6 +53,7 @@
     "@fastify/swagger-ui": "^5.1.0",
     "@fastify/view": "^11.0.0",
     "bcryptjs": "^3.0.2",
+    "cross-env": "^7.0.3",
     "dotenv": "^16.4.7",
     "fastify": "^5.1.0",
     "highlight.js": "^11.9.0",
@@ -85,14 +86,14 @@
     "*.{js,ts,json,md}": "prettier --write",
     "*.{js,ts}": [
       "eslint --fix",
-      "pnpm test -- --bail --findRelatedTests"
+      "cross-env CI=true jest --bail --findRelatedTests --passWithNoTests"
     ]
   },
   "optionalDependencies": {
     "typeorm": "*"
   },
   "directories": {
-    "test": "tests"
+    "test": "."
   },
   "description": "avleon core",
   "repository": {

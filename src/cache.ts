@@ -32,7 +32,7 @@ export class CacheManager {
     key: string,
     value: T,
     tags: string[] = [],
-    ttl: number = 3600
+    ttl: number = 3600,
   ): Promise<void> {
     const entry: CacheEntry<T> = {
       data: value,
@@ -76,7 +76,7 @@ export class CacheManager {
       const keys = await this.redis.smembers(tagKey);
       if (keys.length) {
         await this.redis.del(...keys); // delete all cached keys
-        await this.redis.del(tagKey);  // delete the tag set
+        await this.redis.del(tagKey); // delete the tag set
       }
     } else {
       const keys = this.tagsMap.get(tag);
