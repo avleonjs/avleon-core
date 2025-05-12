@@ -245,7 +245,7 @@ export async function validateObjectByInstance(
             }));
       return errors;
     } else {
-      throw new InternalErrorException('Can\'t validate object');
+      throw new InternalErrorException("Can't validate object");
     }
   }
 }

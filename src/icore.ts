@@ -988,7 +988,7 @@ export class AvleonApplication {
       };
     } catch (error) {
       console.log(error);
-      throw new SystemUseError('Can\'t get test appliction');
+      throw new SystemUseError("Can't get test appliction");
     }
   }
 }

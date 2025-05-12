@@ -337,7 +337,7 @@ export function InjectRepository<T extends Repository<T>>(
     } catch (error: any) {
       console.log(error);
       if (error.name && error.name == 'ServiceNotFoundError') {
-        console.log('Database didn\'t initialized.');
+        console.log("Database didn't initialized.");
       }
     }
   };

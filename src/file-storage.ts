@@ -92,13 +92,13 @@ export class FileStorage implements FileStorageInterface {
         return f;
       }
     } catch (err) {
-      throw new SystemUseError('Can\'t upload file');
+      throw new SystemUseError("Can't upload file");
     }
   }
 
   async remove(filepath: PathLike) {
     if (!this.isFileExists(path.join(process.cwd(), 'public/' + filepath))) {
-      throw new SystemUseError('File doesn\'t exists.');
+      throw new SystemUseError("File doesn't exists.");
     }
     return fs.unlinkSync(path.join(process.cwd(), 'public/' + filepath));
   }
@@ -129,7 +129,7 @@ export class FileStorage implements FileStorageInterface {
       return files;
     } catch (error) {
       console.error(error);
-      throw new SystemUseError('Can\'t upload file');
+      throw new SystemUseError("Can't upload file");
     }
   }
 
