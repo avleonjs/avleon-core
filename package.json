@@ -86,7 +86,7 @@
     "*.{js,ts,json,md}": "pnpm format",
     "*.{js,ts}": [
       "pnpm lint:fix",
-      "cross-env CI=true jest --bail --findRelatedTests --passWithNoTests"
+      "cross-env CI=true jest --bail --findRelatedTests --passWithNoTests --config=jest.config.js"
     ]
   },
   "optionalDependencies": {
