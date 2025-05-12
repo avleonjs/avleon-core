@@ -7,7 +7,7 @@
 
 import dotenv from "dotenv";
 import path from "path";
-import fs from "fs";
+import fs, { existsSync } from "fs";
 import { Service } from "typedi";
 import { EnvironmentVariableNotFound, SystemUseError } from "./exceptions/system-exception";
 
@@ -17,6 +17,11 @@ dotenv.config({ path: path.join(process.cwd(), ".env") });
 export class Environment {
   private parseEnvFile(filePath: string): any {
     try {
+
+      const isExis = existsSync(filePath);
+      if(!isExis){
+        return {...process.env};
+      }
       const fileContent = fs.readFileSync(filePath, 'utf8');
       const parsedEnv = dotenv.parse(fileContent);
       return { ...parsedEnv, ...process.env };
@@ -25,6 +30,7 @@ export class Environment {
       return {};
     }
   }
+
 
   get<T = any>(key: string): T {
     const parsedEnv = this.parseEnvFile(path.join(process.cwd(), '.env'));
