@@ -83,9 +83,9 @@
     }
   },
   "lint-staged": {
-    "*.{js,ts,json,md}": "prettier --write",
+    "*.{js,ts,json,md}": "prettier --write .",
     "*.{js,ts}": [
-      "eslint --fix",
+      "eslint . --fix",
       "cross-env CI=true jest --bail --findRelatedTests --passWithNoTests"
     ]
   },

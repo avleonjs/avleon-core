@@ -4,7 +4,7 @@ export default {
   rootDir: process.cwd(), // Use current working directory
   testMatch: ['**/*.test.ts'],
   moduleFileExtensions: ['ts', 'js', 'json'],
-  collectCoverage: false,
+  collectCoverage: true,
   coverageDirectory: '<rootDir>/coverage',
   coveragePathIgnorePatterns: ['/node_modules/', '/dist/', '/build/'],
 };
