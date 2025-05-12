@@ -4,7 +4,7 @@ export type OkOptions = {
 
 export class Results {
   static code = 500;
-  message: string = "Something going wrong";
+  message: string = 'Something going wrong';
 
   static Ok<T>(data: T): Ok<T> {
     return new Ok<T>(data);

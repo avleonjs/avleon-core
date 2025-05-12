@@ -1,5 +1,5 @@
-import pino from "pino";
-import { AppService } from "./decorators";
+import pino from 'pino';
+import { AppService } from './decorators';
 
 @AppService
 export class LoggerService {
@@ -7,12 +7,12 @@ export class LoggerService {
 
   constructor() {
     this.logger = pino({
-      level: process.env.LOG_LEVEL || "info",
+      level: process.env.LOG_LEVEL || 'info',
       transport: {
-        target: "pino-pretty",
+        target: 'pino-pretty',
         options: {
-          translateTime: "SYS:standard",
-          ignore: "pid,hostname",
+          translateTime: 'SYS:standard',
+          ignore: 'pid,hostname',
         },
       },
     });

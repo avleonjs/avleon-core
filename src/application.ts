@@ -1,125 +1,104 @@
-import Container from "typedi";
-import { Constructor } from "./helpers";
-import fastify, { FastifyInstance, RouteShorthandMethod } from "fastify";
+import Container from 'typedi';
+import { Constructor } from './helpers';
+import fastify, { FastifyInstance, RouteShorthandMethod } from 'fastify';
 
-export interface AvleonApplication{
-    // all public
-    useCors: () => void
-    useOpenApi:() => void
-    useView:()=> void;
-    useAuth:() => void
-    useMultipart:()=> void
-    useDataSource: () => void
-    useMiddlewares: () => void
-    useControllers: () => void
-    useAutoControllers:() => void
-    useStaticFiles: () => void
-    useCustomErrorHandler: () => void
+export interface AvleonApplication {
+  // all public
+  useCors: () => void;
+  useOpenApi: () => void;
+  useView: () => void;
+  useAuth: () => void;
+  useMultipart: () => void;
+  useDataSource: () => void;
+  useMiddlewares: () => void;
+  useControllers: () => void;
+  useAutoControllers: () => void;
+  useStaticFiles: () => void;
+  useCustomErrorHandler: () => void;
 
+  // all mapping
+  mapGroup: () => any;
+  mapGet: () => any;
+  mapPost: () => any;
+  mapPut: () => any;
+  mapPatch: () => any;
+  mapDelete: () => any;
+  mapView: () => any;
 
-
-
-    // all mapping
-    mapGroup:() => any;
-    mapGet:()=> any;
-    mapPost:()=> any;
-    mapPut: () => any;
-    mapPatch: () => any;
-    mapDelete: () => any;
-    mapView: () => any;
-
-    // run
-    run:(port:number) => void
-
+  // run
+  run: (port: number) => void;
 }
 
-
-export interface InlineRoutes{
-    get: RouteShorthandMethod;
-    post: RouteShorthandMethod;
-    put: RouteShorthandMethod;
-    patch: RouteShorthandMethod;
-    delete: RouteShorthandMethod;
+export interface InlineRoutes {
+  get: RouteShorthandMethod;
+  post: RouteShorthandMethod;
+  put: RouteShorthandMethod;
+  patch: RouteShorthandMethod;
+  delete: RouteShorthandMethod;
 }
 
+export interface Application {
+  inlineRoutes: () => InlineRoutes;
+  mapGroup: (path?: string | RegExp) => InlineRoutes;
 
-export interface Application{
-
-    inlineRoutes:() => InlineRoutes;
-    mapGroup:(path?: string | RegExp) => InlineRoutes;
-
-    /**
-     * Start the application
-     * @param port 
-     * @returns void
-     */
-    start:(port?: number)=> void
+  /**
+   * Start the application
+   * @param port
+   * @returns void
+   */
+  start: (port?: number) => void;
 }
 
-export interface TestApplication{
-    getController: <T>(controller: Constructor<T>)=>T;
+export interface TestApplication {
+  getController: <T>(controller: Constructor<T>) => T;
 }
 
-
-class IqraTestApplication implements TestApplication{
-
-    getController<T>(controller: Constructor<T>){
-        const con = Container.get(controller);
-        return con;
-    }
+class IqraTestApplication implements TestApplication {
+  getController<T>(controller: Constructor<T>) {
+    const con = Container.get(controller);
+    return con;
+  }
 }
-class IqraApplication implements Application{
+class IqraApplication implements Application {
+  private app!: FastifyInstance;
 
-    private app!: FastifyInstance;
-
-   constructor(){
-        if(!this.app){
-            this.app = fastify.prototype;
-        }
-      
+  constructor() {
+    if (!this.app) {
+      this.app = fastify.prototype;
     }
+  }
 
-    
-    inlineRoutes() {
-        return {
-            get: this.app.get,
-            post: this.app.post,
-            put: this.app.put,
-            patch: this.app.patch,
-            delete: this.app.delete
-        }
-    }
+  inlineRoutes() {
+    return {
+      get: this.app.get,
+      post: this.app.post,
+      put: this.app.put,
+      patch: this.app.patch,
+      delete: this.app.delete,
+    };
+  }
 
+  mapGroup(path?: string | RegExp) {
+    return this.inlineRoutes();
+  }
 
-    mapGroup(path?:string|RegExp){
-        return this.inlineRoutes();
-    }
-
-
-    start(port?:number){
-        const p = port ? port : 4000
-        this.app.listen({port:p});
-    }
+  start(port?: number) {
+    const p = port ? port : 4000;
+    this.app.listen({ port: p });
+  }
 }
 
+export class Builder {
+  static createApplication(): Application {
+    const app = new IqraApplication();
+    return app;
+  }
 
-
-export class Builder{
-
-    static createApplication(): Application{
-        const app = new IqraApplication();
-        return app;
-    }
-
-    static createTestApplication(app?: Application): TestApplication {
-        const testApp = new IqraTestApplication();
-        return testApp;
-    }
+  static createTestApplication(app?: Application): TestApplication {
+    const testApp = new IqraTestApplication();
+    return testApp;
+  }
 }
-
 
 const app = Builder.createApplication();
 const route = app.inlineRoutes();
-
-
-
