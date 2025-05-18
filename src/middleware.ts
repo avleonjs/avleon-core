@@ -12,7 +12,7 @@ import {
 } from "./exceptions";
 import Container, { AUTHORIZATION_META_KEY } from "./container";
 
-export abstract class AppMiddleware {
+export abstract class AvleonMiddleware {
   abstract invoke(
     req: IRequest,
     res?: IResponse,
@@ -37,7 +37,9 @@ interface AuthorizeClass {
   authorize(req: IRequest, options?: any): AuthReturnTypes;
 }
 
-export function Authorize(target: { new (...args: any[]): AuthorizeClass }) {
+export function AppAuthorization(target: {
+  new (...args: any[]): AuthorizeClass;
+}) {
   if (typeof target.prototype.authorize !== "function") {
     throw new Error(
       `Class "${target.name}" must implement an "authorize" method.`,
@@ -74,7 +76,7 @@ export function Authorized(
   };
 }
 
-export function Middleware(target: Constructor<AppMiddleware>) {
+export function AppMiddleware(target: Constructor<AvleonMiddleware>) {
   if (typeof target.prototype.invoke !== "function") {
     throw new Error(
       `Class "${target.name}" must implement an "invoke" method.`,
@@ -85,7 +87,7 @@ export function Middleware(target: Constructor<AppMiddleware>) {
 }
 
 export function UseMiddleware<
-  T extends AppMiddleware | (new (...args: any[]) => AppMiddleware),
+  T extends AvleonMiddleware | (new (...args: any[]) => AvleonMiddleware),
 >(options: T | T[]): MethodDecorator & ClassDecorator {
   return function (
     target: Object | Function,
