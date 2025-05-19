@@ -1,13 +1,12 @@
 {
   "name": "@avleon/core",
-  "version": "0.0.29",
+  "version": "0.0.30",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "npm run clean && tsc",
     "clean": "rimraf dist",
     "watch": "tsc-watch",
-    "postinstall": "husky install",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -103,7 +102,6 @@
     "url": "git+https://github.com/avleonjs/avleon-core"
   },
   "files": [
-    "dist",
-    "src"
+    "dist"
   ]
 }
