@@ -2,7 +2,6 @@ import { Service, Container } from "typedi";
 import { Server as SocketIOServer, Socket, ServerOptions } from "socket.io";
 import { AsyncLocalStorage } from "node:async_hooks";
 
-
 @Service()
 export class SocketContextService {
   private readonly storage = new AsyncLocalStorage<{ socket: Socket }>();
@@ -35,7 +34,7 @@ export class EventDispatcher {
   async dispatch<T = any>(
     event: string,
     data: T,
-    options: DispatchOptions = {}
+    options: DispatchOptions = {},
   ) {
     const retryCount = options.retry ?? 0;
     const delay = options.retryDelay ?? 300;
@@ -51,7 +50,11 @@ export class EventDispatcher {
     }
   }
 
-  private async dispatchToTransports(event: string, data: any, options: DispatchOptions) {
+  private async dispatchToTransports(
+    event: string,
+    data: any,
+    options: DispatchOptions,
+  ) {
     const transports = options.transports ?? ["socket"];
 
     for (const transport of transports) {
@@ -62,8 +65,6 @@ export class EventDispatcher {
 
         const context = Container.get(SocketContextService);
         const socket = context.getSocket();
-
-      
 
         if (options.broadcast && socket) {
           if (options.room) {
@@ -83,9 +84,17 @@ export class EventDispatcher {
   }
 }
 
-
-export function Dispatch(event: string, options?: Omit<DispatchOptions, "transports"> & { transports?: DispatchOptions["transports"] }) {
-  return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+export function Dispatch(
+  event: string,
+  options?: Omit<DispatchOptions, "transports"> & {
+    transports?: DispatchOptions["transports"];
+  },
+) {
+  return function (
+    target: any,
+    propertyKey: string,
+    descriptor: PropertyDescriptor,
+  ) {
     const original = descriptor.value;
 
     descriptor.value = async function (...args: any[]) {

@@ -76,9 +76,9 @@ export interface IRequest extends FastifyRequest {
   user?: any;
 }
 
-export interface DoneFunction extends HookHandlerDoneFunction { }
+export interface DoneFunction extends HookHandlerDoneFunction {}
 // IResponse
-export interface IResponse extends FastifyReply { }
+export interface IResponse extends FastifyReply {}
 
 export type TestResponseType = LightMyRequestResponse;
 export type TestResponse = TestResponseType | Promise<TestResponseType>;
@@ -104,13 +104,13 @@ export interface ParamMetaOptions {
   validatorClass: boolean;
   schema?: any;
   type:
-  | "route:param"
-  | "route:query"
-  | "route:body"
-  | "route:header"
-  | "route:user"
-  | "route:file"
-  | "route:files";
+    | "route:param"
+    | "route:query"
+    | "route:body"
+    | "route:header"
+    | "route:user"
+    | "route:file"
+    | "route:files";
 }
 
 export interface ParamMetaFilesOptions {
@@ -219,7 +219,7 @@ type ConfigClass<T = any> = Constructable<IConfig<T>>;
 type ConfigInput<T = any> = ConfigClass<T> | T;
 
 interface FastifyWithIO extends FastifyInstance {
-  io?: any
+  io?: any;
 }
 
 const subscriberRegistry = Container.get(EventSubscriberRegistry);
@@ -308,13 +308,13 @@ export class AvleonApplication {
         configuration: configuration
           ? configuration
           : {
-            metaData: {
-              title: "Avleon Api",
-              ogTitle: "Avleon",
+              metaData: {
+                title: "Avleon Api",
+                ogTitle: "Avleon",
+              },
+              theme: options.theme ? options.theme : "kepler",
+              favicon: "/static/favicon.png",
             },
-            theme: options.theme ? options.theme : "kepler",
-            favicon: "/static/favicon.png",
-          },
       });
     } else {
       const fastifySwaggerUi = optionalRequire("@fastify/swagger-ui", {
@@ -354,7 +354,7 @@ export class AvleonApplication {
     this._initWebSocket(socketOptions);
   }
 
-  private async _initWebSocket(options:any) {
+  private async _initWebSocket(options: any) {
     const fsSocketIO = optionalRequire("fastify-socket.io", {
       failOnMissing: true,
       customMessage:
@@ -412,7 +412,7 @@ export class AvleonApplication {
     Container.set<DataSource>("idatasource", datasource);
   }
 
-  private _useCache(options: any) { }
+  private _useCache(options: any) {}
 
   useMiddlewares<T extends AvleonMiddleware>(mclasses: Constructor<T>[]) {
     for (const mclass of mclasses) {
@@ -635,8 +635,8 @@ export class AvleonApplication {
     meta.currentUser.forEach((user) => (args[user.index] = req.user));
     meta.headers.forEach(
       (header) =>
-      (args[header.index] =
-        header.key === "all" ? req.headers : req.headers[header.key]),
+        (args[header.index] =
+          header.key === "all" ? req.headers : req.headers[header.key]),
     );
 
     if (meta.file) {
@@ -791,7 +791,7 @@ export class AvleonApplication {
 
   private async mapFn(fn: Function) {
     const original = fn;
-    fn = function () { };
+    fn = function () {};
     return fn;
   }
 
@@ -821,14 +821,13 @@ export class AvleonApplication {
     path: string = "",
     fn: T,
   ) {
-    await this.mapFn(fn); 
+    await this.mapFn(fn);
 
     this.app[method](path, async (req: any, res: any) => {
-     
       try {
         const result = await fn.apply(this, [req, res]);
         if (typeof result === "object" && result !== null) {
-          res.json(result); 
+          res.json(result);
         } else {
           res.send(result);
         }
@@ -908,7 +907,6 @@ export class AvleonApplication {
     }
   }
 
-
   handleSocket(socket: any) {
     subscriberRegistry.register(socket);
   }
@@ -961,17 +959,22 @@ export class AvleonApplication {
     await this.app.ready();
     if (this._hasWebsocket) {
       await this.app.io.on("connection", this.handleSocket);
-      await this.app.io.use((socket: { handshake: { auth: { token: any; }; }; data: { user: any; }; }, next:any) => {
-        const token = socket.handshake.auth.token;
-        try {
-          console.log("token", token);
-          const user = {id:1, name:"tareq"};
-          socket.data.user = user; // this powers @AuthUser()
-          next();
-        } catch {
-          next(new Error("Unauthorized"));
-        }
-      });
+      await this.app.io.use(
+        (
+          socket: { handshake: { auth: { token: any } }; data: { user: any } },
+          next: any,
+        ) => {
+          const token = socket.handshake.auth.token;
+          try {
+            console.log("token", token);
+            const user = { id: 1, name: "tareq" };
+            socket.data.user = user; // this powers @AuthUser()
+            next();
+          } catch {
+            next(new Error("Unauthorized"));
+          }
+        },
+      );
     }
     await this.app.listen({ port });
     console.log(`Application running on http://127.0.0.1:${port}`);
