@@ -12,11 +12,11 @@ export interface IConfig<T = any> {
   config(env: Environment): T;
 }
 
-export function Config<T extends IConfig>(target: Constructable<T>) {
+export function AppConfig<T extends IConfig>(target: Constructable<T>) {
   Container.set({ id: target, type: target });
 }
 
-export class AppConfig {
+export class AvleonConfig {
   get<T extends IConfig<R>, R>(configClass: Constructable<T>): R {
     const instance = Container.get(configClass);
     if (!instance) {

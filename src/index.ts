@@ -24,7 +24,9 @@ export * from "./utils/hash";
 export * from "./multipart";
 export * from "./file-storage";
 export * from "./logger";
+export * from "./event-dispatcher";
+export { Subscribe, Private } from "./event-subscriber";
 
 export const GetSchema = sw.generateSwaggerSchema;
 
-export { default as Container } from "./container";
+export { default as AvleonContainer } from "./container";

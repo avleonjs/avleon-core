@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { Config, CreateConfig, GetConfig, IConfig } from "./config";
+import { AppConfig, CreateConfig, GetConfig, IConfig } from "./config";
 import { Environment } from "./environment-variables";
 
 type AppConfig = { name: string; os: string };
@@ -7,7 +7,7 @@ type AppConfig = { name: string; os: string };
 describe("Config", () => {
   describe("class", () => {
     it("should be call by get config", () => {
-      @Config
+      @AppConfig
       class MyConfig {
         config(env: Environment) {
           return {

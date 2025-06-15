@@ -48,6 +48,7 @@ Avleon is a powerful, TypeScript-based web framework built on top of Fastify, de
   - [mapPost](#mappost)
   - [mapPut](#mapput)
   - [mapDelete](#mapdelete)
+- [Testing](#testing)
 
 ## Features
 
@@ -77,7 +78,7 @@ pnpm add @avleon/core
 
 ## Quick Start
 
-### Route Based
+### Minimal
 
 ```typescript
 import { Avleon, ApiController, Get, Results } from "@avleon/core";
@@ -430,6 +431,27 @@ app.useDataSource(DataSourceConfig);
 // ... other impments
 ```
 
+Now in your Controller or Injected service use can use like this
+
+```typescript
+import { AppService, InjectRepository } from "@avleon/core";
+import { Repository } from "typeorm";
+import { User } from "model_path";
+
+@AppService
+export class UserService {
+  constructor(
+    @InjectRepository(User)
+    private readonly _userRepository: Repository<User>,
+  ) {}
+
+  async findAll() {
+    const users = await this._userRepository.find();
+    return users;
+  }
+}
+```
+
 ### File Uploads
 
 Handle file uploads with multipart support:
@@ -445,7 +467,7 @@ app.useMultipart({
 
 // In your controller
 @Post('/upload')
-async uploadFile(@File() file: any) {
+async uploadFile(@MultipartFile() file: any) {
   // Process uploaded file
   return HttpResponse.Ok({ filename: file.filename });
 }
@@ -462,46 +484,9 @@ app.useStaticFiles({
 });
 ```
 
-### Testing
-
-Test your API endpoints with the built-in testing utilities:
-
-```typescript
-import { TestBuilder } from "@avleon/core";
-
-const testBuilder = TestBuilder.createBuilder();
-const app = testBuilder.getTestApplication({
-  controllers: [UserController],
-});
-
-// Test your API endpoints
-const response = await app.get("/users");
-expect(response.statusCode).toBe(200);
-```
-
 ## Configuration
 
-Configure your application with environment variables:
-
-```typescript
-// .env
-PORT=3000
-DATABASE_URL=postgres://user:password@localhost:5432/db
-
-// app.ts
-import { Environment } from '@avleon/core';
-
-const env = new Environment();
-env.load();
-
-const app = new Avleon({
-  controllers: [UserController],
-  env: {
-    port: 'PORT',
-    databaseUrl: 'DATABASE_URL',
-  },
-});
-```
+Coming soon...
 
 ## Route Mapping
 
@@ -558,6 +543,8 @@ app.mapDelete("/users/:id", async (req, res) => {
 });
 ```
 
+### Add openapi and middleware support for inline route
+
 Each of these methods returns a route object that can be used to add middleware or Swagger documentation to the route.
 
 ```typescript
@@ -591,6 +578,12 @@ app
     },
   });
 ```
+
+### Testing
+
+Test your API endpoints with the built-in testing utilities:
+
+Coming soon...
 
 ## License
 

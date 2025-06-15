@@ -41,7 +41,7 @@ import {
 import { SystemUseError } from "./exceptions/system-exception";
 import { existsSync, PathLike } from "fs";
 import { DataSource, DataSourceOptions } from "typeorm";
-import { AppMiddleware } from "./middleware";
+import { AvleonMiddleware } from "./middleware";
 import {
   BadRequestException,
   BaseHttpException,
@@ -49,13 +49,18 @@ import {
 } from "./exceptions";
 import { OpenApiOptions, OpenApiUiOptions } from "./openapi";
 import swagger from "@fastify/swagger";
-import { AppConfig, IConfig } from "./config";
+import { AvleonConfig, IConfig } from "./config";
 import { Environment } from "./environment-variables";
 import cors, { FastifyCorsOptions } from "@fastify/cors";
 import fastifyMultipart, { FastifyMultipartOptions } from "@fastify/multipart";
 import { MultipartFile } from "./multipart";
 import { validateOrThrow } from "./validation";
 import { optionalRequire } from "./utils";
+
+import { ServerOptions, Server as SocketIoServer } from "socket.io";
+import { SocketContextService } from "./event-dispatcher";
+import { EventSubscriberRegistry } from "./event-subscriber";
+import Stream from "stream";
 
 export type FuncRoute = {
   handler: any;
@@ -190,7 +195,7 @@ export interface IAvleonApplication {
   useMultipart(options: MultipartOptions): void;
   useCache(options: any): void;
 
-  useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]): void;
+  useMiddlewares<T extends AvleonMiddleware>(mclasses: Constructor<T>[]): void;
   useAuthoriztion<T extends any>(middleware: Constructor<T>): void;
   mapRoute<T extends (...args: any[]) => any>(
     method: "get" | "post" | "put" | "delete",
@@ -213,22 +218,29 @@ type OpenApiConfigInput<T = any> = OpenApiConfigClass<T> | T;
 
 type ConfigClass<T = any> = Constructable<IConfig<T>>;
 type ConfigInput<T = any> = ConfigClass<T> | T;
+
+interface FastifyWithIO extends FastifyInstance {
+  io?: any;
+}
+
+const subscriberRegistry = Container.get(EventSubscriberRegistry);
 // InternalApplication
 export class AvleonApplication {
   private static instance: AvleonApplication;
   private static buildOptions: any = {};
-  private app!: FastifyInstance;
+  private app!: FastifyWithIO;
   private routeSet = new Set<string>(); // Use Set for fast duplicate detection
   private alreadyRun = false;
   private routes: Map<string, Function> = new Map();
-  private middlewares: Map<string, AppMiddleware> = new Map();
+  private middlewares: Map<string, AvleonMiddleware> = new Map();
   private rMap = new Map<string, FuncRoute>();
   private hasSwagger = false;
+  private _hasWebsocket = false;
   private globalSwaggerOptions: any = {};
   private dataSourceOptions?: DataSourceOptions = undefined;
   private controllers: any[] = [];
   private authorizeMiddleware?: any = undefined;
-  private appConfig: AppConfig;
+  private appConfig: AvleonConfig;
   private dataSource?: DataSource = undefined;
   private isMapFeatures = false;
   private registerControllerAuto = false;
@@ -238,7 +250,7 @@ export class AvleonApplication {
   private multipartOptions: FastifyMultipartOptions | undefined;
   private constructor() {
     this.app = fastify();
-    this.appConfig = new AppConfig();
+    this.appConfig = new AvleonConfig();
   }
 
   static getApp(): AvleonApplication {
@@ -338,6 +350,22 @@ export class AvleonApplication {
     this.app.register(cors, coptions);
   }
 
+  useWebSocket<T = Partial<ServerOptions>>(socketOptions: ConfigInput<T>) {
+    this._hasWebsocket = true;
+    this._initWebSocket(socketOptions);
+  }
+
+  private async _initWebSocket(options: any) {
+    const fsSocketIO = optionalRequire("fastify-socket.io", {
+      failOnMissing: true,
+      customMessage:
+        "Install \"fastify-socket.io\" to enable socket.io.\n\n run pnpm install fastify-socket.io",
+    });
+    await this.app.register(fsSocketIO, options);
+    const socketIO = await this.app.io;
+    Container.set(SocketIoServer, socketIO);
+  }
+
   useOpenApi<T = OpenApiUiOptions>(configOrClass: OpenApiConfigInput<T>) {
     let openApiConfig: T;
     if (this._isConfigClass(configOrClass)) {
@@ -387,7 +415,7 @@ export class AvleonApplication {
 
   private _useCache(options: any) {}
 
-  useMiddlewares<T extends AppMiddleware>(mclasses: Constructor<T>[]) {
+  useMiddlewares<T extends AvleonMiddleware>(mclasses: Constructor<T>[]) {
     for (const mclass of mclasses) {
       const cls = Container.get<T>(mclass);
       this.middlewares.set(mclass.name, cls);
@@ -408,7 +436,7 @@ export class AvleonApplication {
     });
   }
 
-  private handleMiddlewares<T extends AppMiddleware>(
+  private handleMiddlewares<T extends AvleonMiddleware>(
     mclasses: Constructor<T>[],
   ) {
     for (const mclass of mclasses) {
@@ -513,7 +541,7 @@ export class AvleonApplication {
           }
           if (classMiddlewares.length > 0) {
             for (let m of classMiddlewares) {
-              const cls = Container.get<AppMiddleware>(m.constructor);
+              const cls = Container.get<AvleonMiddleware>(m.constructor);
               reqClone = (await cls.invoke(reqClone, res)) as IRequest;
               if (res.sent) return;
             }
@@ -571,7 +599,59 @@ export class AvleonApplication {
             }
           }
           const result = await prototype[method].apply(ctrl, args);
-          return result;
+          // Custom wrapped file download
+          if (result?.__isFileDownload) {
+            const {
+              stream,
+              filename,
+              contentType = "application/octet-stream",
+            } = result;
+
+            if (!stream || typeof stream.pipe !== "function") {
+              return res.code(500).send({
+                code: 500,
+                error: "INTERNAL_ERROR",
+                message: "Invalid stream object",
+              });
+            }
+
+            res.header("Content-Type", contentType);
+            res.header(
+              "Content-Disposition",
+              `attachment; filename="${filename}"`,
+            );
+
+            stream.on("error", (err: any) => {
+              console.error("Stream error:", err);
+              if (!res.sent) {
+                res.code(500).send({
+                  code: 500,
+                  error: "StreamError",
+                  message: "Error while streaming file.",
+                });
+              }
+            });
+
+            return res.send(stream);
+          }
+
+          // Native stream (not wrapped)
+          if (result instanceof Stream || typeof result?.pipe === "function") {
+            result.on("error", (err: any) => {
+              console.error("Stream error:", err);
+              if (!res.sent) {
+                res.code(500).send({
+                  code: 500,
+                  error: "StreamError",
+                  message: "Error while streaming file.",
+                });
+              }
+            });
+            res.header("Content-Type", "application/octet-stream");
+            return res.send(result);
+          }
+
+          return res.send(result);
         },
       });
     }
@@ -794,16 +874,15 @@ export class AvleonApplication {
     path: string = "",
     fn: T,
   ) {
-    await this.mapFn(fn); // Assuming mapFn is needed for all methods
+    await this.mapFn(fn);
 
     this.app[method](path, async (req: any, res: any) => {
-      // Dynamic method call
       try {
         const result = await fn.apply(this, [req, res]);
         if (typeof result === "object" && result !== null) {
-          res.json(result); // Use res.json for objects
+          res.json(result);
         } else {
-          res.send(result); // Fallback for other types
+          res.send(result);
         }
       } catch (error) {
         console.error(`Error in ${method} route handler:`, error);
@@ -823,15 +902,14 @@ export class AvleonApplication {
       middlewares: [],
       schema: {},
     });
-    //    this.mapFn(fn);
 
     const route = {
-      useMiddleware: <M extends AppMiddleware>(
-        middlewares: Constructor<AppMiddleware>[],
+      useMiddleware: <M extends AvleonMiddleware>(
+        middlewares: Constructor<AvleonMiddleware>[],
       ) => {
         const midds = Array.isArray(middlewares) ? middlewares : [middlewares];
         const ms: any[] = (midds as unknown as any[]).map((mclass) => {
-          const cls = Container.get<AppMiddleware>(mclass);
+          const cls = Container.get<AvleonMiddleware>(mclass);
           this.middlewares.set(mclass.name, cls);
           return cls.invoke;
         });
@@ -882,6 +960,10 @@ export class AvleonApplication {
     }
   }
 
+  handleSocket(socket: any) {
+    subscriberRegistry.register(socket);
+  }
+
   async run(port: number = 4000, fn?: CallableFunction): Promise<void> {
     if (this.alreadyRun) throw new SystemUseError("App already running");
     this.alreadyRun = true;
@@ -926,7 +1008,27 @@ export class AvleonApplication {
       }
       return res.status(handledErr.code).send(handledErr);
     });
+
     await this.app.ready();
+    if (this._hasWebsocket) {
+      await this.app.io.on("connection", this.handleSocket);
+      await this.app.io.use(
+        (
+          socket: { handshake: { auth: { token: any } }; data: { user: any } },
+          next: any,
+        ) => {
+          const token = socket.handshake.auth.token;
+          try {
+            console.log("token", token);
+            const user = { id: 1, name: "tareq" };
+            socket.data.user = user; // this powers @AuthUser()
+            next();
+          } catch {
+            next(new Error("Unauthorized"));
+          }
+        },
+      );
+    }
     await this.app.listen({ port });
     console.log(`Application running on http://127.0.0.1:${port}`);
   }
