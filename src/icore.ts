@@ -60,6 +60,7 @@ import { optionalRequire } from "./utils";
 import { ServerOptions, Server as SocketIoServer } from "socket.io";
 import { SocketContextService } from "./event-dispatcher";
 import { EventSubscriberRegistry } from "./event-subscriber";
+import Stream from "stream";
 
 export type FuncRoute = {
   handler: any;
@@ -598,7 +599,59 @@ export class AvleonApplication {
             }
           }
           const result = await prototype[method].apply(ctrl, args);
-          return result;
+          // Custom wrapped file download
+          if (result?.__isFileDownload) {
+            const {
+              stream,
+              filename,
+              contentType = "application/octet-stream",
+            } = result;
+
+            if (!stream || typeof stream.pipe !== "function") {
+              return res.code(500).send({
+                code: 500,
+                error: "INTERNAL_ERROR",
+                message: "Invalid stream object",
+              });
+            }
+
+            res.header("Content-Type", contentType);
+            res.header(
+              "Content-Disposition",
+              `attachment; filename="${filename}"`,
+            );
+
+            stream.on("error", (err: any) => {
+              console.error("Stream error:", err);
+              if (!res.sent) {
+                res.code(500).send({
+                  code: 500,
+                  error: "StreamError",
+                  message: "Error while streaming file.",
+                });
+              }
+            });
+
+            return res.send(stream);
+          }
+
+          // Native stream (not wrapped)
+          if (result instanceof Stream || typeof result?.pipe === "function") {
+            result.on("error", (err: any) => {
+              console.error("Stream error:", err);
+              if (!res.sent) {
+                res.code(500).send({
+                  code: 500,
+                  error: "StreamError",
+                  message: "Error while streaming file.",
+                });
+              }
+            });
+            res.header("Content-Type", "application/octet-stream");
+            return res.send(result);
+          }
+
+          return res.send(result);
         },
       });
     }

@@ -1,3 +1,4 @@
 onlyBuiltDependencies:
   - fastify-socket.io
   - sharp
+  - sqlite3
