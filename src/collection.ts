@@ -13,7 +13,6 @@ import {
   ObjectLiteral,
   Repository,
 } from "typeorm";
-import { UpsertOptions } from "typeorm/repository/UpsertOptions";
 
 type ObjKey<T> = keyof T;
 type ObjKeys<T> = ObjKey<T>[];
@@ -309,7 +308,6 @@ export function InjectRepository<T extends Repository<T>>(
         index,
         value: (containerInstance) => {
           const dataSource = containerInstance.get<DataSource>("idatasource");
-
           repo = dataSource
             .getRepository<T>(model)
             .extend({ paginate: () => {} });
@@ -335,7 +333,6 @@ export function InjectRepository<T extends Repository<T>>(
         },
       });
     } catch (error: any) {
-      console.log(error);
       if (error.name && error.name == "ServiceNotFoundError") {
         console.log("Database didn't initialized.");
       }

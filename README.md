@@ -587,7 +587,7 @@ Coming soon...
 
 ## License
 
-MIT
+ISC
 
 ## Author
 

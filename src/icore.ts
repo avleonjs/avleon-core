@@ -77,9 +77,9 @@ export interface IRequest extends FastifyRequest {
   user?: any;
 }
 
-export interface DoneFunction extends HookHandlerDoneFunction {}
+export interface DoneFunction extends HookHandlerDoneFunction { }
 // IResponse
-export interface IResponse extends FastifyReply {}
+export interface IResponse extends FastifyReply { }
 
 export type TestResponseType = LightMyRequestResponse;
 export type TestResponse = TestResponseType | Promise<TestResponseType>;
@@ -105,13 +105,13 @@ export interface ParamMetaOptions {
   validatorClass: boolean;
   schema?: any;
   type:
-    | "route:param"
-    | "route:query"
-    | "route:body"
-    | "route:header"
-    | "route:user"
-    | "route:file"
-    | "route:files";
+  | "route:param"
+  | "route:query"
+  | "route:body"
+  | "route:header"
+  | "route:user"
+  | "route:file"
+  | "route:files";
 }
 
 export interface ParamMetaFilesOptions {
@@ -309,13 +309,13 @@ export class AvleonApplication {
         configuration: configuration
           ? configuration
           : {
-              metaData: {
-                title: "Avleon Api",
-                ogTitle: "Avleon",
-              },
-              theme: options.theme ? options.theme : "kepler",
-              favicon: "/static/favicon.png",
+            metaData: {
+              title: "Avleon Api",
+              ogTitle: "Avleon",
             },
+            theme: options.theme ? options.theme : "kepler",
+            favicon: "/static/favicon.png",
+          },
       });
     } else {
       const fastifySwaggerUi = optionalRequire("@fastify/swagger-ui", {
@@ -413,7 +413,7 @@ export class AvleonApplication {
     Container.set<DataSource>("idatasource", datasource);
   }
 
-  private _useCache(options: any) {}
+  private _useCache(options: any) { }
 
   useMiddlewares<T extends AvleonMiddleware>(mclasses: Constructor<T>[]) {
     for (const mclass of mclasses) {
@@ -688,8 +688,8 @@ export class AvleonApplication {
     meta.currentUser.forEach((user) => (args[user.index] = req.user));
     meta.headers.forEach(
       (header) =>
-        (args[header.index] =
-          header.key === "all" ? req.headers : req.headers[header.key]),
+      (args[header.index] =
+        header.key === "all" ? req.headers : req.headers[header.key]),
     );
 
     if (meta.file) {
@@ -844,7 +844,7 @@ export class AvleonApplication {
 
   private async mapFn(fn: Function) {
     const original = fn;
-    fn = function () {};
+    fn = function () { };
     return fn;
   }
 
@@ -1133,9 +1133,17 @@ export class AvleonTest {
     return Container.get(controller);
   }
 
-  private getService<T>(service: Constructor<T>) {
+  static getProvider<T>(service: Constructor<T>, deps: any[] = []) {
+    const paramTypes =
+      Reflect.getMetadata("design:paramtypes", service) || [];
+
+    deps.forEach((dep, i) => {
+      Container.set(paramTypes[i], dep);
+    });
+
     return Container.get(service);
   }
+
 
   static createTestApplication(options: TestAppOptions) {
     const app = AvleonApplication.getInternalApp({
@@ -1157,6 +1165,10 @@ export class AvleonTest {
 export class Avleon {
   static createApplication() {
     const app = AvleonApplication.getApp();
+    return app;
+  }
+  static createTestApplication(options: TestAppOptions) {
+    const app = AvleonTest.createTestApplication(options)
     return app;
   }
 }
