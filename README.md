@@ -350,10 +350,9 @@ class UserDto {
 
 Generate API documentation automatically:
 
-```typescript
-const app = new Avleon({
-  controllers: [UserController],
-  openapi: {
+```typescript 
+
+app.useOpenApi({
     info: {
       title: "User API",
       version: "1.0.0",
@@ -365,9 +364,9 @@ const app = new Avleon({
         description: "Development server",
       },
     ],
-  },
-});
-```
+  });
+
+  ```
 
 You can also customize the OpenAPI UI:
 
