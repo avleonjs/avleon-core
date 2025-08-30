@@ -814,17 +814,6 @@ export class AvleonApplication {
       }
     }
   }
-
-  // addFeature(feature:{controllers:Function[]}){
-  //   feature.controllers.forEach(c=> this.controllers.push(c))
-  // }
-
-  // mapFeature(){
-  //   if(!this.isMapFeatures){
-  //     this.isMapFeatures = true;
-  //   }
-  // }
-
   private async _mapControllers() {
     if (this.controllers.length > 0) {
       for (let controller of this.controllers) {
@@ -837,10 +826,6 @@ export class AvleonApplication {
     }
   }
 
-  // useControllersAuto(controllerPath?:string) {
-  //     this.registerControllerAuto = true;
-  //     //this.autoControllers();
-  // }
 
   private async mapFn(fn: Function) {
     const original = fn;
@@ -1034,8 +1019,6 @@ export class AvleonApplication {
   }
   getTestApp(buildOptions?: any): TestApplication {
     try {
-      // }
-      // this.initializeDatabase();
       this._mapControllers();
       this.rMap.forEach((value, key) => {
         const [m, r] = key.split(":");

@@ -74,8 +74,6 @@ export function createControllerDecorator(
   };
 }
 
-// Predefined Controller Decorators
-//export const Controller = createControllerDecorator("web");
 /**
  *@description Api controller's are used for rest . It will populate
  * json on return and all it http methods {get} {post} etc must return

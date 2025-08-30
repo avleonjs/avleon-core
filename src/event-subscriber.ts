@@ -46,7 +46,7 @@ export function Subscribe(event: string): MethodDecorator {
 
 @Service()
 export class EventSubscriberRegistry {
-  constructor(private readonly socketContext: SocketContextService) {}
+  constructor(private readonly socketContext: SocketContextService) { }
 
   register(socket: Socket) {
     const subscriberClasses = getSocketSubscribers();

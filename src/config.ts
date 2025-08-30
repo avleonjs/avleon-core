@@ -8,6 +8,8 @@ import { Container, Service, Constructable, Token } from "typedi";
 import { Environment } from "./environment-variables";
 import { inject } from "./helpers";
 
+
+
 export interface IConfig<T = any> {
   config(env: Environment): T;
 }

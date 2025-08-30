@@ -18,27 +18,6 @@ interface TransformOptions {
   // Add other sharp options as needed
 }
 
-/* 
-//temp file
-  files[0].type // "file"
-  files[0].filepath
-  files[0].fieldname
-  files[0].filename
-  files[0].encoding
-  files[0].mimetype
-  files[0].fields 
-
-*/
-
-/* 
-// stream file
-  data.file // stream
-  data.fields // other parsed parts
-  data.fieldname
-  data.filename
-  data.encoding
-  data.mimetype
-*/
 
 export interface FileStorageInterface {
   transform(options: TransformOptions): FileStorage;
