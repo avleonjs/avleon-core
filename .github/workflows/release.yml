@@ -66,6 +66,6 @@ jobs:
 
       # 9. Publish to npm
       - name: Publish to npm
-        run: pnpm changeset publish --access public
+        run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
