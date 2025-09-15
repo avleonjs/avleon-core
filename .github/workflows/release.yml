@@ -48,7 +48,7 @@ jobs:
 
       # 6. Create versions if Changesets exist
       - name: Version bump via Changesets
-        run: pnpm changeset version
+        run: pnpm exec changeset version
 
       # 7. Commit version bump & create tag
       - name: Commit version bump and tag
