@@ -63,6 +63,7 @@ import { SocketContextService } from "./event-dispatcher";
 import { EventSubscriberRegistry } from "./event-subscriber";
 import Stream from "stream";
 import { Knex } from "knex";
+import { DB } from "./kenx-provider";
 
 export type FuncRoute = {
   handler: any;
@@ -426,7 +427,9 @@ export class AvleonApplication {
     if (!dataSourceOptions)
       throw new SystemUseError("Invlaid datasource options.");
 
-    registerKnex(dataSourceOptions);
+    //registerKnex(dataSourceOptions);
+    const db = Container.get(DB);
+    db.init(dataSourceOptions)
 
   }
 
