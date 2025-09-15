@@ -1168,7 +1168,7 @@ export class Avleon {
     return app;
   }
   static createTestApplication(options: TestAppOptions) {
-    const app = AvleonTest.createTestApplication(options)
+    const app = AvleonTest.createTestApplication(options);
     return app;
   }
 }
