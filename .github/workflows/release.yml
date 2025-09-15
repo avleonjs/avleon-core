@@ -3,53 +3,69 @@ name: Release
 on:
   push:
     branches:
-      - main
+      - main  # Trigger on pushes to main
 
 jobs:
   release:
-    name: Publish Packages
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
       packages: write
       id-token: write
 
     steps:
-      - name: Checkout Repo
+      # 1. Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Node
+      # 2. Setup Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://registry.npmjs.org/
+          registry-url: https://registry.npmjs.org
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v3
+      # 3. Setup pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 9
 
-      - name: Install Dependencies
-        run: pnpm install
+      # 4. Cache pnpm store
+      - name: Cache pnpm store
+        uses: actions/cache@v3
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
 
-      - name: Create Versions (if changesets exist)
+      # 5. Install dependencies
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 6. Create versions if Changesets exist
+      - name: Version bump via Changesets
         run: pnpm changeset version
 
-      - name: Reinstall After Versioning
-        run: pnpm install
-
-      - name: Commit Version Bumps
+      # 7. Commit version bump & create tag
+      - name: Commit version bump and tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
           git commit -m "chore: version bump [skip ci]" || echo "No changes to commit"
-          git push origin main || echo "Nothing to push"
+          git tag -a "v$(node -p "require('./package.json').version")" -m "Release version $(node -p "require('./package.json').version")" || echo "Tag already exists"
+          git push origin main --tags
 
+      # 8. Build package
+      - name: Build package
+        run: pnpm run build
+
+      # 9. Publish to npm
       - name: Publish to npm
-        run: pnpm changeset publish
+        run: pnpm changeset publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

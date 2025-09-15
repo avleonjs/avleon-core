@@ -25,6 +25,7 @@ export * from "./multipart";
 export * from "./file-storage";
 export * from "./logger";
 export * from "./event-dispatcher";
+export * from "./kenx-provider";
 export { Subscribe, Private } from "./event-subscriber";
 
 export const GetSchema = sw.generateSwaggerSchema;

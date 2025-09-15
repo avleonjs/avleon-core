@@ -54,7 +54,7 @@ export function registerDataSource(dataSource: any) {
 }
 
 export function registerKnex(dataSource: Knex.Config) {
-  Container.set<Knex>("iknex", dataSource);
+  Container.set<Knex>("KnexConnection", dataSource);
 }
 
 
