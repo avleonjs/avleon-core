@@ -31,6 +31,7 @@ import container, {
   REQUEST_BODY_FILES_KEY,
   REQUEST_BODY_FILE_KEY,
   FEATURE_KEY,
+  registerKnex,
 } from "./container";
 import {
   Constructor,
@@ -61,6 +62,7 @@ import { ServerOptions, Server as SocketIoServer } from "socket.io";
 import { SocketContextService } from "./event-dispatcher";
 import { EventSubscriberRegistry } from "./event-subscriber";
 import Stream from "stream";
+import { Knex } from "knex";
 
 export type FuncRoute = {
   handler: any;
@@ -411,6 +413,21 @@ export class AvleonApplication {
     this.dataSource = datasource;
 
     Container.set<DataSource>("idatasource", datasource);
+  }
+
+  useKnex<T extends Knex.Config>(options: ConfigInput<T>) {
+    let dataSourceOptions: T;
+    if (this._isConfigClass(options)) {
+      dataSourceOptions = this.appConfig.get(options);
+    } else {
+      dataSourceOptions = options as T;
+    }
+
+    if (!dataSourceOptions)
+      throw new SystemUseError("Invlaid datasource options.");
+
+    registerKnex(dataSourceOptions);
+
   }
 
   private _useCache(options: any) { }

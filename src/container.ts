@@ -4,6 +4,7 @@
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
+import { Knex } from "knex";
 import TypediContainer, { ContainerInstance, Token } from "typedi";
 import { DataSource } from "typeorm";
 
@@ -51,4 +52,11 @@ Container.set<string>("appName", "Iqra");
 export function registerDataSource(dataSource: any) {
   Container.set<DataSource>("idatasource", dataSource);
 }
+
+export function registerKnex(dataSource: Knex.Config) {
+  Container.set<Knex>("iknex", dataSource);
+}
+
+
+
 export default Container;
