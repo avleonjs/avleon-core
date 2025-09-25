@@ -42,6 +42,8 @@ export function getRegisteredControllers(): Function[] {
   return Array.from(controllerRegistry);
 }
 
+
+
 export const API_CONTROLLER_METADATA_KEY = Symbol("apiController");
 
 export function isApiController(target: Function): boolean {

@@ -60,9 +60,6 @@ export class EventDispatcher {
     for (const transport of transports) {
       if (transport === "socket") {
         const io = Container.get(SocketIOServer);
-
-        //console.log('SOckert', Container.get(SocketContextService));
-
         const context = Container.get(SocketContextService);
         const socket = context.getSocket();
 

@@ -430,7 +430,6 @@ export class AvleonApplication {
     //registerKnex(dataSourceOptions);
     const db = Container.get(DB);
     db.init(dataSourceOptions)
-
   }
 
   private _useCache(options: any) { }
@@ -806,7 +805,6 @@ export class AvleonApplication {
         const module = await import(filePath);
         for (const exported of Object.values(module)) {
           if (typeof exported === "function" && isApiController(exported)) {
-            console.log("adding", exported.name);
             if (!this.controllers.some((con) => exported.name == con.name)) {
               this.controllers.push(exported);
             }
@@ -956,7 +954,6 @@ export class AvleonApplication {
 
   private _mapFeatures() {
     const features = Container.get("features");
-    console.log("Features", features);
   }
 
   async initializeDatabase() {
@@ -1024,7 +1021,6 @@ export class AvleonApplication {
         ) => {
           const token = socket.handshake.auth.token;
           try {
-            console.log("token", token);
             const user = { id: 1, name: "tareq" };
             socket.data.user = user; // this powers @AuthUser()
             next();
@@ -1092,7 +1088,6 @@ export class AvleonApplication {
         },
       };
     } catch (error) {
-      console.log(error);
       throw new SystemUseError("Can't get test appliction");
     }
   }
@@ -1101,25 +1096,25 @@ export class AvleonApplication {
 export type Application = typeof AvleonApplication;
 
 // Applciation Builder
-export interface ITestBuilder {
-  getTestApplication(): AvleonTestAppliction;
-  createTestApplication(options: any): AvleonTestAppliction;
-}
+// export interface ITestBuilder {
+//   getTestApplication(): AvleonTestAppliction;
+//   createTestApplication(options: any): AvleonTestAppliction;
+// }
 
-export interface IAppBuilder {
-  registerPlugin<T extends Function, S extends {}>(
-    plugin: T,
-    options: S,
-  ): Promise<void>;
-  addDataSource<
-    T extends IConfig<R>,
-    R = ReturnType<InstanceType<Constructable<T>>["config"]>,
-  >(
-    ConfigClass: Constructable<T>,
-    modifyConfig?: (config: R) => R,
-  ): void;
-  build<T extends IAvleonApplication>(): T;
-}
+// export interface IAppBuilder {
+//   registerPlugin<T extends Function, S extends {}>(
+//     plugin: T,
+//     options: S,
+//   ): Promise<void>;
+//   addDataSource<
+//     T extends IConfig<R>,
+//     R = ReturnType<InstanceType<Constructable<T>>["config"]>,
+//   >(
+//     ConfigClass: Constructable<T>,
+//     modifyConfig?: (config: R) => R,
+//   ): void;
+//   build<T extends IAvleonApplication>(): T;
+// }
 
 export class AvleonTest {
   private constructor() {

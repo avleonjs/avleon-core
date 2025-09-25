@@ -14,7 +14,7 @@ import {
   SystemUseError,
 } from "./exceptions/system-exception";
 
-dotenv.config({ path: path.join(process.cwd(), ".env") });
+dotenv.config({ path: path.join(process.cwd(), ".env"), quiet: true});
 /**
  * @class Environment
  * @description A service class to manage access to environment variables.
