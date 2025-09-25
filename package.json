@@ -49,6 +49,7 @@
     "@fastify/swagger-ui": "*",
     "@fastify/view": "*",
     "@scalar/fastify-api-reference": "*",
+    "bcryptjs": "3.0.2",
     "dotenv": "*",
     "fastify-socket.io": "*",
     "highlight.js": "*",
@@ -63,6 +64,9 @@
     "typeorm": "*"
   },
   "peerDependenciesMeta": {
+    "bcryptjs": {
+      "optional": true
+    },
     "@fastify/cors": {
       "optional": true
     },
@@ -122,6 +126,7 @@
     }
   },
   "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
     "@types/jest": "^29.5.14",
     "@types/node": "^20.19.17",
     "@typescript-eslint/eslint-plugin": "^8.44.0",

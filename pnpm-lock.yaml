@@ -29,6 +29,9 @@ importers:
       '@scalar/fastify-api-reference':
         specifier: '*'
         version: 1.35.6(typescript@5.9.2)
+      bcryptjs:
+        specifier: 3.0.2
+        version: 3.0.2
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1
@@ -84,6 +87,9 @@ importers:
         specifier: '*'
         version: 0.3.27(ioredis@5.7.0)(mssql@11.0.1)(mysql2@3.15.0)(pg@8.16.3)(reflect-metadata@0.2.2)(sqlite3@5.1.7)
     devDependencies:
+      '@types/bcryptjs':
+        specifier: ^3.0.0
+        version: 3.0.0
       '@types/jest':
         specifier: ^29.5.14
         version: 29.5.14
@@ -794,6 +800,10 @@ packages:
   '@types/babel__traverse@7.28.0':
     resolution: {integrity: sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==}
 
+  '@types/bcryptjs@3.0.0':
+    resolution: {integrity: sha512-WRZOuCuaz8UcZZE4R5HXTco2goQSI2XxjGY3hbM/xDvwmqFWd4ivooImsMx65OKM6CtNKbnZ5YL+YwAwK7c1dg==}
+    deprecated: This is a stub types definition. bcryptjs provides its own type definitions, so you do not need this installed.
+
   '@types/cors@2.8.19':
     resolution: {integrity: sha512-mFNylyeyqN93lfe/9CSxOGREz8cpzAhH+E93xJ4xWQf62V8sQ/24reV2nyzUWM6H6Xji+GGHpkbLe7pVoUEskg==}
 
@@ -1096,6 +1106,10 @@ packages:
 
   baseline-browser-mapping@2.8.6:
     resolution: {integrity: sha512-wrH5NNqren/QMtKUEEJf7z86YjfqW/2uw3IL3/xpqZUC95SSVIFXYQeeGjL6FT/X68IROu6RMehZQS5foy2BXw==}
+    hasBin: true
+
+  bcryptjs@3.0.2:
+    resolution: {integrity: sha512-k38b3XOZKv60C4E2hVsXTolJWfkGRMbILBIe2IBITXciy5bOsTKot5kDrf3ZfufQtQOUN5mXceUEpU1rTl9Uog==}
     hasBin: true
 
   bindings@1.5.0:
@@ -4344,6 +4358,10 @@ snapshots:
     dependencies:
       '@babel/types': 7.28.4
 
+  '@types/bcryptjs@3.0.0':
+    dependencies:
+      bcryptjs: 3.0.2
+
   '@types/cors@2.8.19':
     dependencies:
       '@types/node': 20.19.17
@@ -4725,6 +4743,8 @@ snapshots:
   base64id@2.0.0: {}
 
   baseline-browser-mapping@2.8.6: {}
+
+  bcryptjs@3.0.2: {}
 
   bindings@1.5.0:
     dependencies:
