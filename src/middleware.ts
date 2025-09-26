@@ -37,6 +37,19 @@ interface AuthorizeClass {
   authorize(req: IRequest, options?: any): AuthReturnTypes;
 }
 
+
+export function CanAuthorize(target: {
+  new (...args: any[]): AuthorizeClass;
+}) {
+  if (typeof target.prototype.authorize !== "function") {
+    throw new Error(
+      `Class "${target.name}" must implement an "authorize" method.`,
+    );
+  }
+  Service()(target);
+}
+
+
 export function AppAuthorization(target: {
   new (...args: any[]): AuthorizeClass;
 }) {

@@ -1,20 +1,9 @@
-# AvleonJs
+# Avleon 
 
-## ⚠️ WARNING: NOT FOR PRODUCTION USE
+![npm version](https://img.shields.io/npm/v/@avleon/core.svg) ![Build](https://github.com/avleonjs/avleon-core/actions/workflows/release.yml/badge.svg)
+## ⚠️ WARNING
 
 > **🚧 This project is in active development.**
->
-> It is **not stable** and **not ready** for live environments.  
-> Use **only for testing, experimentation, or internal evaluation**.
->
-> ####❗ Risks of using this in production:
->
-> - 🔄 Breaking changes may be introduced at any time
-> - 🧪 Features are experimental and may be unstable
-> - 🔐 Security has not been audited
-> - 💥 Potential for data loss or critical errors
->
-> **Please do not deploy this in production environments.**
 
 ## Overview
 
@@ -69,11 +58,11 @@ Avleon is a powerful, TypeScript-based web framework built on top of Fastify, de
 ## Installation
 
 ```bash
-npm install @avleon/core
+npx @avleon/cli new myapp
 # or
-yarn add @avleon/core
+yarn dlx @avleon/cli new myapp
 # or
-pnpm add @avleon/core
+pnpm dlx @avleon/cli new myapp
 ```
 
 ## Quick Start
@@ -81,7 +70,7 @@ pnpm add @avleon/core
 ### Minimal
 
 ```typescript
-import { Avleon, ApiController, Get, Results } from "@avleon/core";
+import { Avleon } from "@avleon/core";
 
 const app = Avleon.createApplication();
 app.mapGet("/", () => "Hello, Avleon");
@@ -123,7 +112,9 @@ const app = Avleon.createApplication();
 // Configure and run the application
 app.useCors();
 app.useControllers([UserController]);
-app.run(3000);
+// For auto register controller `app.useControllers({auto:true});`
+
+app.run(); // or app.run(port)
 ```
 
 ### Controllers
@@ -253,7 +244,9 @@ class UserController {
 Secure your API with authentication and authorization:
 
 ```typescript
-@Authorize
+import { CanAuthorize } from "@avleon/core";
+
+@CanAuthorize
 class JwtAuthorization extends AuthorizeMiddleware {
   authorize(roles: string[]) {
     return async (req: IRequest) => {
@@ -382,6 +375,66 @@ app.useOpenApi(OpenApiConfig, (config) => {
 
 ### Database Integration
 
+## 1. Knex
+
+```typescript
+const app = Avleon.createApplication();
+app.useKnex({
+  client: 'mysql',
+  connection: {
+    host: '127.0.0.1',
+    port: 3306,
+    user: 'your_database_user',
+    password: 'your_database_password',
+    database: 'myapp_test',
+  },
+})
+```
+or using config class 
+
+```typescript
+@AppConfig
+export class KnexConfig implements IConfig {
+  // config method is mendatory
+  // config method has access to environment variables by default
+  config(env: Environment) {
+    return {
+      client: 'mysql',
+      connection: {
+        host: env.get("DB_HOST") || '127.0.0.1',
+        port: env.get("DB_PORT") || 3306,
+        user: env.get("DB_USER")|| 'your_database_user',
+        password: env.get("DB_PASS") || 'your_database_password',
+        database: env.get("DB_NAME") || 'myapp_test',
+      },
+    };
+  }
+}
+
+// now we can register it with our app
+
+app.useKenx(KnexConfig)
+```
+
+### Exmaple uses
+
+```typescript
+import { DB, AppService } from "@avleon/core";
+
+@AppService
+export class UsersService{
+  constructor(
+    private readonly db: DB
+  ){}
+
+  async findAll(){
+    const result = await this.db.client.select("*").from("users");
+    return result;
+  }
+}
+```
+
+## 2. Typeorm
 Connect to databases using TypeORM:
 
 ```typescript
@@ -402,9 +455,9 @@ Or use the config class:
 
 ```typescript
 // datasource.config.ts
-import { Config, IConfig } from "@avleon/core";
+import { AppConfig, IConfig } from "@avleon/core";
 
-@Config
+@AppConfig
 export class DataSourceConfig implements IConfig {
   // config method is mendatory
   // config method has access to environment variables by default
@@ -552,7 +605,7 @@ app
     // Handler function
   })
   .useMiddleware([AuthMiddleware])
-  .useSwagger({
+  .useOpenApi({
     summary: "Get all users",
     description: "Retrieves a list of all users",
     tags: ["users"],
