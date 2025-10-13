@@ -1,3 +1,5 @@
+import { isValidJsonString } from "../helpers";
+
 /**
  * @copyright 2024
  * @author Tareq Hossain
@@ -7,8 +9,11 @@
 export abstract class BaseHttpException extends Error {
   code: number = 500;
   name: string = "HttpException";
+  payload: any; 
   constructor(message: any) {
-    super(JSON.stringify(message));
+    const stringMessage = typeof message === "string" ? message : JSON.stringify(message);
+    super(stringMessage);
+    this.payload = typeof message === "string" ? { message } : message;
   }
   isCustomException() {
     return true;

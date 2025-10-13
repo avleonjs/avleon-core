@@ -50,7 +50,7 @@ export type ValidateOptons = {
   location?: "header" | "queryparam" | "param" | "body" | "custom";
 };
 
-class Validator {
+export class Validator {
   private rules: PValidationRule<any>[] = [];
   private options: ValidateOptons = {};
 

@@ -3,8 +3,6 @@ import type { Knex } from "knex";
 import { Container } from "typedi";
 
 
-
-
 @Service()
 export class DB {
   private connection: Knex;

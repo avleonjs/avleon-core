@@ -29,5 +29,11 @@ export * from "./kenx-provider";
 export { Subscribe, Private } from "./event-subscriber";
 
 export const GetSchema = sw.generateSwaggerSchema;
+export const GetObjectSchema = sw.CreateSwaggerObjectSchema;
+export const OpenApiOk = (args1:any)=>{
+    return sw.OpenApiResponse(200, args1, "Success");
+}
+export const OpenApiResponse = sw.OpenApiResponse;
+export const OpenApiProperty = sw.OpenApiProperty;
 
 export { default as AvleonContainer } from "./container";

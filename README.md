@@ -504,24 +504,53 @@ export class UserService {
 }
 ```
 
-### File Uploads
+### File Uploads & File Storage
 
 Handle file uploads with multipart support:
 
 ```typescript
 // Configure multipart file uploads
 app.useMultipart({
-  destination: path.join(process.cwd(), 'uploads'),
+  destination: path.join(process.cwd(), 'public/uploads'),
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB
   }
 });
-
+```
+```typescript
 // In your controller
+import {FileStorage} from '@avleon/core';
+
+//inject FileStorage into constructor
+constructor(
+  private readonly fileStorage: FileStorage
+){}
+
+@OpenApi({
+  description: "Uploading single file"
+  body:{
+    type:"object",
+    properties:{
+      file:{
+        type:"string",
+        format:"binary"
+      }
+    },
+    required:["file"]
+  }
+})
 @Post('/upload')
-async uploadFile(@MultipartFile() file: any) {
+async uploadSingleFile(@UploadFile('file') file: MultipartFile) {
   // Process uploaded file
-  return HttpResponse.Ok({ filename: file.filename });
+  const result = await this.fileStorage.save(file);
+  // or with new name 
+  //  const result = await this.fileStorage.save(file, {as:newname.ext});
+  // result
+  // {
+  //  uploadPath:"/uplaod",
+  //  staticPath: "/static/"
+  //}
+  return result;
 }
 ```
 
@@ -530,6 +559,9 @@ async uploadFile(@MultipartFile() file: any) {
 Serve static files:
 
 ```typescript
+import path from 'path';
+
+
 app.useStaticFiles({
   path: path.join(process.cwd(), "public"),
   prefix: "/static/",

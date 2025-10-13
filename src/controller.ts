@@ -12,6 +12,30 @@ import container, {
   registerController,
 } from "./container";
 
+
+export const REQUEST_METADATA_KEY = Symbol('avleon:request');
+
+export function AvleonRequest(): ParameterDecorator {
+  return (target, propertyKey:any, parameterIndex) => {
+    const existingParams =
+      Reflect.getMetadata(REQUEST_METADATA_KEY, target, propertyKey) || [];
+
+    existingParams.push({
+      index: parameterIndex,
+      type: 'request',
+    });
+
+    Reflect.defineMetadata(
+      REQUEST_METADATA_KEY,
+      existingParams,
+      target,
+      propertyKey
+    );
+  };
+}
+
+
+
 /**
  * Options for configuring a controller.
  * @remarks

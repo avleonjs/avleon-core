@@ -13,6 +13,8 @@ import fastify, {
   RouteGenericInterface,
   InjectOptions,
   LightMyRequestResponse,
+  HTTPMethods,
+  FastifyLoggerOptions,
 } from "fastify";
 import Container, { Constructable } from "typedi";
 import fs from "fs/promises";
@@ -64,6 +66,8 @@ import { EventSubscriberRegistry } from "./event-subscriber";
 import Stream from "stream";
 import { Knex } from "knex";
 import { DB } from "./kenx-provider";
+import { REQUEST_METADATA_KEY } from "./controller";
+import mime from "mime";
 
 export type FuncRoute = {
   handler: any;
@@ -80,9 +84,9 @@ export interface IRequest extends FastifyRequest {
   user?: any;
 }
 
-export interface DoneFunction extends HookHandlerDoneFunction { }
+export interface DoneFunction extends HookHandlerDoneFunction {}
 // IResponse
-export interface IResponse extends FastifyReply { }
+export interface IResponse extends FastifyReply {}
 
 export type TestResponseType = LightMyRequestResponse;
 export type TestResponse = TestResponseType | Promise<TestResponseType>;
@@ -108,13 +112,13 @@ export interface ParamMetaOptions {
   validatorClass: boolean;
   schema?: any;
   type:
-  | "route:param"
-  | "route:query"
-  | "route:body"
-  | "route:header"
-  | "route:user"
-  | "route:file"
-  | "route:files";
+    | "route:param"
+    | "route:query"
+    | "route:body"
+    | "route:header"
+    | "route:user"
+    | "route:file"
+    | "route:files";
 }
 
 export interface ParamMetaFilesOptions {
@@ -126,6 +130,7 @@ export interface ParamMetaFilesOptions {
 
 // Method Param Meta options
 export interface MethodParamMeta {
+  request: any[];
   params: ParamMetaOptions[];
   query: ParamMetaOptions[];
   body: ParamMetaOptions[];
@@ -284,6 +289,17 @@ export class AvleonApplication {
     return AvleonApplication.instance;
   }
 
+  useLogger<T = FastifyLoggerOptions>(corsOptions?: ConfigInput<T>) {
+    let coptions: any = {};
+    if (corsOptions) {
+      if (this._isConfigClass<T>(corsOptions)) {
+        coptions = this.appConfig.get(corsOptions) as T;
+      } else {
+        coptions = corsOptions as T;
+      }
+    }
+  }
+
   isDevelopment() {
     const env = container.get(Environment);
     return env.get("NODE_ENV") == "development";
@@ -305,26 +321,26 @@ export class AvleonApplication {
       const scalarPlugin = optionalRequire("@scalar/fastify-api-reference", {
         failOnMissing: true,
         customMessage:
-          "Install \"@scalar/fastify-api-reference\" to enable API docs.\n\n  npm install @scalar/fastify-api-reference",
+          'Install "@scalar/fastify-api-reference" to enable API docs.\n\n  npm install @scalar/fastify-api-reference',
       });
       await this.app.register(scalarPlugin, {
         routePrefix: rPrefix as any,
         configuration: configuration
           ? configuration
           : {
-            metaData: {
-              title: "Avleon Api",
-              ogTitle: "Avleon",
+              metaData: {
+                title: "Avleon Api",
+                ogTitle: "Avleon",
+              },
+              theme: options.theme ? options.theme : "kepler",
+              favicon: "/static/favicon.png",
             },
-            theme: options.theme ? options.theme : "kepler",
-            favicon: "/static/favicon.png",
-          },
       });
     } else {
       const fastifySwaggerUi = optionalRequire("@fastify/swagger-ui", {
         failOnMissing: true,
         customMessage:
-          "Install \"@fastify/swagger-ui\" to enable API docs.\n\n  npm install @fastify/swagger-ui",
+          'Install "@fastify/swagger-ui" to enable API docs.\n\n  npm install @fastify/swagger-ui',
       });
       await this.app.register(fastifySwaggerUi, {
         logo: logo ? logo : null,
@@ -362,7 +378,7 @@ export class AvleonApplication {
     const fsSocketIO = optionalRequire("fastify-socket.io", {
       failOnMissing: true,
       customMessage:
-        "Install \"fastify-socket.io\" to enable socket.io.\n\n run pnpm install fastify-socket.io",
+        'Install "fastify-socket.io" to enable socket.io.\n\n run pnpm install fastify-socket.io',
     });
     await this.app.register(fsSocketIO, options);
     const socketIO = await this.app.io;
@@ -390,8 +406,8 @@ export class AvleonApplication {
     if (multipartOptions) {
       this.multipartOptions = multipartOptions;
       this.app.register(fastifyMultipart, {
-        ...this.multipartOptions,
         attachFieldsToBody: true,
+        ...this.multipartOptions,
       });
     }
   }
@@ -429,10 +445,10 @@ export class AvleonApplication {
 
     //registerKnex(dataSourceOptions);
     const db = Container.get(DB);
-    db.init(dataSourceOptions)
+    db.init(dataSourceOptions);
   }
 
-  private _useCache(options: any) { }
+  private _useCache(options: any) {}
 
   useMiddlewares<T extends AvleonMiddleware>(mclasses: Constructor<T>[]) {
     for (const mclass of mclasses) {
@@ -538,10 +554,45 @@ export class AvleonApplication {
         schema = { ...schema, body: bodySchema };
       }
 
+      // const isMultipart =
+      //   schema.consumes?.includes('multipart/form-data') ||
+      //   (schema.body && schema.body.type === 'object' &&
+      //   Object.values(schema.body.properties || {}).some((p: any) => p.format === 'binary'));
+      const isMultipart =
+        schema?.consumes?.includes("multipart/form-data") ||
+        Object.values(schema?.body?.properties || {}).some(
+          (p: any) => p.format === "binary",
+        );
+
+      // Prepare the route schema
+      let routeSchema = schema;
+
+      if (isMultipart) {
+        schema.consumes = ["multipart/form-data"];
+        if (!schema.body) {
+          schema.body = {
+            type: "object",
+            properties: {},
+          };
+        }
+
+        for (const param of allMeta.body) {
+          if (param.type == "route:file") {
+            schema.body.properties[param.key] = {
+              type: "string",
+              format: "binary",
+            };
+          } else {
+            schema.body.properties[param.key] = { type: param.dataType };
+          }
+        }
+      }
+
       this.app.route({
         url: routePath,
         method: methodmetaOptions.method.toUpperCase(),
-        schema: { ...schema },
+        schema: routeSchema,
+        attachValidation: isMultipart,
         handler: async (req, res) => {
           let reqClone = req as IRequest;
 
@@ -601,30 +652,29 @@ export class AvleonApplication {
             }
           }
 
-          for (let bodyMeta of allMeta.body) {
-            if (bodyMeta.validatorClass) {
-              const err = await validateObjectByInstance(
-                bodyMeta.dataType,
-                args[bodyMeta.index],
-              );
-              if (err) {
-                return await res.code(400).send({
-                  code: 400,
-                  error: "ValidationError",
-                  errors: err,
-                  message: err.message,
-                });
+          if (!isMultipart) {
+            for (let bodyMeta of allMeta.body) {
+              if (bodyMeta.validatorClass) {
+                const err = await validateObjectByInstance(
+                  bodyMeta.dataType,
+                  args[bodyMeta.index],
+                );
+                if (err) {
+                  return await res.code(400).send({
+                    code: 400,
+                    error: "ValidationError",
+                    errors: err,
+                    message: err.message,
+                  });
+                }
               }
             }
           }
+
           const result = await prototype[method].apply(ctrl, args);
           // Custom wrapped file download
-          if (result?.__isFileDownload) {
-            const {
-              stream,
-              filename,
-              contentType = "application/octet-stream",
-            } = result;
+          if (result?.download) {
+            const { stream, filename } = result;
 
             if (!stream || typeof stream.pipe !== "function") {
               return res.code(500).send({
@@ -633,6 +683,10 @@ export class AvleonApplication {
                 message: "Invalid stream object",
               });
             }
+            const contentType =
+              result.contentType ||
+              mime.getType(filename) ||
+              "application/octet-stream";
 
             res.header("Content-Type", contentType);
             res.header(
@@ -669,7 +723,6 @@ export class AvleonApplication {
             res.header("Content-Type", "application/octet-stream");
             return res.send(result);
           }
-
           return res.send(result);
         },
       });
@@ -677,78 +730,160 @@ export class AvleonApplication {
   }
 
   /**
-   * map all request parameters
-   * @param req
-   * @param meta
-   * @returns
+   * Maps request data to controller method arguments based on decorators
+   * @param req - The incoming request object
+   * @param meta - Metadata about method parameters
+   * @returns Array of arguments to pass to the controller method
    */
   private async _mapArgs(req: IRequest, meta: MethodParamMeta): Promise<any[]> {
+    // Initialize args cache on request if not present
     if (!req.hasOwnProperty("_argsCache")) {
       Object.defineProperty(req, "_argsCache", {
         value: new Map<string, any[]>(),
         enumerable: false,
+        writable: false,
+        configurable: false,
       });
     }
 
     const cache: Map<string, any[]> = (req as any)._argsCache;
-    const cacheKey = JSON.stringify(meta); // Faster key-based lookup
+    const cacheKey = JSON.stringify(meta);
 
+    // Return cached result if available
     if (cache.has(cacheKey)) {
       return cache.get(cacheKey)!;
     }
 
-    const args: any[] = meta.params.map((p) => req.params[p.key] || null);
-    meta.query.forEach(
-      (q) => (args[q.index] = q.key === "all" ? req.query : req.query[q.key]),
-    );
-    meta.body.forEach(
-      (body) => (args[body.index] = { ...req.body, ...req.formData }),
-    );
-    meta.currentUser.forEach((user) => (args[user.index] = req.user));
-    meta.headers.forEach(
-      (header) =>
-      (args[header.index] =
-        header.key === "all" ? req.headers : req.headers[header.key]),
-    );
+    // Initialize args array with correct length
+    const maxIndex =
+      Math.max(
+        ...meta.params.map((p) => p.index || 0),
+        ...meta.query.map((q) => q.index),
+        ...meta.body.map((b) => b.index),
+        ...meta.currentUser.map((u) => u.index),
+        ...meta.headers.map((h) => h.index),
+        ...(meta.request?.map((r) => r.index) || []),
+        ...(meta.file?.map((f) => f.index) || []),
+        ...(meta.files?.map((f) => f.index) || []),
+        -1,
+      ) + 1;
 
-    if (meta.file) {
-      for await (let f of meta.file) {
-        args[f.index] = await req.file();
-      }
+    const args: any[] = new Array(maxIndex).fill(undefined);
+
+    // Map route parameters
+    meta.params.forEach((p) => {
+      args[p.index] =
+        p.key == "all" ? { ...req.query } : req.params[p.key] || null;
+    });
+
+    // Map query parameters
+    meta.query.forEach((q) => {
+      args[q.index] = q.key == "all" ? { ...req.query } : req.query[q.key];
+    });
+
+    // Map body data (including form data)
+    meta.body.forEach((body) => {
+      args[body.index] = { ...req.body, ...req.formData };
+    });
+
+    // Map current user
+    meta.currentUser.forEach((user) => {
+      args[user.index] = req.user;
+    });
+
+    // Map headers
+    meta.headers.forEach((header) => {
+      args[header.index] =
+        header.key === "all" ? { ...req.headers } : req.headers[header.key];
+    });
+
+    // Map request object
+    if (meta.request && meta.request.length > 0) {
+      meta.request.forEach((r) => {
+        args[r.index] = req;
+      });
     }
+
+    // Handle file uploads (single or multiple files)
+    const needsFiles =
+      (meta.file && meta.file.length > 0) ||
+      (meta.files && meta.files.length > 0);
 
     if (
-      meta.files &&
-      req.headers["content-type"]?.startsWith("multipart/form-data") === true
+      needsFiles &&
+      req.headers["content-type"]?.startsWith("multipart/form-data")
     ) {
       const files = await req.saveRequestFiles();
-      if (!files || files.length === 0) {
-        throw new BadRequestException({ error: "No files uploaded" });
-      }
 
-      const fileInfo = files.map((file) => ({
-        type: file.type,
-        filepath: file.filepath,
-        fieldname: file.fieldname,
-        filename: file.filename,
-        encoding: file.encoding,
-        mimetype: file.mimetype,
-        fields: file.fields,
-      }));
-      for await (let f of meta.files) {
-        const findex = fileInfo.findIndex((x) => x.fieldname == f.fieldName);
-        if (f.fieldName != "all" && findex == -1) {
-          throw new BadRequestException(
-            `${f.fieldName} doesn't exists in request files tree.`,
-          );
+      if (!files || files.length === 0) {
+        // Only throw error if files are explicitly required
+        if (meta.files && meta.files.length > 0) {
+          throw new BadRequestException({ error: "No files uploaded" });
         }
-        args[f.index] =
-          f.fieldName == "all"
-            ? fileInfo
-            : fileInfo.filter((x) => x.fieldname == f.fieldName);
+        // For single file (@File()), set to null
+        if (meta.file && meta.file.length > 0) {
+          meta.file.forEach((f) => {
+            args[f.index] = null;
+          });
+        }
+      } else {
+        // Create file info objects
+        const fileInfo = files.map((file) => ({
+          type: file.type,
+          filepath: file.filepath,
+          fieldname: file.fieldname,
+          filename: file.filename,
+          encoding: file.encoding,
+          mimetype: file.mimetype,
+          fields: file.fields,
+        }));
+
+        // Handle single file decorator (@File())
+        if (meta.file && meta.file.length > 0) {
+          meta.file.forEach((f) => {
+            if (f.fieldName === "all") {
+              // Return first file if "all" is specified
+              args[f.index] = fileInfo[0] || null;
+            } else {
+              // Find specific file by fieldname
+              const file = fileInfo.find((x) => x.fieldname === f.fieldName);
+              if (!file) {
+                throw new BadRequestException(
+                  `File field "${f.fieldName}" not found in uploaded files`,
+                );
+              }
+              args[f.index] = file;
+            }
+          });
+        }
+
+        if (meta.files && meta.files.length > 0) {
+          meta.files.forEach((f) => {
+            if (f.fieldName === "all") {
+              args[f.index] = fileInfo;
+            } else {
+              const matchingFiles = fileInfo.filter(
+                (x) => x.fieldname === f.fieldName,
+              );
+              if (matchingFiles.length === 0) {
+                throw new BadRequestException(
+                  `No files found for field "${f.fieldName}"`,
+                );
+              }
+              args[f.index] = matchingFiles;
+            }
+          });
+        }
       }
+    } else if (needsFiles) {
+      // Files expected but request is not multipart/form-data
+      throw new BadRequestException({
+        error:
+          "Invalid content type. Expected multipart/form-data for file uploads",
+      });
     }
 
+    // Cache the result
     cache.set(cacheKey, args);
     return args;
   }
@@ -766,6 +901,8 @@ export class AvleonApplication {
     }
 
     const meta: MethodParamMeta = {
+      request:
+        Reflect.getMetadata(REQUEST_METADATA_KEY, prototype, method) || [],
       params: Reflect.getMetadata(PARAM_META_KEY, prototype, method) || [],
       query: Reflect.getMetadata(QUERY_META_KEY, prototype, method) || [],
       body: Reflect.getMetadata(REQUEST_BODY_META_KEY, prototype, method) || [],
@@ -836,7 +973,7 @@ export class AvleonApplication {
     if (this.controllers.length > 0) {
       for (let controller of this.controllers) {
         if (isApiController(controller)) {
-          this.buildController(controller);
+          await this.buildController(controller);
         } else {
           throw new SystemUseError("Not a api controller.");
         }
@@ -844,10 +981,9 @@ export class AvleonApplication {
     }
   }
 
-
   private async mapFn(fn: Function) {
     const original = fn;
-    fn = function () { };
+    fn = function () {};
     return fn;
   }
 
@@ -981,12 +1117,13 @@ export class AvleonApplication {
     if (this.registerControllerAuto) {
       await this.autoControllers();
     }
+
     await this._mapControllers();
 
     this.rMap.forEach((value, key) => {
       const [m, r] = key.split(":");
       this.app.route({
-        method: m,
+        method: m.toUpperCase() as HTTPMethods,
         url: r,
         schema: value.schema || {},
         preHandler: value.middlewares ? value.middlewares : [],
@@ -996,22 +1133,7 @@ export class AvleonApplication {
         },
       });
     });
-    this.app.setErrorHandler(async (error, req, res) => {
-      const handledErr = this._handleError(error);
-      if (
-        error instanceof ValidationErrorException ||
-        error instanceof BadRequestException
-      ) {
-        return res.status(handledErr.code).send({
-          code: handledErr.code,
-          error: handledErr.error,
-          errors: handledErr.message,
-        });
-      }
-      return res.status(handledErr.code).send(handledErr);
-    });
 
-    await this.app.ready();
     if (this._hasWebsocket) {
       await this.app.io.on("connection", this.handleSocket);
       await this.app.io.use(
@@ -1030,6 +1152,26 @@ export class AvleonApplication {
         },
       );
     }
+    this.app.setErrorHandler((error, request, reply) => {
+      if (error instanceof BaseHttpException) {
+        const response = {
+          code: error.code,
+          status: "Error",
+          data: error.payload,
+        };
+
+        return reply
+          .status(error.code || 500)
+          .type("application/json")
+          .serializer((payload: any) => JSON.stringify(payload))
+          .send(response);
+      }
+      return reply.status(500).send({
+        code: 500,
+        message: error.message || "Internal Server Error",
+      });
+    });
+    await this.app.ready();
     await this.app.listen({ port });
     console.log(`Application running on http://127.0.0.1:${port}`);
   }
@@ -1039,7 +1181,7 @@ export class AvleonApplication {
       this.rMap.forEach((value, key) => {
         const [m, r] = key.split(":");
         this.app.route({
-          method: m,
+          method: m.toUpperCase() as HTTPMethods,
           url: r,
           schema: value.schema || {},
           preHandler: value.middlewares ? value.middlewares : [],
@@ -1132,8 +1274,7 @@ export class AvleonTest {
   }
 
   static getProvider<T>(service: Constructor<T>, deps: any[] = []) {
-    const paramTypes =
-      Reflect.getMetadata("design:paramtypes", service) || [];
+    const paramTypes = Reflect.getMetadata("design:paramtypes", service) || [];
 
     deps.forEach((dep, i) => {
       Container.set(paramTypes[i], dep);
@@ -1141,7 +1282,6 @@ export class AvleonTest {
 
     return Container.get(service);
   }
-
 
   static createTestApplication(options: TestAppOptions) {
     const app = AvleonApplication.getInternalApp({
