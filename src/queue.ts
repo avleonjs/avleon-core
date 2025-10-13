@@ -1,17 +1,14 @@
-/**
- * @copyright 2024
- * @author Tareq Hossain
- * @email xtrinsic96@gmail.com
- * @url https://github.com/xtareq
- */
-
 import { promises as fs } from "fs";
 import { join } from "path";
-import { uuid } from "./helpers";
+import { randomUUID } from "crypto";
+import { EventEmitter } from "events";
+import { AppService } from "./decorators";
 
 interface Job {
   id: string;
   data: any;
+  runAt?: number;
+  status?: "pending" | "running" | "failed" | "completed";
 }
 
 interface QueueAdapter {
@@ -30,7 +27,7 @@ export class FileQueueAdapter implements QueueAdapter {
     try {
       const data = await fs.readFile(this.queueFile, "utf-8");
       return JSON.parse(data);
-    } catch (error) {
+    } catch {
       return [];
     }
   }
@@ -40,87 +37,101 @@ export class FileQueueAdapter implements QueueAdapter {
   }
 }
 
-// class RedisQueueAdapter implements QueueAdapter {
-//   private client = createClient();
-//   private queueKey: string;
-//
-//   constructor(queueName: string) {
-//     this.queueKey = `queue:${queueName}`;
-//     this.client.connect();
-//   }
-//
-//   async loadJobs(): Promise<Job[]> {
-//     const jobs = await this.client.lRange(this.queueKey, 0, -1);
-//     return jobs.map((job) => JSON.parse(job));
-//   }
-//
-//   async saveJobs(jobs: Job[]) {
-//     await this.client.del(this.queueKey);
-//     if (jobs.length > 0) {
-//       await this.client.rPush(this.queueKey, ...jobs.map(job => JSON.stringify(job)));
-//     }
-//   }
-// }
-
-class SimpleQueue {
-  private processing: boolean = false;
+export class AvleonQueue extends EventEmitter {
+  private name: string;
+  private processing = false;
+  private stopped = false;
   private jobHandler: (job: Job) => Promise<void>;
   private adapter: QueueAdapter;
 
-  constructor(adapter: QueueAdapter, jobHandler: (job: Job) => Promise<void>) {
-    this.adapter = adapter;
-    this.jobHandler = jobHandler;
+  constructor(name: string, adapter?: QueueAdapter, jobHandler?: (job: Job) => Promise<void>) {
+    super();
+    this.name = name;
+    this.adapter = adapter? adapter : new FileQueueAdapter(name);
+    this.jobHandler = jobHandler || this.defaultHandler.bind(this);
+    this.setMaxListeners(10);
   }
 
-  async addJob(data: any) {
-    const job: Job = { id: uuid, data };
+  private async defaultHandler(job: Job) {
+    if (typeof job.data === "function") {
+      await job.data();
+    }
+  }
+
+  async addJob(data: any, options?: { delay?: number }) {
+    const job: Job = {
+      id: randomUUID(),
+      data,
+      runAt: Date.now() + (options?.delay || 0),
+      status: "pending",
+    };
+
     const jobs = await this.adapter.loadJobs();
     jobs.push(job);
     await this.adapter.saveJobs(jobs);
-    this.processNext();
+
+    if (!this.processing) this.processNext();
   }
 
   private async processNext() {
-    if (this.processing) return;
+    if (this.processing || this.stopped) return;
     this.processing = true;
 
-    const jobs = await this.adapter.loadJobs();
-    if (jobs.length === 0) {
-      this.processing = false;
-      return;
+    while (!this.stopped) {
+      const jobs = await this.adapter.loadJobs();
+      const nextJob = jobs.find((j) => j.status === "pending");
+
+      if (!nextJob) {
+        this.processing = false;
+        return;
+      }
+
+      const now = Date.now();
+      if (nextJob.runAt && nextJob.runAt > now) {
+        const delay = nextJob.runAt - now;
+        await new Promise((res) => setTimeout(res, delay));
+      }
+
+      nextJob.status = "running";
+      await this.adapter.saveJobs(jobs);
+      this.emit("start", nextJob);
+
+      try {
+        await this.jobHandler(nextJob);
+        nextJob.status = "completed";
+        this.emit("done", nextJob);
+      } catch (err) {
+        nextJob.status = "failed";
+        this.emit("failed", err, nextJob);
+      }
+
+      await this.adapter.saveJobs(jobs.filter((j) => j.id !== nextJob.id));
     }
 
-    const job = jobs.shift();
-    if (job) {
-      try {
-        await this.jobHandler(job);
-      } catch (error) {
-        console.error(`Error processing job ${job.id}:`, error);
-        jobs.unshift(job);
-      }
-      await this.adapter.saveJobs(jobs);
-      this.processing = false;
-      this.processNext();
-    }
+    this.processing = false;
+  }
+
+  async onDone(cb: (job: Job) => void) {
+     this.on("done", cb);
+  }
+
+  async onFailed(cb: (error: any, job: Job) => void) {
+     this.on("failed", cb);
+  }
+
+  async getJobs(): Promise<Job[]> {
+    return this.adapter.loadJobs();
+  }
+
+  async stop() {
+    this.stopped = true;
   }
 }
 
+@AppService
 export class QueueManager {
-  private static instance: QueueManager;
-  private adapter: QueueAdapter;
-
-  private constructor(adapter: QueueAdapter) {
-    this.adapter = adapter;
-  }
-
-  static getInstance(adapter: QueueAdapter): QueueManager {
-    if (!QueueManager.instance) {
-      QueueManager.instance = new QueueManager(adapter);
-    }
-    return QueueManager.instance;
-  }
-
-  createQueue(jobHandler: (job: Job) => Promise<void>): SimpleQueue {
-    return new SimpleQueue(this.adapter, jobHandler);
+  async from(name: string, jobHandler?: (job: Job) => Promise<void>) {
+    const q = new AvleonQueue(name, new FileQueueAdapter(name), jobHandler);
+    return q;
   }
 }

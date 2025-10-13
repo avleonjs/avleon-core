@@ -374,15 +374,18 @@ export class AvleonApplication {
     this._initWebSocket(socketOptions);
   }
 
+  useSocketIO<T = Partial<ServerOptions>>(socketOptions: ConfigInput<T>) {
+    this._hasWebsocket = true;
+    this._initWebSocket(socketOptions);
+  }
+
   private async _initWebSocket(options: any) {
     const fsSocketIO = optionalRequire("fastify-socket.io", {
       failOnMissing: true,
       customMessage:
         'Install "fastify-socket.io" to enable socket.io.\n\n run pnpm install fastify-socket.io',
     });
-    await this.app.register(fsSocketIO, options);
-    const socketIO = await this.app.io;
-    Container.set(SocketIoServer, socketIO);
+    this.app.register(fsSocketIO, options);
   }
 
   useOpenApi<T = OpenApiUiOptions>(configOrClass: OpenApiConfigInput<T>) {
@@ -1099,7 +1102,17 @@ export class AvleonApplication {
   }
 
   handleSocket(socket: any) {
+    const contextService = Container.get(SocketContextService);
+
     subscriberRegistry.register(socket);
+
+    // Wrap all future event handlers with context
+    const originalOn = socket.on.bind(socket);
+    socket.on = (event: string, handler: Function) => {
+      return originalOn(event, (...args: any[]) => {
+        contextService.run(socket, () => handler(...args));
+      });
+    };
   }
 
   async run(port: number = 4000, fn?: CallableFunction): Promise<void> {
@@ -1134,24 +1147,6 @@ export class AvleonApplication {
       });
     });
 
-    if (this._hasWebsocket) {
-      await this.app.io.on("connection", this.handleSocket);
-      await this.app.io.use(
-        (
-          socket: { handshake: { auth: { token: any } }; data: { user: any } },
-          next: any,
-        ) => {
-          const token = socket.handshake.auth.token;
-          try {
-            const user = { id: 1, name: "tareq" };
-            socket.data.user = user; // this powers @AuthUser()
-            next();
-          } catch {
-            next(new Error("Unauthorized"));
-          }
-        },
-      );
-    }
     this.app.setErrorHandler((error, request, reply) => {
       if (error instanceof BaseHttpException) {
         const response = {
@@ -1171,7 +1166,37 @@ export class AvleonApplication {
         message: error.message || "Internal Server Error",
       });
     });
+
     await this.app.ready();
+    if (this._hasWebsocket) {
+      if (!this.app.io) {
+        throw new Error(
+          "Socket.IO not initialized. Make sure fastify-socket.io is registered correctly.",
+        );
+      }
+
+      // Register the io instance in Container
+      Container.set(SocketIoServer, this.app.io);
+      // Register middleware first
+      // await this.app.io.use(
+      //   (
+      //     socket: { handshake: { auth: { token: any } }; data: { user: any } },
+      //     next: any,
+      //   ) => {
+      //     const token = socket.handshake.auth.token;
+      //     try {
+      //       const user = { id: 1, name: "tareq" };
+      //       socket.data.user = user; // this powers @AuthUser()
+      //       next();
+      //     } catch {
+      //       next(new Error("Unauthorized"));
+      //     }
+      //   },
+      // );
+
+      // Then register connection handler
+      await this.app.io.on("connection", this.handleSocket.bind(this));
+    }
     await this.app.listen({ port });
     console.log(`Application running on http://127.0.0.1:${port}`);
   }
