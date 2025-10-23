@@ -33,7 +33,6 @@ function createParamDecorator(
     options: ParameterOptions = {},
   ): ParameterDecorator {
     return function (target: any, propertyKey: any, parameterIndex: number) {
-      // Determine correct meta key
       let metaKey: string | symbol;
       switch (type) {
         case "route:param":
@@ -55,7 +54,6 @@ function createParamDecorator(
           throw new Error(`Unknown param decorator type: ${String(type)}`);
       }
 
-      // Retrieve and preserve existing metadata
       const existingParams =
         Reflect.getMetadata(metaKey, target, propertyKey) || [];
 
@@ -63,13 +61,9 @@ function createParamDecorator(
       const functionSource: string = target[propertyKey].toString();
       const paramNames =
         functionSource.match(/\(([^)]*)\)/)?.[1]?.split(",").map((n) => n.trim()) || [];
-
-      // Determine the param type
       const parameterTypes =
         Reflect.getMetadata("design:paramtypes", target, propertyKey) || [];
       const paramDataType = parameterTypes[parameterIndex];
-
-      // Append new parameter
       existingParams.push({
         index: parameterIndex,
         key: typeof key === "string" ? key : "all",
@@ -83,8 +77,6 @@ function createParamDecorator(
           : null,
         type,
       });
-
-      // Save back using the correct meta key
       Reflect.defineMetadata(metaKey, existingParams, target, propertyKey);
     };
   };
