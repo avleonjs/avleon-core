@@ -38,6 +38,7 @@ Avleon is a powerful, TypeScript-based web framework built on top of Fastify, de
   - [mapPut](#mapput)
   - [mapDelete](#mapdelete)
 - [Testing](#testing)
+- [WebSocket](#websocket-intregation-socketio)
 
 ## Features
 
@@ -68,7 +69,6 @@ pnpm dlx @avleon/cli new myapp
 ## Quick Start
 
 ### Minimal
-
 ```typescript
 import { Avleon } from "@avleon/core";
 
@@ -78,7 +78,6 @@ app.run(); // or app.run(3000);
 ```
 
 ### Controller Based
-
 ```typescript
 import { Avleon, ApiController, Get, Results } from "@avleon/core";
 
@@ -100,7 +99,6 @@ app.run();
 ## Core Concepts
 
 ### Application Creation
-
 Avleon provides a builder pattern for creating applications:
 
 ```typescript
@@ -118,7 +116,6 @@ app.run(); // or app.run(port)
 ```
 
 ### Controllers
-
 Controllers are the entry points for your API requests. They are defined using the `@ApiController` decorator:
 
 ```typescript
@@ -129,7 +126,6 @@ class UserController {
 ```
 
 ### Route Methods
-
 Define HTTP methods using decorators:
 
 ```typescript
@@ -155,7 +151,6 @@ async deleteUser(@Param('id') id: string) {
 ```
 
 ### Parameter Decorators
-
 Extract data from requests using parameter decorators:
 
 ```typescript
@@ -190,7 +185,6 @@ async uploadFiles(
 ``` -->
 
 ### Error Handling
-
 Return standardized responses using the `HttpResponse` and `HttpExceptions` class:
 
 ```typescript
@@ -207,7 +201,6 @@ async getUser(@Param('id') id: string) {
 ```
 
 ### Middleware
-
 Create and apply middleware for cross-cutting concerns:
 
 ```typescript
@@ -240,7 +233,6 @@ class UserController {
 ```
 
 ### Authentication & Authorization
-
 Secure your API with authentication and authorization:
 
 ```typescript
@@ -293,7 +285,6 @@ class AdminController {
 ```
 
 ### Validation
-
 Validate request data using class-validator:
 
 ```typescript
@@ -340,7 +331,6 @@ class UserDto {
 ```
 
 ### OpenAPI Documentation
-
 Generate API documentation automatically:
 
 ```typescript 
@@ -376,7 +366,6 @@ app.useOpenApi(OpenApiConfig, (config) => {
 ### Database Integration
 
 ## 1. Knex
-
 ```typescript
 const app = Avleon.createApplication();
 app.useKnex({
@@ -417,7 +406,6 @@ app.useKenx(KnexConfig)
 ```
 
 ### Exmaple uses
-
 ```typescript
 import { DB, AppService } from "@avleon/core";
 
@@ -505,7 +493,6 @@ export class UserService {
 ```
 
 ### File Uploads & File Storage
-
 Handle file uploads with multipart support:
 
 ```typescript
@@ -555,7 +542,6 @@ async uploadSingleFile(@UploadFile('file') file: MultipartFile) {
 ```
 
 ### Static Files
-
 Serve static files:
 
 ```typescript
@@ -569,15 +555,12 @@ app.useStaticFiles({
 ```
 
 ## Configuration
-
 Coming soon...
 
 ## Route Mapping
-
 Avleon provides several methods for mapping routes in your application:
 
 ### mapGet
-
 The `mapGet` method is used to define GET routes in your application. It takes a path string and a handler function as parameters.
 
 ```typescript
@@ -588,7 +571,6 @@ app.mapGet("/users", async (req, res) => {
 ```
 
 ### mapPost
-
 The `mapPost` method is used to define POST routes in your application. It takes a path string and a handler function as parameters.
 
 ```typescript
@@ -601,7 +583,6 @@ app.mapPost("/users", async (req, res) => {
 ```
 
 ### mapPut
-
 The `mapPut` method is used to define PUT routes in your application. It takes a path string and a handler function as parameters.
 
 ```typescript
@@ -615,7 +596,6 @@ app.mapPut("/users/:id", async (req, res) => {
 ```
 
 ### mapDelete
-
 The `mapDelete` method is used to define DELETE routes in your application. It takes a path string and a handler function as parameters.
 
 ```typescript
@@ -628,7 +608,6 @@ app.mapDelete("/users/:id", async (req, res) => {
 ```
 
 ### Add openapi and middleware support for inline route
-
 Each of these methods returns a route object that can be used to add middleware or Swagger documentation to the route.
 
 ```typescript
@@ -662,6 +641,30 @@ app
     },
   });
 ```
+### Websocket Intregation (Socket.io)
+```typescript
+app.useSocketIO({
+  cors:{origin:"*"}
+})
+```
+Now in controller or service use EventDispatcher
+
+
+```typescript
+export class UserService{
+  constructor(
+    private readonly dispatcher: EventDispatcher
+  )
+
+  async create(){
+    ...rest code
+
+    await this.dispatcher.dispatch("users:notifications",{created:true, userId: newUser.Id})
+  }
+  
+}
+```
+
 
 ### Testing
 

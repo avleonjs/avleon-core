@@ -30,25 +30,52 @@ function createParamDecorator(
 ) => ParameterDecorator {
   return function (
     key?: string | ParameterOptions,
-    options: { required?: boolean; validate?: boolean } = {},
+    options: ParameterOptions = {},
   ): ParameterDecorator {
     return function (target: any, propertyKey: any, parameterIndex: number) {
+      // Determine correct meta key
+      let metaKey: string | symbol;
+      switch (type) {
+        case "route:param":
+          metaKey = PARAM_META_KEY;
+          break;
+        case "route:query":
+          metaKey = QUERY_META_KEY;
+          break;
+        case "route:body":
+          metaKey = REQUEST_BODY_META_KEY;
+          break;
+        case "route:user":
+          metaKey = REQUEST_USER_META_KEY;
+          break;
+        case "route:header":
+          metaKey = REQUEST_HEADER_META_KEY;
+          break;
+        default:
+          throw new Error(`Unknown param decorator type: ${String(type)}`);
+      }
+
+      // Retrieve and preserve existing metadata
       const existingParams =
-        Reflect.getMetadata(type, target, propertyKey) || [];
+        Reflect.getMetadata(metaKey, target, propertyKey) || [];
+
+      // Get parameter names (fallback safe)
+      const functionSource: string = target[propertyKey].toString();
+      const paramNames =
+        functionSource.match(/\(([^)]*)\)/)?.[1]?.split(",").map((n) => n.trim()) || [];
+
+      // Determine the param type
       const parameterTypes =
         Reflect.getMetadata("design:paramtypes", target, propertyKey) || [];
-      const functionSource: any = target[propertyKey].toString();
-      const paramNames = functionSource
-        .match(/\(([^)]*)\)/)?.[1]
-        .split(",")
-        .map((name: any) => name.trim());
       const paramDataType = parameterTypes[parameterIndex];
+
+      // Append new parameter
       existingParams.push({
         index: parameterIndex,
-        key: key ? key : "all",
+        key: typeof key === "string" ? key : "all",
         name: paramNames[parameterIndex],
-        required: options.required == undefined ? true : options.required,
-        validate: options.validate == undefined ? true : options.validate,
+        required: options.required ?? true,
+        validate: options.validate ?? true,
         dataType: getDataType(paramDataType),
         validatorClass: isClassValidatorClass(paramDataType),
         schema: isClassValidatorClass(paramDataType)
@@ -56,50 +83,9 @@ function createParamDecorator(
           : null,
         type,
       });
-      switch (type) {
-        case "route:param":
-          Reflect.defineMetadata(
-            PARAM_META_KEY,
-            existingParams,
-            target,
-            propertyKey,
-          );
-          break;
-        case "route:query":
-          Reflect.defineMetadata(
-            QUERY_META_KEY,
-            existingParams,
-            target,
-            propertyKey,
-          );
-          break;
-        case "route:body":
-          Reflect.defineMetadata(
-            REQUEST_BODY_META_KEY,
-            existingParams,
-            target,
-            propertyKey,
-          );
-          break;
-        case "route:user":
-          Reflect.defineMetadata(
-            REQUEST_USER_META_KEY,
-            existingParams,
-            target,
-            propertyKey,
-          );
-          break;
-        case "route:header":
-          Reflect.defineMetadata(
-            REQUEST_HEADER_META_KEY,
-            existingParams,
-            target,
-            propertyKey,
-          );
-          break;
-        default:
-          break;
-      }
+
+      // Save back using the correct meta key
+      Reflect.defineMetadata(metaKey, existingParams, target, propertyKey);
     };
   };
 }

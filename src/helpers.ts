@@ -322,3 +322,137 @@ export function exclude<T extends object>(
 
   return clone;
 }
+
+
+export function autoCast(value: any, typeHint?: any, schema?: any): any {
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) {
+    const elementType = Array.isArray(typeHint) ? typeHint[0] : undefined;
+    return value.map((v) => autoCast(v, elementType));
+  }
+  if (typeof value === "object" && !(value instanceof Date)) {
+    const result: Record<string, any> = {};
+    for (const [key, val] of Object.entries(value)) {
+      let fieldType: any = undefined;
+
+      if (schema?.properties?.[key]?.type) {
+        const t = schema.properties[key].type;
+        fieldType =
+          t === "integer" || t === "number"
+            ? Number
+            : t === "boolean"
+              ? Boolean
+              : t === "array"
+                ? Array
+                : t === "object"
+                  ? Object
+                  : String;
+      }
+
+      result[key] = autoCast(val, fieldType);
+    }
+    return result;
+  }
+
+
+  if (typeof value !== "string") return value;
+
+  const trimmed = value.trim();
+
+
+  if (typeHint === Boolean || trimmed.toLowerCase() === "true") return true;
+  if (trimmed.toLowerCase() === "false") return false;
+
+
+  if (typeHint === Number || (!isNaN(Number(trimmed)) && trimmed !== "")) {
+    const n = Number(trimmed);
+    if (!isNaN(n)) return n;
+  }
+
+  if (
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+  ) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return autoCast(parsed, typeHint, schema);
+    } catch {
+      return trimmed;
+    }
+  }
+
+  if (
+    typeHint === Date ||
+    /^\d{4}-\d{2}-\d{2}([Tt]\d{2}:\d{2})?/.test(trimmed)
+  ) {
+    const d = new Date(trimmed);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  return trimmed;
+}
+
+
+/**
+ * Deeply normalizes query strings into nested JS objects.
+ * Supports:
+ *  - filter[name]=john
+ *  - filter[user][age]=25
+ *  - filter[tags][]=a&filter[tags][]=b
+ *  - filter=name&filter=sorna
+ */
+export function normalizeQueryDeep(query: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+
+  const setDeep = (obj: any, path: string[], value: any) => {
+    let current = obj;
+
+    for (let i = 0; i < path.length; i++) {
+      const key = path[i];
+      const nextKey = path[i + 1];
+
+      if (i === path.length - 1) {
+        if (key === "") {
+          if (!Array.isArray(current)) current = [];
+          current.push(value);
+        } else if (Array.isArray(current[key])) {
+          current[key].push(value);
+        } else if (current[key] !== undefined) {
+          current[key] = [current[key], value];
+        } else {
+          current[key] = value;
+        }
+      } else {
+        if (!current[key]) {
+          current[key] = nextKey === "" || /^\d+$/.test(nextKey) ? [] : {};
+        }
+        current = current[key];
+      }
+    }
+  };
+
+  for (const [rawKey, rawValue] of Object.entries(query)) {
+    const path = [];
+    const regex = /([^\[\]]+)|(\[\])/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(rawKey)) !== null) {
+      if (match[1]) path.push(match[1]);
+      else if (match[2]) path.push("");
+    }
+
+    if (path.length === 0) {
+      if (result[rawKey]) {
+        if (Array.isArray(result[rawKey])) result[rawKey].push(rawValue);
+        else result[rawKey] = [result[rawKey], rawValue];
+      } else {
+        result[rawKey] = rawValue;
+      }
+    } else {
+      setDeep(result, path, rawValue);
+    }
+  }
+
+  return result;
+}
+

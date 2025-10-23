@@ -36,9 +36,11 @@ import container, {
   registerKnex,
 } from "./container";
 import {
+  autoCast,
   Constructor,
   formatUrl,
   isValidJsonString,
+  normalizeQueryDeep,
   validateObjectByInstance,
 } from "./helpers";
 import { SystemUseError } from "./exceptions/system-exception";
@@ -773,34 +775,30 @@ export class AvleonApplication {
 
     const args: any[] = new Array(maxIndex).fill(undefined);
 
-    // Map route parameters
     meta.params.forEach((p) => {
-      args[p.index] =
-        p.key == "all" ? { ...req.query } : req.params[p.key] || null;
+      const raw =
+        p.key === "all" ? { ...req.params } : (req.params[p.key] ?? null);
+      args[p.index] = autoCast(raw, p.dataType, p.schema);
     });
 
-    // Map query parameters
     meta.query.forEach((q) => {
-      args[q.index] = q.key == "all" ? { ...req.query } : req.query[q.key];
+      const raw = q.key === "all" ? normalizeQueryDeep( { ...req.query }) : req.query[q.key];
+      args[q.index] = autoCast(raw, q.dataType, q.schema);
     });
 
-    // Map body data (including form data)
     meta.body.forEach((body) => {
       args[body.index] = { ...req.body, ...req.formData };
     });
 
-    // Map current user
     meta.currentUser.forEach((user) => {
       args[user.index] = req.user;
     });
 
-    // Map headers
     meta.headers.forEach((header) => {
       args[header.index] =
         header.key === "all" ? { ...req.headers } : req.headers[header.key];
     });
 
-    // Map request object
     if (meta.request && meta.request.length > 0) {
       meta.request.forEach((r) => {
         args[r.index] = req;
@@ -819,18 +817,15 @@ export class AvleonApplication {
       const files = await req.saveRequestFiles();
 
       if (!files || files.length === 0) {
-        // Only throw error if files are explicitly required
         if (meta.files && meta.files.length > 0) {
           throw new BadRequestException({ error: "No files uploaded" });
         }
-        // For single file (@File()), set to null
         if (meta.file && meta.file.length > 0) {
           meta.file.forEach((f) => {
             args[f.index] = null;
           });
         }
       } else {
-        // Create file info objects
         const fileInfo = files.map((file) => ({
           type: file.type,
           filepath: file.filepath,
@@ -839,16 +834,13 @@ export class AvleonApplication {
           encoding: file.encoding,
           mimetype: file.mimetype,
           fields: file.fields,
+          toBuffer: file.toBuffer,
         }));
-
-        // Handle single file decorator (@File())
         if (meta.file && meta.file.length > 0) {
           meta.file.forEach((f) => {
             if (f.fieldName === "all") {
-              // Return first file if "all" is specified
               args[f.index] = fileInfo[0] || null;
             } else {
-              // Find specific file by fieldname
               const file = fileInfo.find((x) => x.fieldname === f.fieldName);
               if (!file) {
                 throw new BadRequestException(
@@ -879,14 +871,11 @@ export class AvleonApplication {
         }
       }
     } else if (needsFiles) {
-      // Files expected but request is not multipart/form-data
       throw new BadRequestException({
         error:
           "Invalid content type. Expected multipart/form-data for file uploads",
       });
     }
-
-    // Cache the result
     cache.set(cacheKey, args);
     return args;
   }
@@ -1164,6 +1153,7 @@ export class AvleonApplication {
       return reply.status(500).send({
         code: 500,
         message: error.message || "Internal Server Error",
+        ...(process.env.NODE_ENV === "development" && { stack: error.stack }),
       });
     });
 
