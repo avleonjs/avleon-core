@@ -19,7 +19,7 @@ describe("FileStorage", () => {
     const testFile: MultipartFile = {
         type: "file",
         filename: "test.txt",
-        file: new Readable({ read() {} }),
+        file: new Readable({ read() { } }),
     } as MultipartFile;
 
     beforeEach(() => {
@@ -28,13 +28,16 @@ describe("FileStorage", () => {
         mockFs.existsSync.mockReturnValue(false);
         mockFs.createWriteStream.mockReturnValue({} as any);
         mockFs.createReadStream.mockReturnValue({} as any);
-        mockFs.unlinkSync.mockImplementation(() => {});
+        mockFs.unlinkSync.mockImplementation(() => { });
         mockFs.mkdirSync.mockImplementation(() => undefined);
     });
 
     describe("save", () => {
         it("should save a file successfully", async () => {
-            await expect(fileStorage.save(testFile)).resolves.toEqual(testFile);
+            await expect(fileStorage.save(testFile)).resolves.toEqual({
+                uploadPath: "/uploads/test.txt",
+                staticPath: "/static/test.txt",
+            });
         });
 
         it("should throw SystemUseError if file exists and overwrite is false", async () => {
@@ -71,7 +74,16 @@ describe("FileStorage", () => {
                 { ...testFile, filename: "a.txt" },
                 { ...testFile, filename: "b.txt" },
             ];
-            await expect(fileStorage.saveAll(files)).resolves.toEqual(files);
+            await expect(fileStorage.saveAll(files)).resolves.toEqual([
+                {
+                    uploadPath: "/uploads/a.txt",
+                    staticPath: "/static/a.txt",
+                },
+                {
+                    uploadPath: "/uploads/b.txt",
+                    staticPath: "/static/b.txt",
+                },
+            ]);
         });
 
         it("should throw SystemUseError on error", async () => {
@@ -84,7 +96,7 @@ describe("FileStorage", () => {
 
     describe("transform", () => {
         it("should set transform options and return itself", () => {
-            const options:any = { resize: { width: 100, height: 100 }, format: "jpeg" };
+            const options: any = { resize: { width: 100, height: 100 }, format: "jpeg" };
             const result = fileStorage.transform(options);
             expect(result).toBe(fileStorage);
             // @ts-ignore
@@ -111,6 +123,7 @@ describe("FileStorage", () => {
         });
 
         it("should not create directory if exists", async () => {
+            mockFs.mkdirSync.mockClear();
             mockFs.existsSync.mockReturnValue(true);
             await fileStorage["ensureDirectoryExists"]("public/test.txt");
             expect(mockFs.mkdirSync).not.toHaveBeenCalled();

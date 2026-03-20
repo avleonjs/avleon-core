@@ -132,16 +132,12 @@ const isBool = (val: any) => {
 const parseBoolean = (val: any): boolean => {
   if (typeof val === "boolean") return val;
 
-  // if (typeof val === "number") {
-  //   return val !== 0; // Common convention: 0 → false, any other number → true
-  // }
-
   if (parseInt(val) == 1) return true;
   if (typeof val === "string") {
     const normalized = val.trim().toLowerCase();
     return normalized === "true";
   }
-  return false; // Default for unsupported types (null, undefined, objects, etc.)
+  return false; 
 };
 
 export function validateOrThrow<T extends {}>(

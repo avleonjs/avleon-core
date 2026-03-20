@@ -1,62 +1,59 @@
-# Avleon 
+# Avleon
 
-![npm version](https://img.shields.io/npm/v/@avleon/core.svg) ![Build](https://github.com/avleonjs/avleon-core/actions/workflows/release.yml/badge.svg)
-## ⚠️ WARNING
+![npm version](https://img.shields.io/npm/v/@avleon/core.svg)
+![Build](https://github.com/avleonjs/avleon-core/actions/workflows/release.yml/badge.svg)
+![License](https://img.shields.io/npm/l/@avleon/core.svg)
 
-> **🚧 This project is in active development.**
+> **🚧 This project is in active development. APIs may change between versions.**
 
-## Overview
+Avleon is a TypeScript-first web framework built on top of [Fastify](https://fastify.dev), designed for building scalable, maintainable REST APIs with minimal boilerplate. It provides decorator-based routing, built-in dependency injection, automatic OpenAPI documentation, and first-class validation support.
 
-Avleon is a powerful, TypeScript-based web framework built on top of Fastify, designed to simplify API development with a focus on decorators, dependency injection, and OpenAPI documentation. It provides a robust set of tools for building scalable, maintainable web applications with minimal boilerplate code.
+---
 
 ## Table of Contents
 
 - [Features](#features)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-  - [Route Based](#route-based)
-  - [Controller Based](#controller-based)
 - [Core Concepts](#core-concepts)
-  - [Application Creation](#application-creation)
+  - [Application](#application)
   - [Controllers](#controllers)
   - [Route Methods](#route-methods)
   - [Parameter Decorators](#parameter-decorators)
-  - [Response Handling](#response-handling)
+  - [Error Handling](#error-handling)
   - [Middleware](#middleware)
-  - [Authentication & Authorization](#authentication--authorization)
+  - [Authorization](#authorization)
   - [Validation](#validation)
   - [OpenAPI Documentation](#openapi-documentation)
 - [Advanced Features](#advanced-features)
-  - [Database Integration](#database-integration)
+  - [Database — Knex](#database--knex)
+  - [Database — TypeORM](#database--typeorm)
   - [File Uploads](#file-uploads)
   - [Static Files](#static-files)
-  - [Testing](#testing)
-- [Configuration](#configuration)
-- [Route Mapping](#route-mapping)
-  - [mapGet](#mapget)
-  - [mapPost](#mappost)
-  - [mapPut](#mapput)
-  - [mapDelete](#mapdelete)
+  - [WebSocket (Socket.IO)](#websocket-socketio)
+- [Route Mapping (Functional Style)](#route-mapping-functional-style)
 - [Testing](#testing)
-- [WebSocket](#websocket-intregation-socketio)
+- [License](#license)
+
+---
 
 ## Features
 
-- **Decorator-based API Development**: Define controllers, routes, and middleware using TypeScript decorators
-- **Dependency Injection**: Built-in DI system using TypeDI for service management
-- **OpenAPI/Swagger Integration**: Automatic API documentation generation with support for both Swagger UI and Scalar
-- **Validation**: Request validation with support for class-validator and custom validation rules
-- **Middleware System**: Flexible middleware architecture for request processing
-- **Response Handling**: Standardized response formats with HTTP status codes
-- **File Upload**: Built-in support for multipart file uploads with file validation
-- **Authentication & Authorization**: Middleware for securing your API endpoints
-- **Database Integration**: Support for TypeORM for database operations
-- **Queue System**: Background job processing capabilities
-- **Environment Configuration**: Environment variable management
-- **Logging**: Integrated logging with Pino
-- **Testing**: Built-in testing utilities for API endpoints
+- 🎯 **Decorator-based routing** — define controllers and routes with TypeScript decorators
+- 💉 **Dependency injection** — powered by [TypeDI](https://github.com/typestack/typedi)
+- 📄 **OpenAPI / Swagger** — automatic docs with Swagger UI or [Scalar](https://scalar.com)
+- ✅ **Validation** — request validation via [class-validator](https://github.com/typestack/class-validator)
+- 🔒 **Authorization** — flexible middleware-based auth system
+- 📁 **File uploads** — multipart form support out of the box
+- 🗄️ **Database** — TypeORM and Knex integrations
+- 🔌 **WebSocket** — Socket.IO integration
+- 🧪 **Testing** — built-in test utilities
+
+---
 
 ## Installation
+
+Scaffold a new project using the CLI:
 
 ```bash
 npx @avleon/cli new myapp
@@ -66,128 +63,133 @@ yarn dlx @avleon/cli new myapp
 pnpm dlx @avleon/cli new myapp
 ```
 
-## Quick Start
+Or install manually:
 
-### Minimal
-```typescript
-import { Avleon } from "@avleon/core";
-
-const app = Avleon.createApplication();
-app.mapGet("/", () => "Hello, Avleon");
-app.run(); // or app.run(3000);
+```bash
+npm install @avleon/core reflect-metadata class-validator class-transformer
 ```
 
-### Controller Based
-```typescript
-import { Avleon, ApiController, Get, Results } from "@avleon/core";
+---
 
-// Define a controller
-@ApiController
+## Quick Start
+
+### Minimal (functional style)
+
+```typescript
+import { Avleon } from '@avleon/core';
+
+const app = Avleon.createApplication();
+
+app.mapGet('/', () => ({ message: 'Hello, Avleon!' }));
+
+app.run(4000);
+```
+
+### Controller style
+
+```typescript
+import { Avleon, ApiController, Get } from '@avleon/core';
+
+@ApiController('/')
 class HelloController {
   @Get()
   sayHello() {
-    return "Hello, Avleon!";
+    return { message: 'Hello, Avleon!' };
   }
 }
 
-// Create and start the application
 const app = Avleon.createApplication();
 app.useControllers([HelloController]);
-app.run();
+app.run(4000);
 ```
+
+---
 
 ## Core Concepts
 
-### Application Creation
-Avleon provides a builder pattern for creating applications:
+### Application
 
 ```typescript
-import { Avleon } from "@avleon/core";
+import { Avleon } from '@avleon/core';
 
-// Create an application
 const app = Avleon.createApplication();
 
-// Configure and run the application
-app.useCors();
+app.useCors({ origin: '*' });
 app.useControllers([UserController]);
-// For auto register controller `app.useControllers({auto:true});`
+// Auto-discover controllers from a directory:
+// app.useControllers({ auto: true, path: 'src/controllers' });
 
-app.run(); // or app.run(port)
+app.run(4000);
 ```
+
+---
 
 ### Controllers
-Controllers are the entry points for your API requests. They are defined using the `@ApiController` decorator:
 
 ```typescript
-@ApiController("/users")
+import { ApiController, Get, Post, Put, Delete } from '@avleon/core';
+
+@ApiController('/users')
 class UserController {
-  // Route handlers go here
+  @Get('/')
+  getAll() { ... }
+
+  @Post('/')
+  create() { ... }
+
+  @Put('/:id')
+  update() { ... }
+
+  @Delete('/:id')
+  remove() { ... }
 }
 ```
+
+---
 
 ### Route Methods
-Define HTTP methods using decorators:
 
-```typescript
-@Get('/')
-async getUsers() {
-  // Handle GET request
-}
+| Decorator | HTTP Method |
+|-----------|-------------|
+| `@Get(path?)` | GET |
+| `@Post(path?)` | POST |
+| `@Put(path?)` | PUT |
+| `@Patch(path?)` | PATCH |
+| `@Delete(path?)` | DELETE |
 
-@Post('/')
-async createUser(@Body() user: UserDto) {
-  // Handle POST request
-}
-
-@Put('/:id')
-async updateUser(@Param('id') id: string, @Body() user: UserDto) {
-  // Handle PUT request
-}
-
-@Delete('/:id')
-async deleteUser(@Param('id') id: string) {
-  // Handle DELETE request
-}
-```
+---
 
 ### Parameter Decorators
-Extract data from requests using parameter decorators:
 
 ```typescript
 @Get('/:id')
 async getUser(
-  @Param('id') id: string,
-  @Query('include') include: string,
+  @Param('id')             id: string,
+  @Query('include')        include: string,
+  @Query()                 query: UserQuery,   // maps full query to a DTO
+  @Body()                  body: CreateUserDto,
   @Header('authorization') token: string,
-  @Body() data: UserDto
+  @AuthUser()              user: CurrentUser,
 ) {
-  // Access route parameters, query strings, headers, and request body
+  // ...
 }
 ```
 
-<!-- You can also access the current user and files:
+| Decorator | Source |
+|-----------|--------|
+| `@Param(key?)` | Route path params |
+| `@Query(key?)` | Query string |
+| `@Body()` | Request body |
+| `@Header(key?)` | Request headers |
+| `@AuthUser()` | Current authenticated user |
 
-```typescript
-@Post('/upload')
-async uploadFile(
-  @User() currentUser: any,
-  @File() file: any
-) {
-  // Access the current user and uploaded file
-}
-
-@Post('/upload-multiple')
-async uploadFiles(
-  @Files() files: any[]
-) {
-  // Access multiple uploaded files
-}
-``` -->
+---
 
 ### Error Handling
-Return standardized responses using the `HttpResponse` and `HttpExceptions` class:
 
 ```typescript
+import { HttpExceptions, HttpResponse } from '@avleon/core';
+
 @Get('/:id')
 async getUser(@Param('id') id: string) {
   const user = await this.userService.findById(id);
@@ -200,95 +202,94 @@ async getUser(@Param('id') id: string) {
 }
 ```
 
+Available exceptions: `NotFound`, `BadRequest`, `Unauthorized`, `Forbidden`, `InternalServerError`.
+
+---
+
 ### Middleware
-Create and apply middleware for cross-cutting concerns:
 
 ```typescript
+import { Middleware, AppMiddleware, IRequest, UseMiddleware } from '@avleon/core';
+
 @Middleware
 class LoggingMiddleware extends AppMiddleware {
   async invoke(req: IRequest) {
-    console.log(`Request: ${req.method} ${req.url}`);
+    console.log(`${req.method} ${req.url}`);
     return req;
   }
 }
 
+// Apply to entire controller
 @UseMiddleware(LoggingMiddleware)
-@ApiController("/users")
-class UserController {
-  // Controller methods
-}
-```
+@ApiController('/users')
+class UserController { ... }
 
-You can also apply middleware to specific routes:
-
-```typescript
-@ApiController("/users")
+// Or apply to a specific route
+@ApiController('/users')
 class UserController {
   @UseMiddleware(LoggingMiddleware)
-  @Get("/")
-  async getUsers() {
-    // Only this route will use the LoggingMiddleware
-  }
+  @Get('/')
+  getAll() { ... }
 }
 ```
 
-### Authentication & Authorization
-Secure your API with authentication and authorization:
+---
+
+### Authorization
+
+**1 — Define your authorization class:**
 
 ```typescript
-import { CanAuthorize } from "@avleon/core";
+import { CanAuthorize, AuthorizeMiddleware, IRequest } from '@avleon/core';
 
 @CanAuthorize
 class JwtAuthorization extends AuthorizeMiddleware {
-  authorize(roles: string[]) {
-    return async (req: IRequest) => {
-      // Implement JWT authentication logic
-      return req;
-    };
+  async authorize(req: IRequest, options?: any) {
+    const token = req.headers['authorization']?.split(' ')[1];
+    if (!token) throw HttpExceptions.Unauthorized('Missing token');
+    req.user = verifyToken(token); // attach user to request
   }
 }
 ```
 
-Now register the authrization class to our app by `useAuthorization` function;
+**2 — Register with the app:**
 
 ```typescript
 app.useAuthorization(JwtAuthorization);
 ```
 
-Then you have access the `AuthUser` on class lavel or method lavel depending on how you use the `@Authorized()` decorator.
+**3 — Protect controllers or routes:**
 
 ```typescript
-// admin.controller.ts
+// Protect entire controller
 @Authorized()
-@ApiController("/admin")
+@ApiController('/admin')
 class AdminController {
-  // Protected controller methods
-
-  // protected controller has access to AuthUser in each route method
-  @Get()
-  async account(@AuthUser() user: User) {
-    ///
+  @Get('/')
+  dashboard(@AuthUser() user: User) {
+    return user;
   }
 }
 
-// Or protect specific routes with roles
-@ApiController("/admin")
+// Protect specific route with roles
+@ApiController('/admin')
 class AdminController {
-  @Authorized({
-    roles: ["admin"],
-  })
-  @Get("/")
-  async adminDashboard() {
-    // Only users with 'admin' role can access this
-  }
+  @Authorized({ roles: ['admin'] })
+  @Get('/stats')
+  stats() { ... }
 }
 ```
 
+---
+
 ### Validation
-Validate request data using class-validator:
+
+Validation is powered by `class-validator`. Decorate your DTOs and Avleon validates automatically:
 
 ```typescript
-class UserDto {
+import { IsString, IsEmail, IsInt, Min, Max, IsOptional } from 'class-validator';
+
+class CreateUserDto {
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -296,386 +297,371 @@ class UserDto {
   @IsEmail()
   email: string;
 
-  @IsNumber()
+  @IsInt()
   @Min(0)
   @Max(120)
   age: number;
+
+  @IsOptional()
+  @IsString()
+  role?: string;
 }
 
 @Post('/')
-async createUser(@Body() user: UserDto) {
-  // User data is automatically validated
-  return user;
+async createUser(@Body() body: CreateUserDto) {
+  return this.userService.create(body);
 }
 ```
 
-You can also use custom validation rules:
-
-```typescript
-class UserDto {
-  @Validate({
-    type: "string",
-    required: true,
-    message: "Name is required",
-  })
-  name: string;
-
-  @Validate({
-    type: "number",
-    min: 0,
-    max: 120,
-    message: "Age must be between 0 and 120",
-  })
-  age: number;
-}
-```
+---
 
 ### OpenAPI Documentation
-Generate API documentation automatically:
 
-```typescript 
-
-app.useOpenApi({
-    info: {
-      title: "User API",
-      version: "1.0.0",
-      description: "API for managing users",
-    },
-    servers: [
-      {
-        url: "http://localhost:3000",
-        description: "Development server",
-      },
-    ],
-  });
-
-  ```
-
-You can also customize the OpenAPI UI:
+**Inline config:**
 
 ```typescript
-app.useOpenApi(OpenApiConfig, (config) => {
-  // Modify the OpenAPI configuration
-  config.info.title = "Custom API Title";
-  return config;
+app.useOpenApi({
+  info: {
+    title: 'User API',
+    version: '1.0.0',
+    description: 'API for managing users',
+  },
+  servers: [{ url: 'http://localhost:4000', description: 'Dev server' }],
+  components: {
+    securitySchemes: {
+      bearerAuth: {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+      },
+    },
+  },
 });
 ```
 
+**Config class:**
+
+```typescript
+import { AppConfig, IConfig, Environment } from '@avleon/core';
+
+@AppConfig
+export class OpenApiConfig implements IConfig {
+  config(env: Environment) {
+    return {
+      info: { title: 'My API', version: '1.0.0' },
+      routePrefix: '/docs',
+      provider: 'scalar', // or 'default' for Swagger UI
+    };
+  }
+}
+
+// In app.ts
+if (app.isDevelopment()) {
+  app.useOpenApi(OpenApiConfig);
+}
+```
+
+**Route-level docs with `@OpenApi`:**
+
+```typescript
+import { OpenApi, OpenApiProperty, OpenApiSchema } from '@avleon/core';
+
+@OpenApiSchema()
+export class UserQuery {
+  @OpenApiProperty({ type: 'string', example: 'john', required: false })
+  @IsOptional()
+  search?: string;
+
+  @OpenApiProperty({ type: 'integer', example: 1, required: false })
+  @IsOptional()
+  page?: number;
+}
+
+@OpenApi({
+  summary: 'Get all users',
+  tags: ['users'],
+  security: [{ bearerAuth: [] }],
+  response: {
+    200: {
+      description: 'List of users',
+      type: 'object',
+      properties: {
+        data: { type: 'array' },
+        total: { type: 'integer', example: 100 },
+      },
+    },
+    401: { description: 'Unauthorized' },
+  },
+})
+@Get('/')
+getAll(@Query() query: UserQuery) { ... }
+```
+
+---
+
 ## Advanced Features
 
-### Database Integration
+### Database — Knex
 
-## 1. Knex
 ```typescript
-const app = Avleon.createApplication();
 app.useKnex({
   client: 'mysql',
   connection: {
     host: '127.0.0.1',
     port: 3306,
-    user: 'your_database_user',
-    password: 'your_database_password',
-    database: 'myapp_test',
+    user: 'root',
+    password: 'password',
+    database: 'myapp',
   },
-})
+});
 ```
-or using config class 
+
+Using a config class:
 
 ```typescript
 @AppConfig
 export class KnexConfig implements IConfig {
-  // config method is mendatory
-  // config method has access to environment variables by default
   config(env: Environment) {
     return {
       client: 'mysql',
       connection: {
-        host: env.get("DB_HOST") || '127.0.0.1',
-        port: env.get("DB_PORT") || 3306,
-        user: env.get("DB_USER")|| 'your_database_user',
-        password: env.get("DB_PASS") || 'your_database_password',
-        database: env.get("DB_NAME") || 'myapp_test',
+        host:     env.get('DB_HOST')     || '127.0.0.1',
+        port:     env.get('DB_PORT')     || 3306,
+        user:     env.get('DB_USER')     || 'root',
+        password: env.get('DB_PASS')     || 'password',
+        database: env.get('DB_NAME')     || 'myapp',
       },
     };
   }
 }
 
-// now we can register it with our app
-
-app.useKenx(KnexConfig)
+app.useKnex(KnexConfig);
 ```
 
-### Exmaple uses
+Using in a service:
+
 ```typescript
-import { DB, AppService } from "@avleon/core";
+import { DB, AppService } from '@avleon/core';
 
 @AppService
-export class UsersService{
-  constructor(
-    private readonly db: DB
-  ){}
+export class UsersService {
+  constructor(private readonly db: DB) {}
 
-  async findAll(){
-    const result = await this.db.client.select("*").from("users");
-    return result;
+  async findAll() {
+    return this.db.client.select('*').from('users');
   }
 }
 ```
 
-## 2. Typeorm
-Connect to databases using TypeORM:
+---
+
+### Database — TypeORM
 
 ```typescript
-const app = Avleon.createApplication();
 app.useDataSource({
-  type: "postgres",
-  host: "localhost",
+  type: 'postgres',
+  host: 'localhost',
   port: 5432,
-  username: "postgres",
-  password: "password",
-  database: "avleon",
+  username: 'postgres',
+  password: 'password',
+  database: 'avleon',
   entities: [User],
   synchronize: true,
 });
 ```
 
-Or use the config class:
+Using a config class:
 
 ```typescript
-// datasource.config.ts
-import { AppConfig, IConfig } from "@avleon/core";
-
 @AppConfig
 export class DataSourceConfig implements IConfig {
-  // config method is mendatory
-  // config method has access to environment variables by default
   config(env: Environment) {
     return {
-      type: env.get("type") || "postgres",
-      host: "localhost",
-      port: 5432,
-      username: "postgres",
-      password: "password",
-      database: "avleon",
-      entities: [User],
+      type:      'postgres',
+      host:      env.get('DB_HOST') || 'localhost',
+      port:      Number(env.get('DB_PORT')) || 5432,
+      username:  env.get('DB_USER') || 'postgres',
+      password:  env.get('DB_PASS') || 'password',
+      database:  env.get('DB_NAME') || 'avleon',
+      entities:  [User],
       synchronize: true,
     };
   }
 }
-```
 
-```typescript
-// app.ts
-const app = Avleon.createApplication();
 app.useDataSource(DataSourceConfig);
-// ... other impments
 ```
 
-Now in your Controller or Injected service use can use like this
+Using in a service:
 
 ```typescript
-import { AppService, InjectRepository } from "@avleon/core";
-import { Repository } from "typeorm";
-import { User } from "model_path";
+import { AppService, InjectRepository } from '@avleon/core';
+import { Repository } from 'typeorm';
+import { User } from './user.entity';
 
 @AppService
 export class UserService {
   constructor(
     @InjectRepository(User)
-    private readonly _userRepository: Repository<User>,
+    private readonly userRepo: Repository<User>,
   ) {}
 
   async findAll() {
-    const users = await this._userRepository.find();
-    return users;
+    return this.userRepo.find();
   }
 }
 ```
 
-### File Uploads & File Storage
-Handle file uploads with multipart support:
+---
+
+### File Uploads
 
 ```typescript
-// Configure multipart file uploads
+// Configure multipart support
 app.useMultipart({
   destination: path.join(process.cwd(), 'public/uploads'),
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB
-  }
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 ```
+
 ```typescript
-// In your controller
-import {FileStorage} from '@avleon/core';
+import { FileStorage, UploadFile, MultipartFile } from '@avleon/core';
 
-//inject FileStorage into constructor
-constructor(
-  private readonly fileStorage: FileStorage
-){}
+@ApiController('/files')
+class FileController {
+  constructor(private readonly fileStorage: FileStorage) {}
 
-@OpenApi({
-  description: "Uploading single file"
-  body:{
-    type:"object",
-    properties:{
-      file:{
-        type:"string",
-        format:"binary"
-      }
+  @OpenApi({
+    description: 'Upload a single file',
+    body: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+      required: ['file'],
     },
-    required:["file"]
+  })
+  @Post('/upload')
+  async upload(@UploadFile('file') file: MultipartFile) {
+    const result = await this.fileStorage.save(file);
+    // optionally rename: this.fileStorage.save(file, { as: 'newname.jpg' })
+    return result;
+    // { uploadPath: '/uploads/...', staticPath: '/static/...' }
   }
-})
-@Post('/upload')
-async uploadSingleFile(@UploadFile('file') file: MultipartFile) {
-  // Process uploaded file
-  const result = await this.fileStorage.save(file);
-  // or with new name 
-  //  const result = await this.fileStorage.save(file, {as:newname.ext});
-  // result
-  // {
-  //  uploadPath:"/uplaod",
-  //  staticPath: "/static/"
-  //}
-  return result;
 }
 ```
 
+---
+
 ### Static Files
-Serve static files:
 
 ```typescript
 import path from 'path';
 
-
 app.useStaticFiles({
-  path: path.join(process.cwd(), "public"),
-  prefix: "/static/",
+  path: path.join(process.cwd(), 'public'),
+  prefix: '/static/',
 });
 ```
 
-## Configuration
-Coming soon...
+---
 
-## Route Mapping
-Avleon provides several methods for mapping routes in your application:
-
-### mapGet
-The `mapGet` method is used to define GET routes in your application. It takes a path string and a handler function as parameters.
+### WebSocket (Socket.IO)
 
 ```typescript
-app.mapGet("/users", async (req, res) => {
-  // Handle GET request to /users
+app.useSocketIo({ cors: { origin: '*' } });
+```
+
+Dispatch events from services:
+
+```typescript
+import { AppService, EventDispatcher } from '@avleon/core';
+
+@AppService
+export class UserService {
+  constructor(private readonly dispatcher: EventDispatcher) {}
+
+  async create(data: any) {
+    const user = await this.save(data);
+    await this.dispatcher.dispatch('users:created', { userId: user.id });
+    return user;
+  }
+}
+```
+
+---
+
+## Route Mapping (Functional Style)
+
+For simple routes without a controller class:
+
+```typescript
+app.mapGet('/users', async (req, res) => {
   return { users: [] };
 });
-```
 
-### mapPost
-The `mapPost` method is used to define POST routes in your application. It takes a path string and a handler function as parameters.
+app.mapPost('/users', async (req, res) => {
+  return { success: true };
+});
 
-```typescript
-app.mapPost("/users", async (req, res) => {
-  // Handle POST request to /users
-  const userData = req.body;
-  // Process user data
+app.mapPut('/users/:id', async (req, res) => {
+  return { success: true };
+});
+
+app.mapDelete('/users/:id', async (req, res) => {
   return { success: true };
 });
 ```
 
-### mapPut
-The `mapPut` method is used to define PUT routes in your application. It takes a path string and a handler function as parameters.
-
-```typescript
-app.mapPut("/users/:id", async (req, res) => {
-  // Handle PUT request to /users/:id
-  const userId = req.params.id;
-  const userData = req.body;
-  // Update user data
-  return { success: true };
-});
-```
-
-### mapDelete
-The `mapDelete` method is used to define DELETE routes in your application. It takes a path string and a handler function as parameters.
-
-```typescript
-app.mapDelete("/users/:id", async (req, res) => {
-  // Handle DELETE request to /users/:id
-  const userId = req.params.id;
-  // Delete user
-  return { success: true };
-});
-```
-
-### Add openapi and middleware support for inline route
-Each of these methods returns a route object that can be used to add middleware or Swagger documentation to the route.
+Add middleware and OpenAPI docs to functional routes:
 
 ```typescript
 app
-  .mapGet("/users", async (req, res) => {
-    // Handler function
+  .mapGet('/users', async (req, res) => {
+    return { users: [] };
   })
   .useMiddleware([AuthMiddleware])
   .useOpenApi({
-    summary: "Get all users",
-    description: "Retrieves a list of all users",
-    tags: ["users"],
+    summary: 'Get all users',
+    tags: ['users'],
+    security: [{ bearerAuth: [] }],
     response: {
       200: {
-        description: "Successful response",
-        content: {
-          "application/json": {
-            schema: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  name: { type: "string" },
-                },
-              },
-            },
-          },
-        },
+        description: 'List of users',
+        type: 'array',
       },
     },
   });
 ```
-### Websocket Intregation (Socket.io)
-```typescript
-app.useSocketIO({
-  cors:{origin:"*"}
-})
-```
-Now in controller or service use EventDispatcher
 
+---
+
+## Testing
 
 ```typescript
-export class UserService{
-  constructor(
-    private readonly dispatcher: EventDispatcher
-  )
+import { AvleonTest } from '@avleon/core';
+import { UserController } from './user.controller';
 
-  async create(){
-    ...rest code
+describe('UserController', () => {
+  let controller: UserController;
 
-    await this.dispatcher.dispatch("users:notifications",{created:true, userId: newUser.Id})
-  }
-  
-}
+  beforeAll(() => {
+    controller = AvleonTest.getController(UserController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  it('should return users', async () => {
+    const result = await controller.getAll();
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
 ```
 
-
-### Testing
-
-Test your API endpoints with the built-in testing utilities:
-
-Coming soon...
+---
 
 ## License
 
-ISC
-
-## Author
-
-Tareq Hossain - [GitHub](https://github.com/xtareq)
+ISC © [Tareq Hossain](https://github.com/xtareq)

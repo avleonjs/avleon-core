@@ -37,8 +37,10 @@ export interface ServerVariableObject {
 export type OpenApiUiOptions = {
   logo?: any;
   theme?: any;
+  provider?: "default" | "scalar";
   ui?: "default" | "scalar";
   openapi?: string;
+  uiConfig?: any;
   configuration?: any;
   routePrefix?: string;
   info?: InfoObject;
@@ -100,7 +102,7 @@ export interface ParameterObject extends ParameterBaseObject {
   name: string;
   in: string;
 }
-export interface HeaderObject extends ParameterBaseObject {}
+export interface HeaderObject extends ParameterBaseObject { }
 export interface ParameterBaseObject {
   description?: string;
   required?: boolean;
@@ -341,32 +343,137 @@ export interface TagObject {
   externalDocs?: ExternalDocumentationObject;
 }
 
+export type ParamSchema = {
+  type?: "string" | "number" | "integer" | "boolean"|"array";
+  description?: string;
+  example?: any;
+  required?: boolean;
+  deprecated?: boolean;
+  enum?: any[];
+  format?: string;
+  default?: any;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+};
+
+export type ParamsSchemaMap = Record<string, ParamSchema>;
+
+export type RequestBodyOptions = {
+  description?: string;
+  required?: boolean;
+  content?: {
+    [media: string]: MediaTypeObject;
+  };
+  schema?: SchemaObject | ReferenceObject;
+  example?: any;
+  examples?: Record<string, ExampleObject>;
+};
+
+export type ResponseBodyOptions = {
+    description?: string;
+    type?: NonArraySchemaObjectType | ArraySchemaObjectType;
+    properties?: {
+        [name: string]: ReferenceObject | SchemaObject;
+    };
+    items?: ReferenceObject | SchemaObject;
+    required?: string[];
+    schema?: SchemaObject | ReferenceObject;
+    example?: any;
+    examples?: Record<string, ExampleObject>;
+    content?: {
+        [media: string]: MediaTypeObject;
+    };
+} & Partial<BaseSchemaObject>; // ✅ inherits all schema fields (format, enum, minimum, etc.)
+
+export type ResponsesOptions = {
+  [statusCode: number]: ResponseBodyOptions | ResponseObject;
+};
+
 export type OpenApiOptions = {
   exclude?: boolean;
   deprecated?: boolean;
   tags?: readonly string[];
   description?: string;
   summary?: string;
+  operationId?: string;
+  security?: SecurityRequirementObject[];
+  externalDocs?: ExternalDocumentationObject;
   components?: ComponentsObject;
-  response?: any;
-  responseBody?: any;
-  requestBody?: any;
-} & any;
 
-export function OpenApi(
-  options: OpenApiOptions,
-): MethodDecorator & ClassDecorator & PropertyDecorator {
-  return function (
-    target: Object | Function,
-    propertyKey?: string | symbol,
-    descriptor?: PropertyDescriptor,
-  ) {
-    if (typeof target === "function" && !propertyKey) {
-      Reflect.defineMetadata("controller:openapi", options, target);
-    } else if (descriptor) {
-      Reflect.defineMetadata("route:openapi", options, target, propertyKey!);
-    } else if (propertyKey) {
-      Reflect.defineMetadata("property:openapi", options, target, propertyKey);
-    }
+  /** Path parameters e.g. /:id → { id: { type: "string", example: "abc-123" } } */
+  params?: ParamsSchemaMap;
+
+  /** Query string parameters e.g. ?page=1 → { page: { type: "integer", example: 1 } } */
+  query?: ParamsSchemaMap;
+
+  /** Request headers */
+  headers?: ParamsSchemaMap;
+
+  /** Request body */
+  requestBody?: RequestBodyOptions;
+
+  /** Responses keyed by HTTP status code */
+  response?: ResponsesOptions;
+
+  /** @deprecated use requestBody instead */
+  responseBody?: any;
+};
+
+/**
+ * Normalize a flat ParamsSchemaMap into a valid JSON Schema object
+ * that Fastify/AJV can validate against.
+ *
+ * Input:  { id: { type: "string", example: "abc-123" } }
+ * Output: { type: "object", properties: { id: { type: "string", example: "abc-123" } } }
+ */
+export function normalizeParamsToJsonSchema(
+  params: ParamsSchemaMap,
+  requiredKeys: string[] = [],
+): SchemaObject {
+  const properties: Record<string, any> = {};
+
+  for (const [key, val] of Object.entries(params)) {
+    properties[key] = {
+      type: "string", // sensible default
+      ...val,
+    };
+  }
+
+  const schema: any = {
+    type: "object",
+    properties,
   };
+
+  if (requiredKeys.length > 0) {
+    schema.required = requiredKeys;
+  }
+
+  return schema;
 }
+export function OpenApiSchema(): ClassDecorator {
+    return function (target) {
+        Reflect.defineMetadata("openapi:schema", true, target);
+    };
+}
+export function OpenApi(
+    options: OpenApiOptions,
+): MethodDecorator & ClassDecorator & PropertyDecorator {
+    return function (
+        target: Object | Function,
+        propertyKey?: string | symbol,
+        descriptor?: PropertyDescriptor,
+    ) {
+        if (typeof target === "function" && !propertyKey) {
+            Reflect.defineMetadata("controller:openapi", options, target);
+        } else if (descriptor) {
+            // ✅ Store options as-is — router's buildRouteSchema handles normalization
+            Reflect.defineMetadata("route:openapi", options, target, propertyKey!);
+        } else if (propertyKey) {
+            Reflect.defineMetadata("property:openapi", options, target, propertyKey);
+        }
+    };
+}
+

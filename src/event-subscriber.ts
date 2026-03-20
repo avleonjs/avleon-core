@@ -1,6 +1,7 @@
 import { Container, Service } from "typedi";
 import { Socket, Server } from "socket.io";
 import { SocketContextService } from "./event-dispatcher";
+import { SocketIoServer } from "./websocket";
 import "reflect-metadata";
 
 const PRIVATE_META_KEY = "avleon:private";

@@ -5,12 +5,13 @@
  * @url https://github.com/xtareq
  */
 import { Service } from "typedi";
-import { IRequest, IResponse } from "./icore";
+import { IRequest, IResponse } from "./core/types";
 import {
   HttpExceptionTypes as HttpException,
   UnauthorizedException,
 } from "./exceptions";
 import Container, { AUTHORIZATION_META_KEY } from "./container";
+import { Constructor } from "./helpers";
 
 export abstract class AvleonMiddleware {
   abstract invoke(
@@ -23,7 +24,7 @@ export type AuthHandler = (
   roles?: string[],
 ) => Promise<IRequest | HttpException>;
 
-export type Constructor<T> = { new (...args: any[]): T };
+
 
 export abstract class AuthorizeMiddleware {
   abstract authorize(
@@ -39,7 +40,7 @@ interface AuthorizeClass {
 
 
 export function CanAuthorize(target: {
-  new (...args: any[]): AuthorizeClass;
+  new(...args: any[]): AuthorizeClass;
 }) {
   if (typeof target.prototype.authorize !== "function") {
     throw new Error(
@@ -51,7 +52,7 @@ export function CanAuthorize(target: {
 
 
 export function AppAuthorization(target: {
-  new (...args: any[]): AuthorizeClass;
+  new(...args: any[]): AuthorizeClass;
 }) {
   if (typeof target.prototype.authorize !== "function") {
     throw new Error(
@@ -99,6 +100,18 @@ export function AppMiddleware(target: Constructor<AvleonMiddleware>) {
   Service()(target);
 }
 
+
+
+
+/**
+ * A decorator function that applies one or more middleware to a class or a method.
+ *
+ * When applied to a class, the middleware are registered for the entire controller.
+ * When applied to a method, the middleware are registered for that specific route.
+ *
+ * @param options - A single middleware instance/class or an array of middleware instances/classes to be applied.
+ * @returns A decorator that registers the middleware metadata.
+ */
 export function UseMiddleware<
   T extends AvleonMiddleware | (new (...args: any[]) => AvleonMiddleware),
 >(options: T | T[]): MethodDecorator & ClassDecorator {

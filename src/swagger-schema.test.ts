@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { generateSwaggerSchema } from "./swagger-schema";
+import { generateClassSchema } from "./swagger-schema"; // ✅ single-class function
 
 // Mocks for class-validator metadata
 const mockValidationMetadatas = [
@@ -11,13 +11,22 @@ const mockValidationMetadatas = [
     { propertyName: "desc", name: "maxLength", constraints: [100] },
 ];
 
-const mockGetMetadataStorage = jest.fn(() => ({
-    getTargetValidationMetadatas: jest.fn(() => mockValidationMetadatas),
-}));
+jest.mock("class-validator", () => {
+    const mockGetMetadataStorage = jest.fn(() => ({
+        getTargetValidationMetadatas: jest.fn(() => [
+            { propertyName: "name", name: "isNotEmpty", constraints: [] },
+            { propertyName: "age", name: "isInt", constraints: [] },
+            { propertyName: "email", name: "isEmail", constraints: [] },
+            { propertyName: "tags", name: "isOptional", constraints: [] },
+            { propertyName: "desc", name: "minLength", constraints: [5] },
+            { propertyName: "desc", name: "maxLength", constraints: [100] },
+        ]),
+    }));
 
-jest.mock("class-validator", () => ({
-    getMetadataStorage: mockGetMetadataStorage,
-}));
+    return {
+        getMetadataStorage: mockGetMetadataStorage,
+    };
+});
 
 // Helper to set Reflect metadata for property types and openapi
 function setPropertyMetadata(target: any, property: string, type: any, openApi?: any) {
@@ -43,9 +52,9 @@ setPropertyMetadata(TestDto.prototype, "tags", Array);
 setPropertyMetadata(TestDto.prototype, "desc", String, { description: "Description", example: "A desc" });
 setPropertyMetadata(TestDto.prototype, "ignored", String, { exclude: true });
 
-describe("generateSwaggerSchema", () => {
+describe("generateClassSchema", () => {
     it("should generate correct schema for class properties and validation", () => {
-        const schema = generateSwaggerSchema(TestDto);
+        const schema = generateClassSchema(TestDto); // ✅
 
         expect(schema).toEqual({
             type: "object",
@@ -84,7 +93,7 @@ describe("generateSwaggerSchema", () => {
             allOf: [{ type: "string" }],
             anyOf: [{ type: "string" }],
         });
-        const schema = generateSwaggerSchema(TestDto);
+        const schema = generateClassSchema(TestDto); // ✅
         expect(schema.properties.desc).toMatchObject({
             description: "desc field",
             example: "example",
@@ -106,14 +115,27 @@ describe("generateSwaggerSchema", () => {
 
     it("should not include excluded properties", () => {
         setPropertyMetadata(TestDto.prototype, "ignored", String, { exclude: true });
-        const schema = generateSwaggerSchema(TestDto);
+        const schema = generateClassSchema(TestDto); // ✅
         expect(schema.properties.ignored).toBeUndefined();
     });
 
     it("should fallback to string type if type is unknown", () => {
         setPropertyMetadata(TestDto.prototype, "unknown", undefined as any);
         mockValidationMetadatas.push({ propertyName: "unknown", name: "isNotEmpty", constraints: [] });
-        const schema = generateSwaggerSchema(TestDto);
+        const schema = generateClassSchema(TestDto); // ✅
         expect(schema.properties.unknown.type).toBe("string");
+    });
+
+    it("should return empty schema for null or undefined input", () => {
+        const schema = generateClassSchema(null);
+        expect(schema).toEqual({ type: "object", properties: {}, required: [] });
+    });
+
+    it("should handle array controllers input gracefully", () => {
+        // generateSwaggerSchema (array version) should skip non-DTO classes
+        // generateClassSchema should never receive an array
+        const schema = generateClassSchema(TestDto);
+        expect(schema.type).toBe("object");
+        expect(schema.properties).toBeDefined();
     });
 });

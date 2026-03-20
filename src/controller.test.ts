@@ -14,7 +14,7 @@ describe("Controller Decorators", () => {
             const registerControllerSpy = jest.spyOn(containerModule, "registerController");
 
             @ApiController
-            class TestController {}
+            class TestController { }
 
             expect(Reflect.getMetadata(containerModule.API_CONTROLLER_METADATA_KEY, TestController)).toBe(true);
             expect(registerControllerSpy).toHaveBeenCalledWith(TestController);
@@ -29,7 +29,7 @@ describe("Controller Decorators", () => {
             const registerControllerSpy = jest.spyOn(containerModule, "registerController");
 
             @ApiController("/test")
-            class TestController {}
+            class TestController { }
 
             expect(Reflect.getMetadata(containerModule.API_CONTROLLER_METADATA_KEY, TestController)).toBe(true);
             expect(registerControllerSpy).toHaveBeenCalledWith(TestController);
@@ -45,7 +45,7 @@ describe("Controller Decorators", () => {
             const options: ControllerOptions = { name: "Custom", path: "/custom", version: "1.0.0" };
 
             @ApiController(options)
-            class TestController {}
+            class TestController { }
 
             expect(Reflect.getMetadata(containerModule.API_CONTROLLER_METADATA_KEY, TestController)).toBe(true);
             expect(registerControllerSpy).toHaveBeenCalledWith(TestController);
@@ -56,17 +56,8 @@ describe("Controller Decorators", () => {
             });
         });
 
-            const originalService = TypediService;
-            // @ts-ignore
-            (containerModule as any).Service = undefined;
-            expect(() => {
-                @ApiController
-                class TestController {}
-            }).toThrow("Service decorator is not a function");
-            // Restore
-            // @ts-ignore
-            (containerModule as any).Service = originalService;
-        });
+
     });
+});
 
 

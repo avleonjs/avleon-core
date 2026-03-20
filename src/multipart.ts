@@ -10,7 +10,7 @@ import {
   MultipartValue,
   SavedMultipartFile,
 } from "@fastify/multipart";
-import { IRequest } from "./icore";
+import { IRequest } from "./core/types";
 import fs from "fs";
 import path from "path";
 import { pipeline } from "stream/promises";
@@ -82,7 +82,7 @@ type Foptions = {
 export type MultipartFile = FsM | SavedMultipartFile;
 export function UploadFileFromRequest(req: IRequest, options?: Foptions) {
   return Promise.resolve(
-    req.file().then(async (f) => {
+    (req as any).file().then(async (f: any) => {
       if (f && f.file) {
         let fname = f.filename;
         if (options) {

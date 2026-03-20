@@ -14,7 +14,7 @@ import {
   ROUTE_META_KEY,
 } from "./container";
 import { getDataType, isClassValidatorClass, isValidType } from "./helpers";
-import { generateSwaggerSchema } from "./swagger-schema";
+import { generateClassSchema, generateSwaggerSchema } from "./swagger-schema";
 
 type ParameterOptions = {
   required?: boolean;
@@ -73,8 +73,8 @@ function createParamDecorator(
         dataType: getDataType(paramDataType),
         validatorClass: isClassValidatorClass(paramDataType),
         schema: isClassValidatorClass(paramDataType)
-          ? generateSwaggerSchema(paramDataType)
-          : null,
+          ? generateClassSchema(paramDataType)
+        : null,
         type,
       });
       Reflect.defineMetadata(metaKey, existingParams, target, propertyKey);

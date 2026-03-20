@@ -2,7 +2,7 @@ import { UploadFileFromRequest, MultipartFile } from "./multipart";
 import { InternalErrorException } from "./exceptions";
 import fs from "fs";
 import { pipeline } from "stream/promises";
-import { IRequest } from "./icore";
+import { IRequest } from "./core/types";
 
 jest.mock("fs");
 jest.mock("stream/promises", () => ({

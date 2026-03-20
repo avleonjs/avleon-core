@@ -1,11 +1,27 @@
 {
   "name": "@avleon/core",
-  "version": "0.0.45",
+  "version": "0.0.46",
+  "description": "TypeScript-first web framework built on Fastify",
+  "author": "Tareq Hossain",
+  "license": "ISC",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "restapi",
+    "avleon",
+    "backend",
+    "fastify",
+    "typescript"
+  ],
   "scripts": {
     "build": "npm run clean && tsc",
     "clean": "rimraf dist",
+    "prepublishOnly": "npm run build",
     "watch": "tsc-watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -14,33 +30,11 @@
     "test:watch": "jest --watch",
     "husky:init": "husky install"
   },
-  "keywords": [
-    "restapi",
-    "avleon",
-    "backend",
-    "fastify"
-  ],
-  "author": "Tareq Hossain",
-  "license": "ISC",
-  "description": "avleon core",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/avleonjs/avleon-core"
-  },
-  "files": [
-    "dist"
-  ],
-  "directories": {
-    "test": "."
-  },
   "dependencies": {
-    "bull": "^4.16.5",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "fastify": "^5.1.0",
-    "mime": "^4.1.0",
-    "pino": "^9.10.0",
-    "pino-pretty": "^13.1.1",
+    "mime": "^3.0.0",
     "reflect-metadata": "^0.2.2",
     "typedi": "^0.10.0"
   },
@@ -53,23 +47,23 @@
     "@fastify/view": "^11.0.0",
     "@scalar/fastify-api-reference": "*",
     "bcryptjs": "3.0.2",
+    "bull": "^4.16.5",
     "dotenv": "*",
     "fastify-socket.io": "^4.0.0",
     "highlight.js": "*",
     "ioredis": "*",
     "knex": "*",
-    "mssql": "*",
+    "mssql": ">=9.0.0",
     "mysql2": "*",
     "pg": "*",
+    "pino": "^9.0.0",
+    "pino-pretty": "^13.0.0",
     "sharp": "*",
     "socket.io": "*",
     "sqlite3": "*",
     "typeorm": "*"
   },
   "peerDependenciesMeta": {
-    "bcryptjs": {
-      "optional": true
-    },
     "@fastify/cors": {
       "optional": true
     },
@@ -91,13 +85,22 @@
     "@scalar/fastify-api-reference": {
       "optional": true
     },
+    "bcryptjs": {
+      "optional": true
+    },
+    "bull": {
+      "optional": true
+    },
+    "dotenv": {
+      "optional": true
+    },
+    "fastify-socket.io": {
+      "optional": true
+    },
+    "highlight.js": {
+      "optional": true
+    },
     "ioredis": {
-      "optional": true
-    },
-    "sharp": {
-      "optional": true
-    },
-    "typeorm": {
       "optional": true
     },
     "knex": {
@@ -112,19 +115,22 @@
     "pg": {
       "optional": true
     },
-    "sqlite3": {
+    "pino": {
       "optional": true
     },
-    "fastify-socket.io": {
+    "pino-pretty": {
+      "optional": true
+    },
+    "sharp": {
       "optional": true
     },
     "socket.io": {
       "optional": true
     },
-    "dotenv": {
+    "sqlite3": {
       "optional": true
     },
-    "highlight.js": {
+    "typeorm": {
       "optional": true
     }
   },
@@ -151,5 +157,12 @@
       "pnpm lint:fix",
       "cross-env CI=true jest --bail --findRelatedTests --passWithNoTests --config=jest.config.js"
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/avleonjs/avleon-core"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

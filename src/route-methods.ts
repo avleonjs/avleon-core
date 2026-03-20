@@ -28,38 +28,48 @@ export type RouteMethodOptions = {
  * Generic Route decorator factory
  */
 export function Route(
-  method: RouteMethods,
-  pathOrOptions?: string | RouteMethodOptions,
-  maybeOptions?: RouteMethodOptions
+    method: RouteMethods,
+    pathOrOptions?: string | RouteMethodOptions,
+    maybeOptions?: RouteMethodOptions
 ): MethodDecorator {
-  return function (target, propertyKey, descriptor) {
-    let path = "/";
-    let options: RouteMethodOptions = {};
+    return function (target, propertyKey, descriptor) {
+        let path = "/";
+        let options: RouteMethodOptions = {};
 
-    if (typeof pathOrOptions === "string") {
-      path = pathOrOptions;
-      options = maybeOptions || {};
-    } else if (typeof pathOrOptions === "object") {
-      options = pathOrOptions;
-      path = options.name || "/";
-    }
+        if (typeof pathOrOptions === "string") {
+            path = pathOrOptions || "/";
+            options = maybeOptions || {};
+        } else if (typeof pathOrOptions === "object" && pathOrOptions !== null) {
+            options = pathOrOptions;
+            path = options.path || options.name || "/";
+        } else {
+            // @Get() called with no args
+            options = maybeOptions || {};
+            path = "/";
+        }
 
-    // Define metadata
-    Reflect.defineMetadata("route:path", path, target, propertyKey);
-    Reflect.defineMetadata("route:method", method, target, propertyKey);
-    Reflect.defineMetadata(
-      ROUTE_META_KEY,
-      { ...options, method, path, controller: target.constructor.name },
-      target,
-      propertyKey
-    );
+        //Ensure path is always a string
+        path = typeof path === "string" ? path : "/";
 
-    if (options) {
-      Reflect.defineMetadata("route:options", options, target, propertyKey);
-    }
-  };
+        Reflect.defineMetadata("route:path", path, target, propertyKey);
+        Reflect.defineMetadata("route:method", method, target, propertyKey);
+        Reflect.defineMetadata(
+            ROUTE_META_KEY,
+            {
+                ...options,
+                method,
+                path,           
+                controller: target.constructor.name,
+            },
+            target,
+            propertyKey
+        );
+
+        if (options) {
+            Reflect.defineMetadata("route:options", options, target, propertyKey);
+        }
+    };
 }
-
 
 export const Get = (pathOrOptions?: string | RouteMethodOptions, maybeOptions?: RouteMethodOptions) =>
   Route("GET", pathOrOptions, maybeOptions);

@@ -1,4 +1,5 @@
-import { Avleon, AvleonApplication } from "./icore";
+import { Avleon } from "./core/testing";
+import { AvleonApplication } from "./core/application";
 
 describe("Avleon.createApplication", () => {
     it("should return an instance of AvleonApplication", () => {
