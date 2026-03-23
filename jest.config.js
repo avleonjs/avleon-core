@@ -7,4 +7,12 @@ export default {
   collectCoverage: true,
   coverageDirectory: "<rootDir>/coverage",
   coveragePathIgnorePatterns: ["/node_modules/", "/dist/", "/build/"],
+  transform: {
+    "^.+\\.tsx?$": [
+      "ts-jest",
+      {
+        tsconfig: "tsconfig.test.json",
+      },
+    ],
+  },
 };

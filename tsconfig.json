@@ -26,9 +26,11 @@
     "outDir": "./dist",
 
     // Node 20 built-ins
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "knex": ["./node_modules/knex/types/index.d.ts"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }
-
