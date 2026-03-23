@@ -19,7 +19,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # ✅ Use a PAT so the push step can trigger further workflows if needed
           token: ${{ secrets.GITHUB_TOKEN }}
 
       # 2. Setup Node.js
@@ -28,60 +27,28 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org
+          cache: npm
 
-      # 3. Setup pnpm
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      # 4. Cache pnpm store
-      - name: Cache pnpm store
-        uses: actions/cache@v4  # ✅ updated from v3 — v3 is deprecated
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
-      # 5. Install dependencies
-      # ✅ --no-frozen-lockfile so CI doesn't fail when package.json changes
-      # are not yet reflected in the lockfile (e.g. after dep moves)
+      # 3. Install dependencies
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: npm ci
 
-      # 6. Update lockfile if changed and commit it back
-      - name: Commit updated lockfile if changed
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [ -n "$(git status --porcelain pnpm-lock.yaml)" ]; then
-            git add pnpm-lock.yaml
-            git commit -m "chore: update lockfile [skip ci]"
-            git push origin main
-          else
-            echo "Lockfile unchanged, skipping commit"
-          fi
+      # 4. Build package — fail fast before tagging
+      - name: Build
+        run: npm run build
 
-      # 7. Build package — fail fast before tagging
-      - name: Build package
-        run: pnpm run build
+      # 5. Run tests
+      - name: Test
+        run: npm test
 
-      # 8. Run tests — don't publish broken code
-      - name: Run tests
-        run: pnpm test || echo "No tests found, skipping"
-
-      # 9. Tag the release
+      # 6. Tag the release
       - name: Create version tag
         id: tag
         run: |
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Only tag if it doesn't already exist
           if git rev-parse "v$VERSION" >/dev/null 2>&1; then
             echo "Tag v$VERSION already exists, skipping"
           else
@@ -90,8 +57,9 @@ jobs:
             echo "Tagged v$VERSION"
           fi
 
-      # 10. Publish to npm
+      # 7. Publish to npm
       - name: Publish to npm
-        run: pnpm publish --access public --no-git-checks
+        run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
