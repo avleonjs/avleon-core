@@ -1,26 +1,34 @@
 {
   "compilerOptions": {
-    "target": "ES2018",
-    "module": "CommonJS",
-    "strict": true,
-    "emitDecoratorMetadata": true,
+    // Environment
+    "target": "ES2022",
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023"],
+
+    // Decorators (typeorm, typedi, class-validator)
     "experimentalDecorators": true,
-    "outDir": "./dist",
-    "declaration": true,
+    "emitDecoratorMetadata": true,
+
+    // Interop
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "moduleResolution": "node",
-    "strictPropertyInitialization": false,
     "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+
+    // Type checking
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "skipLibCheck": true,
+
+    // tsdown owns emit — tsc is type-check only
+    "noEmit": true,
+    "declaration": false,
+    "outDir": "./dist",
+
+    // Node 20 built-ins
+    "types": ["node"]
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "scripts",
-    "jest.config.js"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }
+
