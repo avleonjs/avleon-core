@@ -5,7 +5,7 @@
  * @url https://github.com/xtareq
  */
 import { Knex } from "knex";
-import TypediContainer, { ContainerInstance, Token } from "typedi";
+import { Container, ContainerInstance, Token } from "typedi";
 import { DataSource } from "typeorm";
 
 export const FEATURE_KEY = Symbol.for("features");
@@ -25,8 +25,6 @@ const controllerRegistry = new Set<Function>();
 const serviceRegistry = new Set<Function>();
 const optionsRegistry = new Map<string, any>();
 
-const Container = TypediContainer;
-
 export function registerController(controller: Function) {
   controllerRegistry.add(controller);
 }
@@ -42,8 +40,6 @@ export function getRegisteredControllers(): Function[] {
   return Array.from(controllerRegistry);
 }
 
-
-
 export const API_CONTROLLER_METADATA_KEY = Symbol("apiController");
 
 export function isApiController(target: Function): boolean {
@@ -58,7 +54,5 @@ export function registerDataSource(dataSource: any) {
 export function registerKnex(dataSource: Knex.Config) {
   Container.set<Knex>("KnexConnection", dataSource);
 }
-
-
 
 export default Container;
