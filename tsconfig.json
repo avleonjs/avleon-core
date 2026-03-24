@@ -20,11 +20,6 @@
     "strictPropertyInitialization": false,
     "skipLibCheck": true,
 
-    // tsdown owns emit — tsc is type-check only
-    "noEmit": true,
-    "declaration": false,
-    "outDir": "./dist",
-
     // Node 20 built-ins
     "types": ["node"],
     "paths": {
