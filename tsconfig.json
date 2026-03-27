@@ -2,9 +2,10 @@
   "compilerOptions": {
     // Environment
     "target": "ES2022",
-    "module": "Preserve",
-    "moduleResolution": "Bundler",
-    "lib": ["ES2023"],
+    "module": "commonjs",
+    "declaration": true,
+    "sourceMap": true,
+    "outDir": "./dist",
 
     // Decorators (typeorm, typedi, class-validator)
     "experimentalDecorators": true,
@@ -21,7 +22,7 @@
     "skipLibCheck": true,
 
     // Node 20 built-ins
-    "types": ["node"],
+    "types": ["node", "jest"],
     "paths": {
       "knex": ["./node_modules/knex/types/index.d.ts"]
     }

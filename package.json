@@ -1,20 +1,12 @@
 {
   "name": "@avleon/core",
-  "version": "0.1.02",
+  "version": "0.1.03",
   "description": "TypeScript-first web framework built on Fastify",
   "author": "Tareq Hossain",
   "license": "ISC",
-  "type": "module",
-  "main": "./dist/index.cjs",
+  "main": "./dist/index.js",
   "module": "./dist/index.js",
-  "types": "./dist/index-CWUcfHYp.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": "./dist/index-CWUcfHYp.d.ts"
-    }
-  },
+  "types": "./dist/index.d.ts",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -31,8 +23,8 @@
     "typescript"
   ],
   "scripts": {
-    "build": "tsdown",
-    "watch": "tsdown --watch",
+    "build": "tsc",
+    "watch": "tsc --watch",
     "prepublishOnly": "npm run build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

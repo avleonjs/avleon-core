@@ -105,6 +105,7 @@ export class AvleonRouter {
   private rMap = new Map<string, FuncRoute>();
   private app: FastifyInstance;
   private authorizeMiddleware?: Constructor<any>;
+  private authorizeMiddlewareMap: Map<string, Constructor<any>> = new Map();
 
   constructor(app: FastifyInstance) {
     this.app = app;
@@ -112,6 +113,36 @@ export class AvleonRouter {
 
   setAuthorizeMiddleware(middleware: Constructor<any>) {
     this.authorizeMiddleware = middleware;
+  }
+
+  setAuthorizeMiddlewareMap(map: Record<string, Constructor<any>>) {
+    for (const [name, cls] of Object.entries(map)) {
+      this.authorizeMiddlewareMap.set(name, cls);
+    }
+    // Convenience: also set the first entry as the default single handler
+    const first = Object.values(map)[0];
+    if (first && !this.authorizeMiddleware) {
+      this.authorizeMiddleware = first;
+    }
+  }
+
+  /**
+   * Resolve the correct authorizer class from @Authorized options.
+   * - { name: "jwt" }  -> looks up authorizeMiddlewareMap.get("jwt")
+   * - { name: undefined } or {}  -> falls back to authorizeMiddleware (default)
+   */
+  private _resolveAuthorizer(options?: { name?: string }): Constructor<any> | undefined {
+    if (options?.name) {
+      const named = this.authorizeMiddlewareMap.get(options.name);
+      if (!named) {
+        throw new Error(
+          `[Avleon] No authorization handler registered under the name "${options.name}". ` +
+          `Did you call useAuthorization({ ${options.name}: YourClass })?`,
+        );
+      }
+      return named;
+    }
+    return this.authorizeMiddleware;
   }
 
   registerMiddleware(name: string, instance: AvleonMiddleware) {
@@ -274,16 +305,22 @@ export class AvleonRouter {
         handler: async (req, res) => {
           let reqClone = req as unknown as IRequest;
 
-          if (authClsMeata.authorize && this.authorizeMiddleware) {
-            const cls = Container.get(this.authorizeMiddleware) as any;
-            await cls.authorize(reqClone, authClsMeata.options);
-            if (res.sent) return;
+          if (authClsMeata.authorize) {
+            const authCls = this._resolveAuthorizer(authClsMeata.options);
+            if (authCls) {
+              const cls = Container.get(authCls) as any;
+              await cls.authorize(reqClone, authClsMeata.options);
+              if (res.sent) return;
+            }
           }
 
-          if (authClsMethodMeata.authorize && this.authorizeMiddleware) {
-            const cls = Container.get(this.authorizeMiddleware) as any;
-            await cls.authorize(reqClone, authClsMethodMeata.options);
-            if (res.sent) return;
+          if (authClsMethodMeata.authorize) {
+            const authCls = this._resolveAuthorizer(authClsMethodMeata.options);
+            if (authCls) {
+              const cls = Container.get(authCls) as any;
+              await cls.authorize(reqClone, authClsMethodMeata.options);
+              if (res.sent) return;
+            }
           }
 
           if (classMiddlewares.length > 0) {
@@ -640,4 +677,3 @@ export class AvleonRouter {
     });
   }
 }
-

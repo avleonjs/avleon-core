@@ -289,8 +289,26 @@ export class AvleonApplication implements IAvleonApplication {
     return this;
   }
 
-  useAuthorization(authorization: Constructor<any>) {
-    this.router.setAuthorizeMiddleware(authorization);
+  /**
+   * Register one or more authorization handlers.
+   *
+   * Single handler (legacy):
+   *   app.useAuthorization(JwtAuthorization)
+   *
+   * Named map (multi-strategy):
+   *   app.useAuthorization({ jwt: JwtAuthorization, oauth: OAuthV2 })
+   *
+   * In controllers use:
+   *   @Authorized()              - runs the first/only registered handler
+   *   @Authorized("jwt")         - runs the "jwt" handler
+   *   @Authorized({ name: "oauth", roles: ["admin"] })
+   */
+  useAuthorization(authorization: Constructor<any> | Record<string, Constructor<any>>) {
+    if (typeof authorization === "function") {
+      this.router.setAuthorizeMiddleware(authorization);
+    } else {
+      this.router.setAuthorizeMiddlewareMap(authorization);
+    }
     return this;
   }
 

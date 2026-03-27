@@ -62,12 +62,32 @@ export function AppAuthorization(target: {
   Service()(target);
 }
 
-// export function Authorized(target: Function): void;
+/**
+ * Options accepted by @Authorized.
+ *
+ * @example
+ * // Use the default (only) authorizer
+ * @Authorized()
+ *
+ * @example
+ * // Select a named authorizer registered via useAuthorization({ jwt: JwtAuth })
+ * @Authorized("jwt")
+ * @Authorized({ name: "oauth" })
+ * @Authorized({ name: "jwt", roles: ["admin"] })
+ */
+export type AuthorizedOptions =
+  | string                           // shorthand: the authorizer name
+  | { name?: string; [key: string]: any }; // object form: { name, roles, ... }
+
 export function Authorized(): ClassDecorator & MethodDecorator;
-export function Authorized(options?: any): ClassDecorator & MethodDecorator;
+export function Authorized(options: AuthorizedOptions): ClassDecorator & MethodDecorator;
 export function Authorized(
-  options: any = {},
+  options: AuthorizedOptions = {},
 ): MethodDecorator | ClassDecorator {
+  // Normalise to { name?, ...rest } so the router always sees a consistent shape
+  const normalised: { name?: string; [key: string]: any } =
+    typeof options === "string" ? { name: options } : options;
+
   return function (
     target: any,
     propertyKey?: string | symbol,
@@ -76,14 +96,14 @@ export function Authorized(
     if (propertyKey && descriptor) {
       Reflect.defineMetadata(
         AUTHORIZATION_META_KEY,
-        { authorize: true, options },
+        { authorize: true, options: normalised },
         target.constructor,
         propertyKey,
       );
     } else {
       Reflect.defineMetadata(
         AUTHORIZATION_META_KEY,
-        { authorize: true, options },
+        { authorize: true, options: normalised },
         target,
       );
     }
