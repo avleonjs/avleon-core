@@ -47,8 +47,6 @@ export function OpenApiProperty(options?: ParamSchema & {
 
 function extractOpenApiFields(meta: any): any {
     const result: any = {};
-
-    // ✅ Complete list — was missing required, title, readOnly, writeOnly, nullable
     const jsonSchemaFields = [
         "description",
         "deprecated",
@@ -110,14 +108,12 @@ export function CreateSwaggerObjectSchema(classType: any): any {
     Object.getOwnPropertyNames(prototype).forEach((k) => propertyKeys.add(k));
     Object.keys(prototype).forEach((k) => propertyKeys.add(k));
     validationMetadata.forEach((m: any) => propertyKeys.add(m.propertyName));
-
-    // ✅ Discover instance-level properties (class fields with !)
     try {
         const instance = new classType();
         Reflect.ownKeys(instance).forEach((k) => {
             if (typeof k === "string") propertyKeys.add(k);
         });
-    } catch (_) {}
+    } catch (_) { }
 
     propertyKeys.forEach((propertyName) => {
         if (!propertyName || propertyName === "constructor") return;
@@ -129,9 +125,9 @@ export function CreateSwaggerObjectSchema(classType: any): any {
         let swaggerProperty: any = {};
 
         switch (propertyType) {
-            case String:   swaggerProperty.type = "string"; break;
-            case Number:   swaggerProperty.type = "number"; break;
-            case Boolean:  swaggerProperty.type = "boolean"; break;
+            case String: swaggerProperty.type = "string"; break;
+            case Number: swaggerProperty.type = "number"; break;
+            case Boolean: swaggerProperty.type = "boolean"; break;
             case Date:
                 swaggerProperty.type = "string";
                 swaggerProperty.format = "date-time";
@@ -191,17 +187,17 @@ export function CreateSwaggerObjectSchema(classType: any): any {
             case "isOptional":
                 schema.required = schema.required.filter((item: any) => item !== propertyName);
                 break;
-            case "minLength":   property.minLength = meta.constraints[0]; break;
-            case "maxLength":   property.maxLength = meta.constraints[0]; break;
-            case "min":         property.minimum = meta.constraints[0]; break;
-            case "max":         property.maximum = meta.constraints[0]; break;
-            case "isEmail":     property.format = "email"; break;
-            case "isDate":      property.format = "date-time"; break;
-            case "isIn":        property.enum = meta.constraints[0]; break;
-            case "isNumber":    property.type = "number"; break;
-            case "isInt":       property.type = "integer"; break;
-            case "isBoolean":   property.type = "boolean"; break;
-            case "isString":    property.type = "string"; break;
+            case "minLength": property.minLength = meta.constraints[0]; break;
+            case "maxLength": property.maxLength = meta.constraints[0]; break;
+            case "min": property.minimum = meta.constraints[0]; break;
+            case "max": property.maximum = meta.constraints[0]; break;
+            case "isEmail": property.format = "email"; break;
+            case "isDate": property.format = "date-time"; break;
+            case "isIn": property.enum = meta.constraints[0]; break;
+            case "isNumber": property.type = "number"; break;
+            case "isInt": property.type = "integer"; break;
+            case "isBoolean": property.type = "boolean"; break;
+            case "isString": property.type = "string"; break;
         }
     });
 
@@ -212,7 +208,6 @@ export function CreateSwaggerObjectSchema(classType: any): any {
 export function generateClassSchema(classType: any): any {
     const schema: any = { type: "object", properties: {}, required: [] };
 
-    // ✅ Guard against null/undefined
     if (!classType || !classType.prototype) return schema;
 
     const metadataStorage = getMetadataStorage();
@@ -225,15 +220,12 @@ export function generateClassSchema(classType: any): any {
         ...Object.getOwnPropertyNames(prototype),
         ...validationMetadata.map((m: any) => m.propertyName),
     ]);
-
-    // ✅ Discover instance-level class fields (e.g. `search!: string`)
-    // These don't appear on prototype — only on instantiated objects
     try {
         const instance = new classType();
         Reflect.ownKeys(instance).forEach((k) => {
             if (typeof k === "string") propertyKeys.add(k);
         });
-    } catch (_) {}
+    } catch (_) { }
 
     propertyKeys.forEach((propertyName) => {
         if (!propertyName || propertyName === "constructor") return;
@@ -245,9 +237,9 @@ export function generateClassSchema(classType: any): any {
         let swaggerProperty: any = {};
 
         switch (propertyType) {
-            case String:   swaggerProperty.type = "string"; break;
-            case Number:   swaggerProperty.type = "number"; break;
-            case Boolean:  swaggerProperty.type = "boolean"; break;
+            case String: swaggerProperty.type = "string"; break;
+            case Number: swaggerProperty.type = "number"; break;
+            case Boolean: swaggerProperty.type = "boolean"; break;
             case Date:
                 swaggerProperty.type = "string";
                 swaggerProperty.format = "date-time";
@@ -266,25 +258,21 @@ export function generateClassSchema(classType: any): any {
                     swaggerProperty.type = propertyType?.name?.toLowerCase() || "string";
                 }
         }
-
-        // ✅ Apply OpenApi metadata — extractOpenApiFields now includes all fields
-if (openApiMeta) {
-    const { required: _required, exclude: _exclude, isArray: _isArray, ...safeOpenApiMeta } = openApiMeta;
-    swaggerProperty = {
-        ...swaggerProperty,
-        ...extractOpenApiFields(safeOpenApiMeta),
-    };
-}
+        if (openApiMeta) {
+            const { required: _required, exclude: _exclude, isArray: _isArray, ...safeOpenApiMeta } = openApiMeta;
+            swaggerProperty = {
+                ...swaggerProperty,
+                ...extractOpenApiFields(safeOpenApiMeta),
+            };
+        }
 
         schema.properties[propertyName] = swaggerProperty;
     });
 
     validationMetadata.forEach((meta: any) => {
         const propertyName = meta.propertyName;
-
-        // Guard: property might not be in schema if it had no type info
         if (!schema.properties[propertyName]) {
-            schema.properties[propertyName] = { type: "string" }; // ✅ safe fallback
+            schema.properties[propertyName] = { type: "string" };
         }
 
         switch (meta.name) {
@@ -295,17 +283,17 @@ if (openApiMeta) {
             case "isOptional":
                 schema.required = schema.required.filter((item: any) => item !== propertyName);
                 break;
-            case "minLength":   schema.properties[propertyName].minLength = meta.constraints[0]; break;
-            case "maxLength":   schema.properties[propertyName].maxLength = meta.constraints[0]; break;
-            case "min":         schema.properties[propertyName].minimum = meta.constraints[0]; break;
-            case "max":         schema.properties[propertyName].maximum = meta.constraints[0]; break;
-            case "isEmail":     schema.properties[propertyName].format = "email"; break;
-            case "isDate":      schema.properties[propertyName].format = "date-time"; break;
-            case "isIn":        schema.properties[propertyName].enum = meta.constraints[0]; break;
-            case "isNumber":    schema.properties[propertyName].type = "number"; break;
-            case "isInt":       schema.properties[propertyName].type = "integer"; break;
-            case "isBoolean":   schema.properties[propertyName].type = "boolean"; break;
-            case "isString":    schema.properties[propertyName].type = "string"; break;
+            case "minLength": schema.properties[propertyName].minLength = meta.constraints[0]; break;
+            case "maxLength": schema.properties[propertyName].maxLength = meta.constraints[0]; break;
+            case "min": schema.properties[propertyName].minimum = meta.constraints[0]; break;
+            case "max": schema.properties[propertyName].maximum = meta.constraints[0]; break;
+            case "isEmail": schema.properties[propertyName].format = "email"; break;
+            case "isDate": schema.properties[propertyName].format = "date-time"; break;
+            case "isIn": schema.properties[propertyName].enum = meta.constraints[0]; break;
+            case "isNumber": schema.properties[propertyName].type = "number"; break;
+            case "isInt": schema.properties[propertyName].type = "integer"; break;
+            case "isBoolean": schema.properties[propertyName].type = "boolean"; break;
+            case "isString": schema.properties[propertyName].type = "string"; break;
         }
     });
 
@@ -313,7 +301,6 @@ if (openApiMeta) {
     return schema;
 }
 
-// Build OpenAPI components.schemas from an array of controller/DTO classes
 export function generateSwaggerSchema(controllers: any[]): any {
     if (!Array.isArray(controllers)) {
         return generateClassSchema(controllers);
@@ -397,8 +384,8 @@ function inferSchemaFromExample(obj: any): any {
 function inferType(value: any): any {
     const type = typeof value;
     switch (type) {
-        case "string":  return { type: "string", example: value };
-        case "number":  return { type: "number", example: value };
+        case "string": return { type: "string", example: value };
+        case "number": return { type: "number", example: value };
         case "boolean": return { type: "boolean", example: value };
         case "object":
             if (Array.isArray(value)) return inferSchemaFromExample(value);

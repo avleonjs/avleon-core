@@ -56,8 +56,6 @@ export class CacheManager {
   async delete(key: string): Promise<void> {
     if (this.redis) {
       await this.redis.del(key);
-
-      // Also clean up from any tag sets
       const tagKeys = await this.redis.keys("cache-tags:*");
       for (const tagKey of tagKeys) {
         await this.redis.srem(tagKey, key);
@@ -75,8 +73,8 @@ export class CacheManager {
       const tagKey = this.redisTagKey(tag);
       const keys = await this.redis.smembers(tagKey);
       if (keys.length) {
-        await this.redis.del(...keys); // delete all cached keys
-        await this.redis.del(tagKey); // delete the tag set
+        await this.redis.del(...keys);
+        await this.redis.del(tagKey);
       }
     } else {
       const keys = this.tagsMap.get(tag);

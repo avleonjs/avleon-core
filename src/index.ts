@@ -30,6 +30,7 @@ export * from "./logger";
 export * from "./cache";
 export * from "./results";
 export * from "./environment-variables";
+export * from "./task-scheduler/schedule-decorator";
 
 export const GetSchema = sw.generateSwaggerSchema;
 export const GetObjectSchema = sw.CreateSwaggerObjectSchema;

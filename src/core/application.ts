@@ -21,8 +21,10 @@ import { Constructor } from "../helpers";
 import { generateSwaggerSchema } from "../swagger-schema";
 import { OpenApiUiOptions } from "../openapi";
 import { AvleonMiddleware } from "../middleware";
+import { AvleonScheduler } from "../task-scheduler";
 import { isApiController } from "../container";
 import { AutoControllerOptions, IResponse, TestApplication } from "./types";
+import { IConfig } from "../config";
 
 // ---------------------------------------------------------------------------
 // Lazy loaders for optional peer dependencies
@@ -34,8 +36,8 @@ function requireTypeorm() {
   } catch {
     throw new Error(
       "[Avleon] typeorm is not installed.\n" +
-        "Run: npm install typeorm\n" +
-        "Then install a driver: npm install pg  (or mysql2, sqlite3, etc.)",
+      "Run: npm install typeorm\n" +
+      "Then install a driver: npm install pg  (or mysql2, sqlite3, etc.)",
     );
   }
 }
@@ -46,7 +48,7 @@ function requireSocketIo() {
   } catch {
     throw new Error(
       "[Avleon] fastify-socket.io is not installed.\n" +
-        "Run: npm install fastify-socket.io socket.io",
+      "Run: npm install fastify-socket.io socket.io",
     );
   }
 }
@@ -57,8 +59,8 @@ function requireKnex() {
   } catch {
     throw new Error(
       "[Avleon] knex is not installed.\n" +
-        "Run: npm install knex\n" +
-        "Then install a driver: npm install pg  (or mysql2, sqlite3, etc.)",
+      "Run: npm install knex\n" +
+      "Then install a driver: npm install pg  (or mysql2, sqlite3, etc.)",
     );
   }
 }
@@ -69,7 +71,7 @@ function requireSwagger() {
   } catch {
     throw new Error(
       "[Avleon] @fastify/swagger is not installed.\n" +
-        "Run: npm install @fastify/swagger @fastify/swagger-ui",
+      "Run: npm install @fastify/swagger @fastify/swagger-ui",
     );
   }
 }
@@ -80,7 +82,7 @@ function requireSwaggerUi() {
   } catch {
     throw new Error(
       "[Avleon] @fastify/swagger-ui is not installed.\n" +
-        "Run: npm install @fastify/swagger-ui",
+      "Run: npm install @fastify/swagger-ui",
     );
   }
 }
@@ -91,7 +93,7 @@ function requireScalar() {
   } catch {
     throw new Error(
       "[Avleon] @scalar/fastify-api-reference is not installed.\n" +
-        "Run: npm install @scalar/fastify-api-reference",
+      "Run: npm install @scalar/fastify-api-reference",
     );
   }
 }
@@ -102,7 +104,7 @@ function requireCors() {
   } catch {
     throw new Error(
       "[Avleon] @fastify/cors is not installed.\n" +
-        "Run: npm install @fastify/cors",
+      "Run: npm install @fastify/cors",
     );
   }
 }
@@ -113,7 +115,7 @@ function requireMultipart() {
   } catch {
     throw new Error(
       "[Avleon] @fastify/multipart is not installed.\n" +
-        "Run: npm install @fastify/multipart",
+      "Run: npm install @fastify/multipart",
     );
   }
 }
@@ -124,10 +126,25 @@ function requireStatic() {
   } catch {
     throw new Error(
       "[Avleon] @fastify/static is not installed.\n" +
-        "Run: npm install @fastify/static",
+      "Run: npm install @fastify/static",
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Knex integration types
+// ---------------------------------------------------------------------------
+
+/** Lifecycle hooks passed to useKnex. */
+export interface KnexHooks {
+  /** Called once after the knex instance is created and ready. */
+  onInit?: (db: any) => void | Promise<void>;
+  /** Called when knex encounters a connection error. */
+  onError?: (err: Error) => void;
+}
+
+/** A sync or async factory that returns KnexHooks. */
+export type KnexHooksFactory = () => KnexHooks | Promise<KnexHooks>;
 
 // ---------------------------------------------------------------------------
 // Application
@@ -148,6 +165,11 @@ export class AvleonApplication implements IAvleonApplication {
   private controllers: any[] = [];
   private _hasWebsocket = false;
   private io: any;
+  private _knexHooksFactory: KnexHooksFactory | null = null;
+  private scheduler: AvleonScheduler = new AvleonScheduler();
+  private schedulerTasks: any[] = [];
+  private registerSchedulerAuto = false;
+  private registerSchedulerPath = "src/tasks";
 
   private constructor(options?: AvleonApplicationOptions) {
     this.app = Fastify({
@@ -211,9 +233,19 @@ export class AvleonApplication implements IAvleonApplication {
     return this;
   }
 
-  useOpenApi(options: OpenApiUiOptions) {
+  useOpenApi(options: OpenApiUiOptions | Constructor<IConfig<OpenApiUiOptions>>) {
     this.hasSwagger = true;
-    this.globalSwaggerOptions = options;
+    if (
+      typeof options === "function" &&
+      options.prototype != null &&
+      typeof options.prototype.config === "function"
+    ) {
+      const { GetConfig } = require("../config");
+      this.globalSwaggerOptions = GetConfig(options);
+    } else {
+      this.globalSwaggerOptions = options as OpenApiUiOptions;
+    }
+
     return this;
   }
 
@@ -292,16 +324,16 @@ export class AvleonApplication implements IAvleonApplication {
   /**
    * Register one or more authorization handlers.
    *
-   * Single handler (legacy):
+   * Single handler:
    *   app.useAuthorization(JwtAuthorization)
    *
    * Named map (multi-strategy):
    *   app.useAuthorization({ jwt: JwtAuthorization, oauth: OAuthV2 })
    *
-   * In controllers use:
-   *   @Authorized()              - runs the first/only registered handler
-   *   @Authorized("jwt")         - runs the "jwt" handler
-   *   @Authorized({ name: "oauth", roles: ["admin"] })
+   * Then in controllers:
+   *   @Authorized()                    // uses the first/default handler
+   *   @Authorized("jwt")               // uses the "jwt" handler
+   *   @Authorized({ name: "oauth" })   // uses the "oauth" handler
    */
   useAuthorization(authorization: Constructor<any> | Record<string, Constructor<any>>) {
     if (typeof authorization === "function") {
@@ -313,6 +345,26 @@ export class AvleonApplication implements IAvleonApplication {
   }
 
   useSerialization() {
+    return this;
+  }
+
+  /**
+   * Register scheduled task classes.
+   *
+   * Explicit list:
+   *   app.useScheduler([ReportTask, CleanupTask])
+   *
+   * Auto-scan a directory (mirrors useControllers):
+   *   app.useScheduler({ path: "src/tasks" })
+   */
+  useScheduler(tasks: Constructor[] | { path: string }) {
+    if (Array.isArray(tasks)) {
+      this.schedulerTasks = tasks;
+      this.scheduler.addTaskClasses(tasks);
+    } else {
+      this.registerSchedulerAuto = true;
+      if (tasks.path) this.registerSchedulerPath = tasks.path;
+    }
     return this;
   }
 
@@ -350,6 +402,7 @@ export class AvleonApplication implements IAvleonApplication {
     if (options.authorization) this.useAuthorization(options.authorization);
     if (options.multipart) this.useMultipart(options.multipart);
     if (options.staticFiles) this.useStaticFiles(options.staticFiles);
+    if ((options as any).scheduler) this.useScheduler((options as any).scheduler);
     return this;
   }
 
@@ -359,18 +412,56 @@ export class AvleonApplication implements IAvleonApplication {
     return this;
   }
 
-  useKnex(options: any) {
-    // ✅ lazy — only load DB + knex when explicitly called
+  /**
+   * Configure Knex. Three call forms are supported:
+   *
+   * 1. Raw knex config object (original behaviour):
+   *    app.useKnex({ client: "pg", connection: "..." })
+   *
+   * 2. IConfig class:
+   *    app.useKnex(DatabaseConfig)
+   *
+   * 3. IConfig class + async hooks factory:
+   *    app.useKnex(DatabaseConfig, async () => ({
+   *      onInit(db) { console.log("connected"); },
+   *      onError(err) { console.error(err); },
+   *    }))
+   */
+  useKnex(config: any, hooksFactory?: KnexHooksFactory) {
     try {
       const { DB } = require("../kenx-provider");
       const db = Container.get(DB) as any;
-      db.init(options.config ?? options);
+
+      // Resolve config: IConfig class, plain object, or { config: ... } wrapper
+      let resolvedConfig: any;
+      if (
+        typeof config === "function" &&
+        config.prototype != null &&
+        typeof config.prototype.config === "function"
+      ) {
+        const { GetConfig } = require("../config");
+        resolvedConfig = GetConfig(config);
+      } else {
+        resolvedConfig = config.config ?? config;
+      }
+
+      db.init(resolvedConfig);
+
+      if (hooksFactory) {
+        this._knexHooksFactory = hooksFactory;
+      }
     } catch (e: any) {
-      if (e.message?.includes("knex")) throw e;
-      throw new Error(
-        "[Avleon] Failed to initialize Knex. Make sure knex and a database driver are installed.\n" +
-          "Run: npm install knex pg  (or mysql2, sqlite3, etc.)",
-      );
+      // Only intercept MODULE_NOT_FOUND (knex or driver not installed).
+      // All other errors (bad config, missing @AppConfig, wrong credentials)
+      // must surface as-is so the real message is visible to the developer.
+      if (e.code === "MODULE_NOT_FOUND") {
+        throw new Error(
+          "[Avleon] knex or a database driver is not installed.\n" +
+          "Run: npm install knex pg  (or mysql2, mssql, sqlite3, etc.)\n" +
+          `Original: ${e.message}`,
+        );
+      }
+      throw e;
     }
     return this;
   }
@@ -449,13 +540,13 @@ export class AvleonApplication implements IAvleonApplication {
     }
   }
 
-  async initializeDatabase() {
+  private async initializeDatabase() {
     if (this.dataSourceOptions && this.dataSource) {
       await this.dataSource.initialize();
     }
   }
 
-  handleSocket(socket: any) {
+  private handleSocket(socket: any) {
     // ✅ lazy — only resolve socket services when socket actually connects
     try {
       const { SocketContextService } = require("../event-dispatcher");
@@ -495,6 +586,58 @@ export class AvleonApplication implements IAvleonApplication {
 
   // ── Run ──────────────────────────────────────────────────────────────────
 
+  private async _initKnexHooks(): Promise<void> {
+    if (!this._knexHooksFactory) return;
+    try {
+      const { DB } = require("../kenx-provider");
+      const db = Container.get(DB) as any;
+      const hooks = await this._knexHooksFactory();
+      if (hooks.onInit) {
+        await hooks.onInit(db.instance ?? db);
+      }
+      if (hooks.onError) {
+        const knexInstance = db.instance ?? db;
+        if (knexInstance && typeof knexInstance.on === "function") {
+          knexInstance.on("error", hooks.onError);
+        }
+      }
+    } catch (e: any) {
+      console.warn("[Avleon] Knex hooks error:", e?.message ?? e);
+    }
+  }
+
+  private async _autoSchedulerTasks(): Promise<void> {
+    const isTsNode =
+      process.env.TS_NODE_DEV ||
+      process.env.TS_NODE_PROJECT ||
+      (process as any)[Symbol.for("ts-node.register.instance")];
+    const nodePath = require("path");
+    const nodeFs = require("fs");
+    const { isScheduledTask } = require("../schedule-registry");
+    const dir = nodePath.join(process.cwd(), this.registerSchedulerPath);
+    const resolvedDir = isTsNode ? dir : dir.replace("src", "dist");
+    try {
+      const files = nodeFs.readdirSync(resolvedDir, { recursive: true, encoding: "utf-8" }) as string[];
+      for (const file of files) {
+        const isTest = /\.(test|spec|e2e-spec)\.(ts|js)$/.test(file);
+        if (isTest) continue;
+        if (isTsNode ? file.endsWith(".ts") : file.endsWith(".js")) {
+          const mod = await import(nodePath.join(resolvedDir, file));
+          for (const exported of Object.values(mod)) {
+            if (typeof exported === "function" && isScheduledTask(exported)) {
+              if (!this.schedulerTasks.some((t) => t.name === (exported as any).name)) {
+                this.schedulerTasks.push(exported);
+                this.scheduler.addTaskClasses([exported as any]);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[Avleon] Could not auto-register tasks from " + resolvedDir, e);
+    }
+  }
+
   async run(port: number = 4000, fn?: CallableFunction): Promise<void> {
     if (this.alreadyRun) throw new SystemUseError("App already running");
     this.alreadyRun = true;
@@ -504,6 +647,7 @@ export class AvleonApplication implements IAvleonApplication {
     }
 
     await this.initializeDatabase();
+    await this._initKnexHooks();
 
     if (this.isMapFeatures) {
       this._mapFeatures();
@@ -515,6 +659,15 @@ export class AvleonApplication implements IAvleonApplication {
 
     await this._mapControllers();
     this.router.processFunctionalRoutes();
+
+    // Start scheduler after DB is ready and controllers are mapped,
+    // but before the HTTP server starts accepting traffic.
+    if (this.registerSchedulerAuto) {
+      await this._autoSchedulerTasks();
+    }
+    if (this.schedulerTasks.length > 0) {
+      this.scheduler.start();
+    }
 
     this.app.setErrorHandler((error: any, request, reply) => {
       const isDev = process.env.NODE_ENV === "development";
@@ -601,6 +754,10 @@ export class AvleonApplication implements IAvleonApplication {
         console.warn("[Avleon] WebSocket setup error:", e);
       }
     }
+
+    const gracefulStop = () => { this.scheduler.stopAll(); process.exit(0); };
+    process.once("SIGTERM", gracefulStop);
+    process.once("SIGINT", gracefulStop);
 
     await this.app.listen({ port });
     console.log(`Application running on http://127.0.0.1:${port}`);

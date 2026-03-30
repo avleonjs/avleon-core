@@ -344,7 +344,7 @@ export interface TagObject {
 }
 
 export type ParamSchema = {
-  type?: "string" | "number" | "integer" | "boolean"|"array";
+  type?: "string" | "number" | "integer" | "boolean" | "array" | "object";
   description?: string;
   example?: any;
   required?: boolean;
@@ -357,6 +357,8 @@ export type ParamSchema = {
   minLength?: number;
   maxLength?: number;
   pattern?: string;
+  properties?: Record<string, ParamSchema>;  // for nested object properties
+  additionalProperties?: boolean | ParamSchema;
 };
 
 export type ParamsSchemaMap = Record<string, ParamSchema>;

@@ -105,7 +105,7 @@ export class AvleonRouter {
   private rMap = new Map<string, FuncRoute>();
   private app: FastifyInstance;
   private authorizeMiddleware?: Constructor<any>;
-  private authorizeMiddlewareMap: Map<string, Constructor<any>> = new Map();
+  private authorizeMiddlewareMap = new Map<string, Constructor<any>>();
 
   constructor(app: FastifyInstance) {
     this.app = app;
@@ -119,17 +119,17 @@ export class AvleonRouter {
     for (const [name, cls] of Object.entries(map)) {
       this.authorizeMiddlewareMap.set(name, cls);
     }
-    // Convenience: also set the first entry as the default single handler
-    const first = Object.values(map)[0];
-    if (first && !this.authorizeMiddleware) {
-      this.authorizeMiddleware = first;
+    // First entry also becomes the default for bare @Authorized()
+    if (!this.authorizeMiddleware) {
+      this.authorizeMiddleware = Object.values(map)[0];
     }
   }
 
   /**
    * Resolve the correct authorizer class from @Authorized options.
-   * - { name: "jwt" }  -> looks up authorizeMiddlewareMap.get("jwt")
-   * - { name: undefined } or {}  -> falls back to authorizeMiddleware (default)
+   *   @Authorized("jwt")            -> map.get("jwt")
+   *   @Authorized({ name: "oauth"}) -> map.get("oauth")
+   *   @Authorized()                 -> default authorizeMiddleware
    */
   private _resolveAuthorizer(options?: { name?: string }): Constructor<any> | undefined {
     if (options?.name) {
@@ -169,6 +169,26 @@ export class AvleonRouter {
       currentUser:
         Reflect.getMetadata(REQUEST_USER_META_KEY, prototype, method) || [],
     };
+
+    // Pre-compute args array size once at boot (avoids 8x .map + spread + Math.max per request).
+    let _maxIdx = -1;
+    const _groups = [
+      meta.params, meta.query, meta.body, meta.currentUser,
+      meta.headers, meta.request ?? [], meta.file ?? [], meta.files ?? [],
+    ];
+    for (const group of _groups) {
+      for (const item of group) {
+        if (item.index > _maxIdx) _maxIdx = item.index;
+      }
+    }
+    (meta as any)._argCount = _maxIdx + 1;
+
+    // Pre-compute branch flags so the handler can skip entire loop bodies
+    // in the common case where no files/validation are involved.
+    (meta as any)._needsFiles = (meta.file?.length ?? 0) > 0 || (meta.files?.length ?? 0) > 0;
+    (meta as any)._hasRequiredParams = meta.params.some((p: any) => p.required);
+    (meta as any)._hasValidatorQuery = meta.query.some((q: any) => q.validatorClass || q.required);
+    (meta as any)._hasValidatorBody = meta.body.some((b: any) => b.validatorClass);
 
     this.metaCache.set(cacheKey, meta);
     return meta;
@@ -297,6 +317,17 @@ export class AvleonRouter {
       // ✅ Normalize params/query/headers into valid JSON Schema
       const routeSchema = buildRouteSchema(schema);
 
+      // Resolve DI singletons once at route-registration time, not per request.
+      // _resolveAuthorizer picks the named handler when @Authorized("jwt") is used,
+      // or falls back to the default handler for bare @Authorized().
+      const _clsAuthCls   = authClsMeata.authorize   ? this._resolveAuthorizer(authClsMeata.options)   : null;
+      const _mthdAuthCls  = authClsMethodMeata.authorize ? this._resolveAuthorizer(authClsMethodMeata.options) : null;
+      const _clsAuthInst  = _clsAuthCls  ? Container.get(_clsAuthCls)  as any : null;
+      const _mthdAuthInst = _mthdAuthCls ? Container.get(_mthdAuthCls) as any : null;
+      const _resolvedMw: AvleonMiddleware[] = classMiddlewares.map(
+        (m: any) => Container.get<AvleonMiddleware>(m.constructor),
+      );
+
       this.app.route({
         url: routePath,
         method: methodmetaOptions.method.toUpperCase() as HTTPMethods,
@@ -305,70 +336,71 @@ export class AvleonRouter {
         handler: async (req, res) => {
           let reqClone = req as unknown as IRequest;
 
-          if (authClsMeata.authorize) {
-            const authCls = this._resolveAuthorizer(authClsMeata.options);
-            if (authCls) {
-              const cls = Container.get(authCls) as any;
-              await cls.authorize(reqClone, authClsMeata.options);
+          if (_clsAuthInst) {
+            await _clsAuthInst.authorize(reqClone, authClsMeata.options);
+            if (res.sent) return;
+          }
+
+          if (_mthdAuthInst) {
+            await _mthdAuthInst.authorize(reqClone, authClsMethodMeata.options);
+            if (res.sent) return;
+          }
+
+          if (_resolvedMw.length > 0) {
+            for (const mInst of _resolvedMw) {
+              reqClone = (await mInst.invoke(reqClone, res)) as IRequest;
               if (res.sent) return;
             }
           }
 
-          if (authClsMethodMeata.authorize) {
-            const authCls = this._resolveAuthorizer(authClsMethodMeata.options);
-            if (authCls) {
-              const cls = Container.get(authCls) as any;
-              await cls.authorize(reqClone, authClsMethodMeata.options);
-              if (res.sent) return;
-            }
-          }
+          const _argsResult = this._mapArgs(reqClone, allMeta);
+          const args = (_argsResult !== null && typeof (_argsResult as any).then === "function")
+            ? await (_argsResult as Promise<any[]>)
+            : _argsResult as any[];
 
-          if (classMiddlewares.length > 0) {
-            for (let m of classMiddlewares) {
-              const cls = Container.get<AvleonMiddleware>(m.constructor);
-              reqClone = (await cls.invoke(reqClone, res)) as IRequest;
-              if (res.sent) return;
-            }
-          }
-
-          const args = await this._mapArgs(reqClone, allMeta);
-
-          for (let paramMeta of allMeta.params) {
-            if (paramMeta.required) {
-              validateOrThrow(
-                { [paramMeta.key]: args[paramMeta.index] },
-                { [paramMeta.key]: { type: paramMeta.dataType } },
-                { location: "param" },
-              );
-            }
-          }
-
-          for (let queryMeta of allMeta.query) {
-            if (queryMeta.validatorClass) {
-              const err = await validateObjectByInstance(
-                queryMeta.dataType,
-                args[queryMeta.index],
-              );
-              if (err) {
-                return await res.code(400).send({
-                  code: 400,
-                  error: "ValidationError",
-                  errors: err,
-                  message: err.message,
-                });
+          if ((allMeta as any)._hasRequiredParams) {
+            for (let i = 0; i < allMeta.params.length; i++) {
+              const paramMeta = allMeta.params[i];
+              if (paramMeta.required) {
+                validateOrThrow(
+                  { [paramMeta.key]: args[paramMeta.index] },
+                  { [paramMeta.key]: { type: paramMeta.dataType } },
+                  { location: "param" },
+                );
               }
             }
-            if (queryMeta.required) {
-              validateOrThrow(
-                { [queryMeta.key]: args[queryMeta.index] },
-                { [queryMeta.key]: { type: queryMeta.dataType } },
-                { location: "queryparam" },
-              );
+          }
+
+          if ((allMeta as any)._hasValidatorQuery) {
+            for (let i = 0; i < allMeta.query.length; i++) {
+              const queryMeta = allMeta.query[i];
+              if (queryMeta.validatorClass) {
+                const err = await validateObjectByInstance(
+                  queryMeta.dataType,
+                  args[queryMeta.index],
+                );
+                if (err) {
+                  return await res.code(400).send({
+                    code: 400,
+                    error: "ValidationError",
+                    errors: err,
+                    message: err.message,
+                  });
+                }
+              }
+              if (queryMeta.required) {
+                validateOrThrow(
+                  { [queryMeta.key]: args[queryMeta.index] },
+                  { [queryMeta.key]: { type: queryMeta.dataType } },
+                  { location: "queryparam" },
+                );
+              }
             }
           }
 
-          if (!isMultipart) {
-            for (let bodyMeta of allMeta.body) {
+          if (!isMultipart && (allMeta as any)._hasValidatorBody) {
+            for (let i = 0; i < allMeta.body.length; i++) {
+              const bodyMeta = allMeta.body[i];
               if (bodyMeta.validatorClass) {
                 const err = await validateObjectByInstance(
                   bodyMeta.dataType,
@@ -388,7 +420,7 @@ export class AvleonRouter {
 
           const result = await prototype[method].apply(ctrl, args);
 
-          if (result?.download) {
+          if (result && result.download) {
             const { stream, filename } = result;
             if (!stream || typeof stream.pipe !== "function") {
               return res.code(500).send({
@@ -419,7 +451,7 @@ export class AvleonRouter {
             return res.send(stream);
           }
 
-          if (result instanceof Stream || typeof result?.pipe === "function") {
+          if (result && result.pipe) {
             result.on("error", (err: any) => {
               console.error("Stream error:", err);
               if (!res.sent) {
@@ -440,81 +472,50 @@ export class AvleonRouter {
     }
   }
 
-  private async _mapArgs(req: IRequest, meta: MethodParamMeta): Promise<any[]> {
-    if (!req.hasOwnProperty("_argsCache")) {
-      Object.defineProperty(req, "_argsCache", {
-        value: new Map<string, any[]>(),
-        enumerable: false,
-        writable: false,
-        configurable: false,
-      });
-    }
+  private _mapArgs(req: IRequest, meta: MethodParamMeta): any[] | Promise<any[]> {
+    // _argCount pre-computed at boot in _processMeta; no allocations here.
+    const args: any[] = new Array((meta as any)._argCount);
 
-    const cache: Map<string, any[]> = (req as any)._argsCache;
-    const cacheKey = JSON.stringify(meta);
-
-    if (cache.has(cacheKey)) {
-      return cache.get(cacheKey)!;
-    }
-
-    const maxIndex =
-      Math.max(
-        ...meta.params.map((p) => p.index || 0),
-        ...meta.query.map((q) => q.index),
-        ...meta.body.map((b) => b.index),
-        ...meta.currentUser.map((u) => u.index),
-        ...meta.headers.map((h) => h.index),
-        ...(meta.request?.map((r) => r.index) || []),
-        ...(meta.file?.map((f) => f.index) || []),
-        ...(meta.files?.map((f) => f.index) || []),
-        -1,
-      ) + 1;
-
-    const args: any[] = new Array(maxIndex).fill(undefined);
-
-    meta.params.forEach((p) => {
-      const raw =
-        p.key === "all" ? { ...req.params } : (req.params[p.key] ?? null);
+    for (let i = 0; i < meta.params.length; i++) {
+      const p = meta.params[i];
+      const raw = p.key === "all" ? { ...req.params } : (req.params[p.key] ?? null);
       args[p.index] = autoCast(raw, p.dataType, p.schema);
-    });
-
-    meta.query.forEach((q) => {
-      const raw =
-        q.key === "all"
-          ? normalizeQueryDeep({ ...req.query })
-          : req.query[q.key];
-      args[q.index] = autoCast(raw, q.dataType, q.schema);
-    });
-
-    meta.body.forEach((body) => {
-      args[body.index] = { ...req.body, ...(req as any).formData };
-    });
-
-    meta.currentUser.forEach((user) => {
-      args[user.index] = (req as any).user;
-    });
-
-    meta.headers.forEach((header) => {
-      args[header.index] =
-        header.key === "all" ? { ...req.headers } : req.headers[header.key];
-    });
-
-    if (meta.request && meta.request.length > 0) {
-      meta.request.forEach((r) => {
-        args[r.index] = req;
-      });
     }
 
-    const needsFiles =
-      (meta.file && meta.file.length > 0) ||
-      (meta.files && meta.files.length > 0);
+    for (let i = 0; i < meta.query.length; i++) {
+      const q = meta.query[i];
+      const raw = q.key === "all"
+        ? normalizeQueryDeep({ ...req.query })
+        : req.query[q.key];
+      args[q.index] = autoCast(raw, q.dataType, q.schema);
+    }
+
+    for (let i = 0; i < meta.body.length; i++) {
+      const _fd = (req as any).formData;
+      args[meta.body[i].index] = _fd ? { ...req.body, ..._fd } : req.body;
+    }
+
+    for (let i = 0; i < meta.currentUser.length; i++) {
+      args[meta.currentUser[i].index] = (req as any).user;
+    }
+
+    for (let i = 0; i < meta.headers.length; i++) {
+      const header = meta.headers[i];
+      args[header.index] = header.key === "all" ? { ...req.headers } : req.headers[header.key];
+    }
+
+    for (let i = 0; i < meta.request.length; i++) {
+      args[meta.request[i].index] = req;
+    }
+
+    if (!(meta as any)._needsFiles) return args;
 
     if (
-      needsFiles &&
+      (meta as any)._needsFiles &&
       req.headers["content-type"]?.startsWith("multipart/form-data") &&
       (req as any).saveRequestFiles
     ) {
-      const files = await (req as any).saveRequestFiles();
+      const files = (req as any).saveRequestFiles();
 
       if (!files || files.length === 0) {
         if (meta.files && meta.files.length > 0) {
@@ -573,14 +574,13 @@ export class AvleonRouter {
           });
         }
       }
-    } else if (needsFiles) {
+    } else {
       throw new BadRequestException({
         error:
           "Invalid content type. Expected multipart/form-data for file uploads",
       });
     }
 
-    cache.set(cacheKey, args);
     return args;
   }
 
