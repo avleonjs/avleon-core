@@ -1,6 +1,6 @@
 {
-  "name": "avleon",
-  "version": "0.2.4",
+  "name": "@avleon/core",
+  "version": "0.2.5",
   "description": "TypeScript-first web framework built on Fastify",
   "author": "Tareq Hossain",
   "license": "ISC",
