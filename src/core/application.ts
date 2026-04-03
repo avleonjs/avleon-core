@@ -14,6 +14,7 @@ import {
   AvleonApplicationOptions,
   CorsOptions,
   GlobalOptions,
+  CacheOptions,
 } from "../interfaces/avleon-application";
 import { BaseHttpException } from "../exceptions";
 import { SystemUseError } from "../exceptions/system-exception";
@@ -25,6 +26,8 @@ import { AvleonScheduler } from "../task-scheduler";
 import { isApiController } from "../container";
 import { AutoControllerOptions, IResponse, TestApplication } from "./types";
 import { IConfig } from "../config";
+import { RedisOptions } from "ioredis";
+import { CacheManager } from "../cache";
 
 // ---------------------------------------------------------------------------
 // Lazy loaders for optional peer dependencies
@@ -210,6 +213,15 @@ export class AvleonApplication implements IAvleonApplication {
 
   useCors(options: CorsOptions) {
     this.app.register(requireCors(), options); // ✅ lazy
+    return this;
+  }
+
+  useCache(options?: CacheOptions) {
+    CacheManager.configure(options);
+
+    if (!Container.has(CacheManager)) {
+      Container.set(CacheManager, new CacheManager());
+    }
     return this;
   }
 

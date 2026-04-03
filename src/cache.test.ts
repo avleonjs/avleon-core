@@ -26,17 +26,17 @@ describe("CacheManager (in-memory)", () => {
     });
 
     it("should associate keys with tags and invalidate by tag", async () => {
-        await cache.set("a", 1, ["tag1"]);
-        await cache.set("b", 2, ["tag1", "tag2"]);
-        await cache.set("c", 3, ["tag2"]);
-        await cache.invalidateTag("tag1");
+        await cache.set("a", 1,500, ["tag1"]);
+        await cache.set("b", 2,500, ["tag1", "tag2"]);
+        await cache.set("c", 3, 500, ["tag2"]);
+        await cache.invalidateTags("tag1");
         expect(await cache.get("a")).toBeNull();
         expect(await cache.get("b")).toBeNull();
         expect(await cache.get("c")).toBe(3);
     });
 
     it("should not fail when invalidating a non-existent tag", async () => {
-        await expect(cache.invalidateTag("nope")).resolves.not.toThrow();
+        await expect(cache.invalidateTags("nope")).resolves.not.toThrow();
     });
 
 

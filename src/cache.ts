@@ -1,21 +1,75 @@
 import type { Redis } from "ioredis";
+import IORedis from "ioredis";
 
-type CacheEntry<T = any> = {
-  data: T;
-  timestamp: number;
-};
+import { CacheOptions } from "./interfaces/avleon-application";
+
+type Provider = "memory" | "redis";
 
 export class CacheManager {
-  private store = new Map<string, CacheEntry>();
-  private tagsMap = new Map<string, Set<string>>();
-  private redis: Redis | null = null;
+  private static provider: Provider = "memory";
+  private static redis: Redis | null = null;
 
-  constructor(redisInstance?: Redis) {
-    this.redis = redisInstance || null;
+  private static store = new Map<string, any>();
+  private static tagsMap = new Map<string, Set<string>>();
+
+  static configure(options?: CacheOptions & { redis?: Redis }) {
+    this.provider = options?.provider ?? "memory";
+
+    if (this.provider === "redis") {
+      this.redis =
+        options?.redis ??
+        new IORedis(options?.redisOptions ?? {});
+    }
   }
 
-  private redisTagKey(tag: string) {
-    return `cache-tags:${tag}`;
+  private get redis() {
+    return CacheManager.redis;
+  }
+
+  private get store() {
+    return CacheManager.store;
+  }
+
+  private get tagsMap() {
+    return CacheManager.tagsMap;
+  }
+
+  async invalidateTags(tags: string | string[]): Promise<void> {
+    let ptags: string[] = []
+    if (Array.isArray(tags)) {
+      ptags = tags;
+    } else {
+      ptags = [tags];
+    }
+
+    if (this.redis) {
+      const pipeline = this.redis.pipeline();
+
+      for (const tag of ptags) {
+        const tagKey = `tag:${tag}`;
+        const keys = await this.redis.smembers(tagKey);
+
+        if (keys.length) {
+          pipeline.del(keys);
+        }
+
+        pipeline.del(tagKey);
+      }
+
+      await pipeline.exec();
+      return;
+    }
+
+    for (const tag of ptags) {
+      const keys = this.tagsMap.get(tag);
+      if (!keys) continue;
+
+      for (const key of keys) {
+        this.store.delete(key);
+      }
+
+      this.tagsMap.delete(tag);
+    }
   }
 
   async get<T>(key: string): Promise<T | null> {
@@ -24,66 +78,39 @@ export class CacheManager {
       return val ? JSON.parse(val) : null;
     }
 
-    const cached = this.store.get(key);
-    return cached ? cached.data : null;
+    return this.store.get(key) ?? null;
   }
 
-  async set<T>(
-    key: string,
-    value: T,
-    tags: string[] = [],
-    ttl: number = 3600,
-  ): Promise<void> {
-    const entry: CacheEntry<T> = {
-      data: value,
-      timestamp: Date.now(),
-    };
-
+  async set<T>(key: string, value: T, ttl = 3600, tags: string[] = []) {
     if (this.redis) {
-      await this.redis.set(key, JSON.stringify(entry.data), "EX", ttl);
+      const pipeline = this.redis.pipeline();
+      pipeline.set(key, JSON.stringify(value), "EX", ttl);
+
       for (const tag of tags) {
-        await this.redis.sadd(this.redisTagKey(tag), key);
+        const tagKey = `tag:${tag}`;
+        pipeline.sadd(tagKey, key);
       }
-    } else {
-      this.store.set(key, entry);
-      for (const tag of tags) {
-        if (!this.tagsMap.has(tag)) this.tagsMap.set(tag, new Set());
-        this.tagsMap.get(tag)!.add(key);
+
+      await pipeline.exec();
+      return;
+    }
+
+    this.store.set(key, value);
+
+    for (const tag of tags) {
+      if (!this.tagsMap.has(tag)) {
+        this.tagsMap.set(tag, new Set());
       }
+      this.tagsMap.get(tag)!.add(key);
     }
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(key: string) {
     if (this.redis) {
       await this.redis.del(key);
-      const tagKeys = await this.redis.keys("cache-tags:*");
-      for (const tagKey of tagKeys) {
-        await this.redis.srem(tagKey, key);
-      }
-    } else {
-      this.store.delete(key);
-      for (const keys of this.tagsMap.values()) {
-        keys.delete(key);
-      }
+      return;
     }
-  }
 
-  async invalidateTag(tag: string): Promise<void> {
-    if (this.redis) {
-      const tagKey = this.redisTagKey(tag);
-      const keys = await this.redis.smembers(tagKey);
-      if (keys.length) {
-        await this.redis.del(...keys);
-        await this.redis.del(tagKey);
-      }
-    } else {
-      const keys = this.tagsMap.get(tag);
-      if (keys) {
-        for (const key of keys) {
-          this.store.delete(key);
-        }
-        this.tagsMap.delete(tag);
-      }
-    }
+    this.store.delete(key);
   }
 }

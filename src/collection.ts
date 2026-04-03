@@ -22,7 +22,7 @@ type PaginationOptions = {
 };
 
 type Predicate<T> = (item: T) => boolean;
-interface TypeormEnitity extends ObjectLiteral {}
+interface TypeormEnitity extends ObjectLiteral { }
 type Primitive = string | number | boolean | null;
 
 type ValueOperator<T> = {
@@ -71,6 +71,7 @@ export interface BasicCollection<T> {
     predicate: Predicate<T> | IFindOneOptions<T>,
   ): Promise<T | undefined>;
 }
+
 class BasicCollectionImpl<T> implements BasicCollection<T> {
   private items: T[];
 
@@ -93,6 +94,8 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
     const results = Array.from(this.items);
     return results;
   }
+
+
 
   async findAsync(predicate?: Predicate<T>): Promise<T[]> {
     const results = Array.from(this.items);
@@ -144,6 +147,10 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
     return undefined;
   }
 
+  findOneAt(index: number): T | undefined {
+    return this.items.at(index);
+  }
+
   async findOneAsync(
     predicate: Predicate<T> | IFindOneOptions<T>,
   ): Promise<T | undefined> {
@@ -167,6 +174,9 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
   addAll(items: T[]): void {
     this.items.push(...items);
   }
+
+
+
   update(predicate: (item: T) => boolean, updater: Partial<T>): void {
     const item = this.items.find(predicate);
     if (item) {
@@ -175,6 +185,35 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
     } else {
       throw new NotFoundException("Item not found");
     }
+  }
+
+  updateAt(index: number, updater: Partial<T>): void {
+    const item = this.items.at(index);
+    if (item) {
+      this.items[index] = { ...item, ...updater };
+    } else {
+      throw new NotFoundException("Index out of range.");
+    }
+  }
+
+  updateBy(
+    where: Partial<{ [K in keyof T]: T[K] }>,
+    updater: Partial<T>
+  ): void {
+    const keys = Object.keys(where) as (keyof T)[];
+
+    const index = this.items.findIndex(item =>
+      keys.every(k => item[k] === where[k])
+    );
+
+    if (index === -1) {
+      throw new NotFoundException("Item not found");
+    }
+
+    this.items[index] = {
+      ...this.items[index],
+      ...updater,
+    };
   }
 
   updateAll(predicate: (item: T) => boolean, updater: (item: T) => T): void {
@@ -190,6 +229,30 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
       this.items.splice(index, 1);
     }
   }
+  deleteAt(index: number): void {
+    const item = this.items.at(index);
+    if (item) {
+      this.items.splice(index, 1);
+    } else {
+      throw new NotFoundException("Index out of range.");
+    }
+  }
+  deleteBy(
+    where: Partial<{ [K in keyof T]: T[K] }>,
+  ): void {
+    const keys = Object.keys(where) as (keyof T)[];
+
+    const index = this.items.findIndex(item =>
+      keys.every(k => item[k] === where[k])
+    );
+
+    if (index === -1) {
+      throw new NotFoundException("Item not found");
+    }
+
+    this.items.splice(index, 1);
+  }
+
   deleteAll(predicate: (item: T) => boolean): void {
     this.items = this.items.filter((item) => !predicate(item));
   }
@@ -276,10 +339,12 @@ class AsynchronousCollection<T extends ObjectLiteral> {
   }
 }
 
-export class Collection {
-  private constructor() {}
+export interface Collection<T> extends BasicCollectionImpl<T> { }
 
-  static from<T>(items: T[]): BasicCollection<T> {
+export class Collection<T> {
+
+
+  static from<T>(items: T[]): Collection<T> {
     return BasicCollectionImpl.from(items);
   }
   // Example refactoring of Collection.fromRepository for better type safety
@@ -310,7 +375,7 @@ export function InjectRepository<T extends Repository<T>>(
           const dataSource = containerInstance.get<DataSource>("idatasource");
           repo = dataSource
             .getRepository<T>(model)
-            .extend({ paginate: () => {} });
+            .extend({ paginate: () => { } });
           repo.paginate = async function (
             options: PaginationOptions = { take: 10, skip: 0 },
           ): Promise<PaginationResult<T>> {

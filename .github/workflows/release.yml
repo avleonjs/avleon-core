@@ -41,21 +41,53 @@ jobs:
       - name: Test
         run: npm test
 
-      # 6. Tag the release
-      - name: Create version tag
-        id: tag
+      - name: Get latest tag
+        id: get_latest_tag
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          # Get the latest semver tag, default to v0.0.0 if none exists
+          LATEST_TAG=$(git tag -l "v*" | sort -V | tail -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.0.0"
+          fi
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $LATEST_TAG"
+ 
+      - name: Bump patch version
+        id: bump_version
+        run: |
+          LATEST="${{ steps.get_latest_tag.outputs.latest_tag }}"
+          # Strip the leading 'v'
+          VERSION="${LATEST#v}"
+          # Split into major, minor, patch
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+          # Increment patch
+          NEW_PATCH=$((PATCH + 1))
+          NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "New tag: $NEW_TAG"
+ 
+      - name: Create and push tag
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "Tag v$VERSION already exists, skipping"
-          else
-            git tag -a "v$VERSION" -m "Release v$VERSION"
-            git push origin "v$VERSION"
-            echo "Tagged v$VERSION"
-          fi
+          git tag ${{ steps.bump_version.outputs.new_tag }}
+          git push origin ${{ steps.bump_version.outputs.new_tag }}
+ 
+      - name: Create GitHub Release (mark as latest)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.bump_version.outputs.new_tag }}
+          name: "Release ${{ steps.bump_version.outputs.new_tag }}"
+          body: |
+            ## What's Changed
+            Automated release from push to `main` branch.
+ 
+            **Commit:** ${{ github.sha }}
+            **Pushed by:** ${{ github.actor }}
+          make_latest: true   # Marks this as the "Latest" release on GitHub
+          generate_release_notes: true  # Auto-generates notes from commits/PRs
 
       # 7. Publish to npm
       - name: Publish to npm

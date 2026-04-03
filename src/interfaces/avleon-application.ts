@@ -9,6 +9,7 @@ import { AvleonMiddleware } from "../middleware";
 import { DataSource, DataSourceOptions } from "typeorm";
 import { OpenApiUiOptions } from "../openapi";
 import { FastifyServerOptions, InjectOptions, LightMyRequestResponse } from "fastify";
+import { RedisOptions } from "ioredis";
 
 export type CorsOptions = {
   origin?: boolean | string | RegExp | (string | RegExp)[] | ((origin: string, cb: (err: Error | null, allow?: boolean) => void) => void);
@@ -43,9 +44,15 @@ export type AutoControllerOptions = {
   path?: string;
 };
 
+export type CacheOptions = {
+  provider: 'memory' | 'redis',
+  redisOptions?: RedisOptions
+}
+
 export interface IAvleonApplication {
   // all use
   useCors: (options: CorsOptions) => this;
+  useCache: (options?: CacheOptions)=>this;
   useDatasource: (dataSource: DataSource) => this;
   useMultipart: (options?: any) => this;
   useOpenApi: (options: OpenApiUiOptions) => this;
