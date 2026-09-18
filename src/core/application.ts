@@ -8,7 +8,7 @@ import Fastify, { FastifyInstance, HTTPMethods } from "fastify";
 import path from "path";
 import fs from "fs";
 import { AvleonRouter } from "./router";
-import Container from "typedi";
+import Container, { Constructable } from "typedi";
 import {
   IAvleonApplication,
   AvleonApplicationOptions,
@@ -18,20 +18,30 @@ import {
 } from "../interfaces/avleon-application";
 import { BaseHttpException } from "../exceptions";
 import { SystemUseError } from "../exceptions/system-exception";
-import { Constructor } from "../helpers";
+import { Constructor, inject, loadPackageFromClient } from "../helpers";
 import { generateSwaggerSchema } from "../swagger-schema";
 import { OpenApiUiOptions } from "../openapi";
 import { AvleonMiddleware } from "../middleware";
 import { AvleonScheduler } from "../task-scheduler";
 import { isApiController } from "../container";
 import { AutoControllerOptions, IResponse, TestApplication } from "./types";
-import { IConfig } from "../config";
+
 import { RedisOptions } from "ioredis";
 import { CacheManager } from "../cache";
-
+import { DataSource, DataSourceOptions } from "typeorm";
+import { AvleonConfig, AvleonConfigClass } from "./config";
+import { Environment } from "../environment-variables";
+import knex, { Knex } from "knex";
+import { AVLEON_KNEX_DB } from "../kenx-provider";
+type DataSourceInput =
+  | Constructor<AvleonConfig<DataSourceOptions>>
+  | AvleonConfig<DataSourceOptions>
+  | DataSourceOptions;
 // ---------------------------------------------------------------------------
 // Lazy loaders for optional peer dependencies
 // ---------------------------------------------------------------------------
+
+
 
 function requireTypeorm() {
   try {
@@ -225,6 +235,12 @@ export class AvleonApplication implements IAvleonApplication {
     return this;
   }
 
+
+  /**
+   * @deprecated will be removed in next stable version
+   * @param dataSource 
+   * @see useTypeorm
+   */
   useDatasource(dataSource: any) {
     // ✅ lazy — only resolve DataSource token when actually used
     const { DataSource } = requireTypeorm();
@@ -232,6 +248,83 @@ export class AvleonApplication implements IAvleonApplication {
     Container.set(DataSource, this.dataSource);
     return this;
   }
+
+  private isConfigClass<T>(
+    options: AvleonConfigClass<T> | any
+  ): options is AvleonConfigClass<T> {
+    return (
+      typeof options === "function" &&
+      options.prototype instanceof AvleonConfig
+    );
+  }
+
+
+  // Overloads
+  useKnex(options: Knex.Config): Promise<this>;
+  useKnex(options: AvleonConfigClass<Knex.Config>): Promise<this>;
+  async useKnex(options: Knex.Config | AvleonConfigClass<Knex.Config>): Promise<this> {
+
+    const k = loadPackageFromClient<typeof import("knex")>("knex");
+    let knexOptions: Knex.Config;
+
+    if (options instanceof Function && options.prototype instanceof AvleonConfig) {
+      // It's a config class — resolve from DI and call .config()
+      const instance = Container.get<AvleonConfig<Knex.Config>>(options as any);
+      const env = Container.get(Environment);
+      knexOptions = instance.config(env);
+    } else {
+      knexOptions = options as Knex.Config;
+    }
+
+    if (knexOptions?.client) {
+      loadPackageFromClient(knexOptions.client as string);
+    }
+
+    const dataSource = k(knexOptions);
+    Container.set(AVLEON_KNEX_DB, dataSource);
+    await this._initKnex(dataSource);
+    return this;
+  }
+
+  private async _initKnex(knex: Knex) {
+    await knex.raw("SELECT 1");
+  }
+
+
+  useTypeORM(dbOptions: DataSourceOptions): Promise<this>;
+  useTypeORM(dbOptions: AvleonConfigClass<any>): Promise<this>;
+  async useTypeORM(
+    dbOptions: DataSourceOptions | AvleonConfigClass<DataSourceOptions>
+  ): Promise<this> {
+    const t = loadPackageFromClient<typeof import("typeorm")>("typeorm");
+    let options: DataSourceOptions;
+
+    if (dbOptions instanceof Function && dbOptions.prototype instanceof AvleonConfig) {
+      const instance = Container.get<AvleonConfig<DataSourceOptions>>(dbOptions);
+      const env = Container.get(Environment); 
+      options = instance.config(env);
+    } else {
+      options = dbOptions as DataSourceOptions; 
+    }
+
+    const dataSource = new t.DataSource(options);
+    Container.set(t.DataSource, dataSource);
+    await this._initTypeorm(dataSource);
+    return this;
+  }
+
+  private async _initTypeorm(dataSource: DataSource) {
+    try {
+      await dataSource.initialize();
+      this.dataSource = dataSource;
+      console.log("✅ Database connected");
+      return dataSource;
+    } catch (error) {
+      console.error("❌ Database connection failed:", error);
+      throw error;
+    }
+  }
+
 
   useMultipart(options?: any) {
     this.app.register(requireMultipart(), {
@@ -245,7 +338,7 @@ export class AvleonApplication implements IAvleonApplication {
     return this;
   }
 
-  useOpenApi(options: OpenApiUiOptions | Constructor<IConfig<OpenApiUiOptions>>) {
+  useOpenApi(options?: OpenApiUiOptions | Constructor<AvleonConfig<OpenApiUiOptions>>) {
     this.hasSwagger = true;
     if (
       typeof options === "function" &&
@@ -331,6 +424,11 @@ export class AvleonApplication implements IAvleonApplication {
       });
     });
     return this;
+  }
+
+
+  useAuthentication() {
+    throw new Error("Method need to implemented.");
   }
 
   /**
@@ -424,59 +522,15 @@ export class AvleonApplication implements IAvleonApplication {
     return this;
   }
 
-  /**
-   * Configure Knex. Three call forms are supported:
-   *
-   * 1. Raw knex config object (original behaviour):
-   *    app.useKnex({ client: "pg", connection: "..." })
-   *
-   * 2. IConfig class:
-   *    app.useKnex(DatabaseConfig)
-   *
-   * 3. IConfig class + async hooks factory:
-   *    app.useKnex(DatabaseConfig, async () => ({
-   *      onInit(db) { console.log("connected"); },
-   *      onError(err) { console.error(err); },
-   *    }))
-   */
-  useKnex(config: any, hooksFactory?: KnexHooksFactory) {
-    try {
-      const { DB } = require("../kenx-provider");
-      const db = Container.get(DB) as any;
+  useWorker(){
 
-      // Resolve config: IConfig class, plain object, or { config: ... } wrapper
-      let resolvedConfig: any;
-      if (
-        typeof config === "function" &&
-        config.prototype != null &&
-        typeof config.prototype.config === "function"
-      ) {
-        const { GetConfig } = require("../config");
-        resolvedConfig = GetConfig(config);
-      } else {
-        resolvedConfig = config.config ?? config;
-      }
+    const bullMq = loadPackageFromClient<typeof import("bullmq")>("bullmq");
+    
 
-      db.init(resolvedConfig);
+    Container.get("");
 
-      if (hooksFactory) {
-        this._knexHooksFactory = hooksFactory;
-      }
-    } catch (e: any) {
-      // Only intercept MODULE_NOT_FOUND (knex or driver not installed).
-      // All other errors (bad config, missing @AppConfig, wrong credentials)
-      // must surface as-is so the real message is visible to the developer.
-      if (e.code === "MODULE_NOT_FOUND") {
-        throw new Error(
-          "[Avleon] knex or a database driver is not installed.\n" +
-          "Run: npm install knex pg  (or mysql2, mssql, sqlite3, etc.)\n" +
-          `Original: ${e.message}`,
-        );
-      }
-      throw e;
-    }
-    return this;
   }
+
 
   mapFeatures() {
     this.isMapFeatures = true;
@@ -729,9 +783,9 @@ export class AvleonApplication implements IAvleonApplication {
         );
       }
       if (isDev) {
-        console.error(`   Params:`, JSON.stringify(request.params));
-        console.error(`   Query: `, JSON.stringify(request.query));
-        console.error(`   Body:  `, JSON.stringify(request.body));
+        console.error("   Params:", JSON.stringify(request.params));
+        console.error("   Query: ", JSON.stringify(request.query));
+        console.error("   Body:  ", JSON.stringify(request.body));
       }
       console.error("");
 

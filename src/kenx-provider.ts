@@ -1,31 +1,27 @@
-import { Service } from "typedi";
-import type { Knex } from "knex";
+import { Service, Token } from "typedi";
+import knex, { Knex } from "knex";
 import { Container } from "typedi";
 
 
+export const AVLEON_KNEX_DB =new Token<Knex>("AVLEON_KNEX_DB")
+
+
 @Service()
-export class DB {
+export class KnexDB {
   private connection: Knex;
 
-  constructor() {
-    const existing = Container.has("KnexConnection")
-      ? Container.get<Knex>("KnexConnection")
+  private constructor() {
+    const existing = Container.has(AVLEON_KNEX_DB)
+      ? Container.get<Knex>(AVLEON_KNEX_DB)
       : null;
 
     if (existing) {
       this.connection = existing;
+    }else{
+      throw new Error("Knex is not initialized. Call useKnex first.");
     }
   }
 
-  // Initialize manually (call this in main if you want)
-  public init(config: Knex.Config) {
-    if (!this.connection) {
-      const knex = require("knex");
-      this.connection = knex(config);
-      Container.set("KnexConnection", this.connection);
-    }
-    return this.connection;
-  }
 
   public get client(): Knex {
     if (!this.connection) {

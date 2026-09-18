@@ -84,7 +84,7 @@ export class EventDispatcher {
 
 
 
-export function Dispatch(
+export function DispatchNow(
   event: string,
   options?: Omit<DispatchOptions, "transports"> & {
     transports?: DispatchOptions["transports"];

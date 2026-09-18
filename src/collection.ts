@@ -15,16 +15,12 @@ import {
 } from "typeorm";
 
 type ObjKey<T> = keyof T;
-type ObjKeys<T> = ObjKey<T>[];
 type PaginationOptions = {
   take: number;
   skip?: number;
 };
 
 type Predicate<T> = (item: T) => boolean;
-interface TypeormEnitity extends ObjectLiteral { }
-type Primitive = string | number | boolean | null;
-
 type ValueOperator<T> = {
   $in?: T[];
 };
@@ -54,13 +50,50 @@ export type PaginationResult<T> = {
   first?: number | null;
   last?: number | null;
   totalPage?: number;
-};
+}
 
-type ICollection<T> = {
-  findAll(): T[] | Promise<T[]>;
-};
+export type ListResult<T> = T | T[] | Promise<T> | Promise<T[]> | undefined;
 
-type EntityCollection<T extends ObjectLiteral> = {};
+export interface IList<T>{
+  // insert /update/ delete
+  Find(predicate?: Predicate<T>): ListResult<T>;
+  FindOne(predicate?: Predicate<T>):ListResult<T>;
+
+  // access
+
+  // deep 
+
+  // clear
+}
+
+export class List<T> implements IList<T> {
+  private locked = false;
+  private _items:T[] = [];
+
+
+
+  Count(){
+    return this._items.length;
+  }
+
+
+  Find(predicate?: Predicate<T> | undefined): ListResult<T> {
+      const result = predicate ? this._items.filter(predicate) : this._items;
+      return Promise.resolve(result);
+  }
+
+
+  FindOne(predicate?: Predicate<T> | undefined): ListResult<T> {
+    
+    throw new Error("Method not implemented.");
+  }
+  
+}
+
+
+
+
+
 
 export interface BasicCollection<T> {
   clear(): void;
@@ -85,6 +118,14 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
 
   clear() {
     this.items = [];
+  }
+
+
+  firstItem(): T | undefined {
+    return this.items.length > 0 ? this.items[0] : undefined;
+  }
+  lastItem(): T | undefined {
+    return this.items.length > 0 ? this.items[this.items.length - 1] : undefined;
   }
 
   find(predicate?: Predicate<T>) {
@@ -356,6 +397,8 @@ export class Collection<T> {
     return asyncCollection.getRepository();
   }
 }
+
+
 
 export function InjectRepository<T extends Repository<T>>(
   model: EntityTarget<T>,

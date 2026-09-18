@@ -6,7 +6,7 @@ import "reflect-metadata";
 
 const PRIVATE_META_KEY = "avleon:private";
 
-export function Private(channelResolver?: (socket: any) => string) {
+export function PrivateChannel(channelResolver?: (socket: any) => string) {
   return function (target: any, propertyKey: string) {
     Reflect.defineMetadata(PRIVATE_META_KEY, true, target, propertyKey);
     Reflect.defineMetadata(

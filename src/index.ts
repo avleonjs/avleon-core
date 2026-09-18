@@ -9,6 +9,7 @@ import "reflect-metadata";
 export * from "./decorators";
 export * from "./interfaces/avleon-application";
 export * from "./core/application";
+export * from "./core/config";
 export * from "./core/testing";
 export * from "./core/types";
 export * from "./core/mock-db";
@@ -23,14 +24,16 @@ export * from "./kenx-provider";
 export * from "./collection";
 export * from "./event-dispatcher";
 export * from "./event-subscriber";
-export * from "./queue";
 export * from "./file-storage";
-export * from "./config";
+
 export * from "./logger";
 export * from "./cache";
+export * from './queue';
 export * from "./results";
 export * from "./environment-variables";
 export * from "./task-scheduler/schedule-decorator";
+
+export * from "./data/typeorm-provider";
 
 export const GetSchema = sw.generateSwaggerSchema;
 export const GetObjectSchema = sw.CreateSwaggerObjectSchema;

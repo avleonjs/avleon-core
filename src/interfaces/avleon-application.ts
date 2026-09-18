@@ -64,7 +64,7 @@ export interface IAvleonApplication {
   useHttps: (options?: any) => this;
   useGlobal: (options: GlobalOptions) => this;
   useSocketIo: (options?: any) => this;
-  useKnex: (options: any) => this;
+
   mapFeatures: () => this;
 
   // all map

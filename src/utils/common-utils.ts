@@ -11,6 +11,22 @@ export const uuid = crypto.randomUUID();
 
 export type Constructor<T = any> = new (...args: any[]) => T;
 
+export type PackageLoader = {
+    <T = any>(name: string): T;
+};
+
+export const loadPackageFromClient: PackageLoader = (name: string) => {
+    try {
+        // Resolve from the consumer's cwd, not from bmq's node_modules
+        const path = require("path");
+        const resolved = require.resolve(name, { paths: [process.cwd()] });
+        return require(resolved);
+    } catch {
+        throw new Error(
+            `${name} is required but not installed. Please install it: npm i ${name} or pnpm add ${name}`
+        );
+    }
+};
 export function isConstructor(func: any): boolean {
     if (typeof func !== "function") {
         return false;

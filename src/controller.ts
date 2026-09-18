@@ -13,7 +13,7 @@ import container, {
 } from "./container";
 
 
-export const REQUEST_METADATA_KEY = Symbol('avleon:request');
+export const REQUEST_METADATA_KEY = Symbol("avleon:request");
 
 export function AvleonRequest(): ParameterDecorator {
   return (target, propertyKey:any, parameterIndex) => {
@@ -22,7 +22,7 @@ export function AvleonRequest(): ParameterDecorator {
 
     existingParams.push({
       index: parameterIndex,
-      type: 'request',
+      type: "request",
     });
 
     Reflect.defineMetadata(

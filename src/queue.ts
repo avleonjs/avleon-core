@@ -1,88 +1,160 @@
+// avleon.ts
 import Bull, { Queue as BullQueue, Job, JobOptions } from 'bull';
 import { Container, Service } from 'typedi';
-export interface QueueConfig {
+import { Token } from 'typedi';
+
+
+const JOBS_META = Symbol("avleon:jobs");
+type JobHandler<T> = (job: Job<T>) => Promise<any>;
+type JobMeta = {
   name: string;
-  adapter?: any;
-  handler?: (job: Job) => Promise<any>;
-  options?: Bull.QueueOptions;
-}
+  method: keyof any;
+};
 
-
-export class AvleonQueue<T = any> {
-  protected queue: BullQueue<T>;
-  protected handlerFn?: (job: Job<T>) => Promise<any>;
-
-  constructor(
-    protected name?: string,
-    protected adapter?: any,
-    handler?: (job: Job<T>) => Promise<any>
+export function JobHandler(name: string) {
+  return function (
+    target: any,
+    key: string,
+    descriptor: PropertyDescriptor
   ) {
-    // Initialize queue with adapter or default Redis connection
-    this.queue = new Bull(name || 'default', adapter);
-    this.handlerFn = handler;
-
-    // Check if the instance has a handler method defined
-    // This allows subclasses to define handler as a method
-    if (typeof (this as any).handler === 'function' && !this.handlerFn) {
-      this.handlerFn = (job: Job<T>) => (this as any).handler(job);
+    if (!target[JOBS_META]) {
+      target[JOBS_META] = [] as JobMeta[];
     }
 
-    // If handler is provided (from decorator or class method), set up processing
-    if (this.handlerFn) {
-      this.queue.process(this.handlerFn);
+    target[JOBS_META].push({
+      name,
+      method: key
+    });
+  };
+}
+export interface QueueConfig {
+  name: string;
+  adapter?: Bull.QueueOptions;
+  handler?: (job: Job) => Promise<any>;
+}
+
+// ─── Base Class ──────────────────────────────────────────────────────────────
+
+export abstract class AvleonQueue<T = any> {
+  protected queue: BullQueue<T>;
+  private _processorRegistered = false;
+
+  constructor(name: string, adapter?: Bull.QueueOptions) {
+    this.queue = new Bull<T>(name, adapter ?? {});
+    // Defer handler binding so subclass is fully initialized
+    setImmediate(() => {
+      this._bindHandler();
+      this._bindDecoratedJobs();
+    });
+  }
+
+  private _bindDecoratedJobs() {
+    const proto = Object.getPrototypeOf(this);
+    const jobs = proto[JOBS_META] as JobMeta[] ?? [];
+
+    for (const j of jobs) {
+      const fn = (this as unknown as Record<string, JobHandler<any>>)[
+        j.method as string
+      ].bind(this);
+
+      this.queue.process(j.name, fn);
+    }
+  }
+  // ── Subclasses override this ─────────────────────────────────────────────
+
+  handler?(job: Job<T>): Promise<any>;
+
+  // ── Internal wiring ──────────────────────────────────────────────────────
+
+  private _bindHandler(externalHandler?: (job: Job<T>) => Promise<any>) {
+    if (this._processorRegistered) return;
+
+    const fn = externalHandler
+      ?? (typeof this.handler === 'function' ? this.handler.bind(this) : null);
+
+    if (fn) {
+      this.queue.process(fn);
+      this._processorRegistered = true;
     }
   }
 
-  // Optional handler method that subclasses can override
-  handler?(job: Job<T>): Promise<any> | any;
+  // ── Public API ───────────────────────────────────────────────────────────
 
-  // Add job to queue
-  add(data: T, options?: JobOptions): Promise<Bull.Job<T>> {
+  add(data: T, options?: JobOptions): Promise<Job<T>> {
     return this.queue.add(data, options);
   }
 
-  // Add job with delay
-  delay(data: T, delayMs: number, options?: JobOptions): Promise<Bull.Job<T>> {
+  delay(data: T, delayMs: number, options?: JobOptions): Promise<Job<T>> {
     return this.queue.add(data, { ...options, delay: delayMs });
   }
 
-  // Process jobs (can be called manually if not using handler)
-  process(handler: (job: Job<T>) => Promise<any>): void {
-    this.handlerFn = handler;
-    this.queue.process(handler);
+  /**
+   * Manually register a processor. Throws if one is already registered.
+   */
+  // process(handler: (job: Job<T>) => Promise<any>, concurrency = 1): void {
+  //   if (this._processorRegistered) {
+  //     throw new Error(`[AvleonQueue] A processor is already registered on "${this.queue.name}"`);
+  //   }
+  //   this._bindHandler(handler);
+  // }
+
+  process(
+    name: string,
+    handler: (job: Job<T>) => Promise<any>,
+    concurrency?: number
+  ): void;
+
+  process(
+    name: string,
+    data: T,
+    delayMs?: number,
+    options?: JobOptions
+  ): Promise<Job<T>>;
+
+  process(
+    arg1: any,
+    arg2: any,
+    arg3?: any,
+    arg4?: any
+  ): any {
+
+    // register named handler
+    if (typeof arg2 === "function") {
+      const name = arg1;
+      const handler = arg2;
+      const concurrency = arg3 ?? 1;
+
+      console.log(`[AvleonQueue] start processing [${name}]`);
+
+      this.queue.process(name, concurrency, handler.bind(this));
+      return;
+    }
+
+    // dispatch named job
+    const name = arg1;
+    const data = arg2;
+    const delayMs = arg3 ?? 0;
+    const options = arg4;
+    console.log(`\x1b[93;1;4m[AvleonQueue]\x1b[0m  start processing "${this.queue.name.toUpperCase()}":"${name}"`);
+    if (delayMs > 0) {
+      return this.queue.add(name, data, { ...options, delay: delayMs });
+    }
+
+    return this.queue.add(name, data, options);
   }
 
-  // Process with concurrency
-  processConcurrent(concurrency: number, handler: (job: Job<T>) => Promise<any>): void {
-    this.handlerFn = handler;
-    this.queue.process(concurrency, handler);
-  }
-
-  // Get the underlying Bull queue
   getQueue(): BullQueue<T> {
     return this.queue;
   }
 
-
-  async clean(grace: number, status?: 'completed' | 'wait' | 'active' | 'delayed' | 'failed'): Promise<Job[]> {
-    return this.queue.clean(grace, status);
+  on(event: string, listener: (...args: any[]) => void): this {
+    this.queue.on(event as any, listener);
+    return this;
   }
 
-
-  async close(): Promise<void> {
-    await this.queue.close();
-  }
-
-
-  async pause(): Promise<void> {
-    await this.queue.pause();
-  }
-
- 
-  async resume(): Promise<void> {
-    await this.queue.resume();
-  }
-
+  async pause(): Promise<void> { await this.queue.pause(); }
+  async resume(): Promise<void> { await this.queue.resume(); }
+  async close(): Promise<void> { await this.queue.close(); }
 
   async getJob(jobId: string): Promise<Job<T> | null> {
     return this.queue.getJob(jobId);
@@ -95,26 +167,47 @@ export class AvleonQueue<T = any> {
   ): Promise<Job<T>[]> {
     return this.queue.getJobs(types, start, end);
   }
+
+  async clean(
+    grace: number,
+    status?: 'completed' | 'wait' | 'active' | 'delayed' | 'failed'
+  ): Promise<Job[]> {
+    return this.queue.clean(grace, status);
+  }
+
+  dispatch<K extends string>(name: K, data: T, delay?: number) {
+    return this.process(name, data, delay);
+  }
 }
 
+// ─── Decorator ───────────────────────────────────────────────────────────────
 
 export function Queue(config: QueueConfig) {
-  return function <T extends { new (...args: any[]): AvleonQueue }>(target: T) {
-    // Create a new class that extends the target
-    const DecoratedClass = class extends target {
-      constructor(...args: any[]) {
-        super(config.name, config.adapter, config.handler);
+  return function <T extends new (...args: any[]) => AvleonQueue>(Base: T): T {
+
+    // Apply @Service BEFORE we create the wrapper, so typedi sees the
+    // correct class and can manage its lifecycle.
+    @Service()
+    class QueueClass extends Base {
+      constructor(..._args: any[]) {
+        // Always use decorator config — ignore any args passed directly
+        super(config.name, config.adapter);
+
+        // If the decorator itself carries a handler, wire it up
+        // only if the subclass didn't define its own handler() method
+        if (config.handler && typeof (this as any).handler !== 'function') {
+          // Access private via cast — acceptable within the library itself
+          (this as any)._bindHandler(config.handler);
+        }
       }
-    };
+    }
 
-
-    Object.defineProperty(DecoratedClass, 'name', {
-      value: target.name,
-      writable: false
+    // Preserve the original class name for debugging and typedi token lookup
+    Object.defineProperty(QueueClass, 'name', {
+      value: Base.name,
+      writable: false,
     });
 
-    Service()(DecoratedClass);
-
-    return DecoratedClass as T;
+    return QueueClass as unknown as T;
   };
 }
