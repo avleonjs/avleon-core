@@ -31,6 +31,9 @@ export * from "./events";
 
 // ─── Queue ───────────────────────────────────────────────────────────────────
 export * from "./queue";
+// `export *` does not forward type-only re-exports, so surface the BullMQ job
+// types explicitly for consumers writing handler signatures.
+export type { Job, JobsOptions } from "./queue/queue";
 
 // ─── Scheduler ───────────────────────────────────────────────────────────────
 export * from "./scheduler/schedule-decorator";

@@ -22,12 +22,17 @@ Avleon is a TypeScript-first web framework built on top of [Fastify](https://fas
   - [Parameter Decorators](#parameter-decorators)
   - [Error Handling](#error-handling)
   - [Middleware](#middleware)
+  - [Authentication](#authentication)
   - [Authorization](#authorization)
   - [Validation](#validation)
+  - [Configuration](#configuration)
   - [OpenAPI Documentation](#openapi-documentation)
 - [Advanced Features](#advanced-features)
   - [Database — Knex](#database--knex)
   - [Database — TypeORM](#database--typeorm)
+  - [Queues & Workers](#queues--workers)
+  - [Task Scheduling](#task-scheduling)
+  - [Caching](#caching)
   - [File Uploads](#file-uploads)
   - [Static Files](#static-files)
   - [WebSocket (Socket.IO)](#websocket-socketio)
@@ -43,9 +48,14 @@ Avleon is a TypeScript-first web framework built on top of [Fastify](https://fas
 - 💉 **Dependency injection** — powered by [TypeDI](https://github.com/typestack/typedi)
 - 📄 **OpenAPI / Swagger** — automatic docs with Swagger UI or [Scalar](https://scalar.com)
 - ✅ **Validation** — request validation via [class-validator](https://github.com/typestack/class-validator)
+- 🔑 **Authentication** — pluggable handler that populates `request.user`
 - 🔒 **Authorization** — flexible middleware-based auth system
 - 📁 **File uploads** — multipart form support out of the box
 - 🗄️ **Database** — TypeORM and Knex integrations
+- ⚙️ **Config** — typed, environment-aware config classes
+- 📬 **Queues & workers** — background jobs on [BullMQ](https://docs.bullmq.io)
+- ⏰ **Task scheduling** — cron, interval and timeout jobs
+- 🗃️ **Caching** — in-memory or Redis, with tag-based invalidation
 - 🔌 **WebSocket** — Socket.IO integration
 - 🧪 **Testing** — built-in test utilities
 
@@ -68,6 +78,20 @@ Or install manually:
 ```bash
 npm install @avleon/core reflect-metadata class-validator class-transformer
 ```
+
+### Optional dependencies
+
+Avleon keeps integrations out of the core install. Add only what you use — the
+package imports fine without any of them, and you get a clear error the moment a
+feature needs one:
+
+| Feature | Install |
+| --- | --- |
+| TypeORM | `npm i typeorm` + a driver (`pg`, `mysql2`, `sqlite3`, …) |
+| Knex | `npm i knex` + a driver |
+| Queues & workers | `npm i bullmq ioredis` |
+| Redis cache | `npm i ioredis` |
+| WebSocket | `npm i socket.io fastify-socket.io` |
 
 ---
 
@@ -209,10 +233,10 @@ Available exceptions: `NotFound`, `BadRequest`, `Unauthorized`, `Forbidden`, `In
 ### Middleware
 
 ```typescript
-import { Middleware, AppMiddleware, IRequest, UseMiddleware } from '@avleon/core';
+import { AppMiddleware, AvleonMiddleware, IRequest, UseMiddleware } from '@avleon/core';
 
-@Middleware
-class LoggingMiddleware extends AppMiddleware {
+@AppMiddleware
+class LoggingMiddleware extends AvleonMiddleware {
   async invoke(req: IRequest) {
     console.log(`${req.method} ${req.url}`);
     return req;
@@ -232,6 +256,49 @@ class UserController {
   getAll() { ... }
 }
 ```
+
+---
+
+### Authentication
+
+Authentication establishes *who* the caller is. Register one handler and
+whatever it returns becomes `request.user` — the value `@AuthUser()` injects.
+
+**1 — Define your authentication class:**
+
+```typescript
+import { AvleonAuthentication, AppService, IRequest } from '@avleon/core';
+
+@AppService
+export class JwtAuthentication extends AvleonAuthentication<User> {
+  async authenticate(request: IRequest) {
+    const header = request.headers.authorization;
+    if (!header?.startsWith('Bearer ')) return null;
+    return verifyToken(header.slice(7)); // becomes request.user
+  }
+}
+```
+
+**2 — Register with the app:**
+
+```typescript
+app.useAuthentication(JwtAuthentication);
+```
+
+**3 — Read the user in any controller:**
+
+```typescript
+@ApiController('/me')
+class MeController {
+  @Get()
+  whoami(@AuthUser() user: User) {
+    return user;
+  }
+}
+```
+
+Returning `null` leaves `request.user` unset — authentication only identifies
+the caller. Rejecting anonymous requests is the job of authorization.
 
 ---
 
@@ -315,6 +382,34 @@ async createUser(@Body() body: CreateUserDto) {
 
 ---
 
+### Configuration
+
+Config classes turn environment variables into typed, injectable settings.
+Extend `AvleonConfig` and register with `@AppConfig`:
+
+```typescript
+import { AppConfig, AvleonConfig, Environment, GetConfig } from '@avleon/core';
+
+type MailSettings = { host: string; port: number };
+
+@AppConfig
+export class MailConfig extends AvleonConfig<MailSettings> {
+  config(env: Environment): MailSettings {
+    return {
+      host: env.get('MAIL_HOST') || 'localhost',
+      port: Number(env.get('MAIL_PORT')) || 1025,
+    };
+  }
+}
+
+const mail = GetConfig(MailConfig); // MailSettings
+```
+
+A config class must `extend AvleonConfig` — that is how Avleon recognizes it
+when you pass one to `useKnex`, `useTypeORM` or `useOpenApi`.
+
+---
+
 ### OpenAPI Documentation
 
 **Inline config:**
@@ -342,10 +437,10 @@ app.useOpenApi({
 **Config class:**
 
 ```typescript
-import { AppConfig, IConfig, Environment } from '@avleon/core';
+import { AppConfig, AvleonConfig, Environment } from '@avleon/core';
 
 @AppConfig
-export class OpenApiConfig implements IConfig {
+export class OpenApiConfig extends AvleonConfig {
   config(env: Environment) {
     return {
       info: { title: 'My API', version: '1.0.0' },
@@ -403,8 +498,10 @@ getAll(@Query() query: UserQuery) { ... }
 
 ### Database — Knex
 
+`useKnex` connects eagerly and verifies the connection, so it returns a promise:
+
 ```typescript
-app.useKnex({
+await app.useKnex({
   client: 'mysql',
   connection: {
     host: '127.0.0.1',
@@ -419,33 +516,36 @@ app.useKnex({
 Using a config class:
 
 ```typescript
+import { AppConfig, AvleonConfig, Environment } from '@avleon/core';
+import type { Knex } from 'knex';
+
 @AppConfig
-export class KnexConfig implements IConfig {
-  config(env: Environment) {
+export class KnexConfig extends AvleonConfig<Knex.Config> {
+  config(env: Environment): Knex.Config {
     return {
       client: 'mysql',
       connection: {
-        host:     env.get('DB_HOST')     || '127.0.0.1',
-        port:     env.get('DB_PORT')     || 3306,
-        user:     env.get('DB_USER')     || 'root',
-        password: env.get('DB_PASS')     || 'password',
-        database: env.get('DB_NAME')     || 'myapp',
+        host:     env.get('DB_HOST') || '127.0.0.1',
+        port:     Number(env.get('DB_PORT')) || 3306,
+        user:     env.get('DB_USER') || 'root',
+        password: env.get('DB_PASS') || 'password',
+        database: env.get('DB_NAME') || 'myapp',
       },
     };
   }
 }
 
-app.useKnex(KnexConfig);
+await app.useKnex(KnexConfig);
 ```
 
 Using in a service:
 
 ```typescript
-import { DB, AppService } from '@avleon/core';
+import { KnexDB, AppService } from '@avleon/core';
 
 @AppService
 export class UsersService {
-  constructor(private readonly db: DB) {}
+  constructor(private readonly db: KnexDB) {}
 
   async findAll() {
     return this.db.client.select('*').from('users');
@@ -457,8 +557,10 @@ export class UsersService {
 
 ### Database — TypeORM
 
+`useTypeORM` initializes the DataSource, so it returns a promise:
+
 ```typescript
-app.useDataSource({
+await app.useTypeORM({
   type: 'postgres',
   host: 'localhost',
   port: 5432,
@@ -473,9 +575,12 @@ app.useDataSource({
 Using a config class:
 
 ```typescript
+import { AppConfig, AvleonConfig, Environment } from '@avleon/core';
+import type { DataSourceOptions } from 'typeorm';
+
 @AppConfig
-export class DataSourceConfig implements IConfig {
-  config(env: Environment) {
+export class DataSourceConfig extends AvleonConfig<DataSourceOptions> {
+  config(env: Environment): DataSourceOptions {
     return {
       type:      'postgres',
       host:      env.get('DB_HOST') || 'localhost',
@@ -489,8 +594,11 @@ export class DataSourceConfig implements IConfig {
   }
 }
 
-app.useDataSource(DataSourceConfig);
+await app.useTypeORM(DataSourceConfig);
 ```
+
+> `useDatasource()` is deprecated and will be removed in the next stable
+> version. Use `useTypeORM()` instead.
 
 Using in a service:
 
@@ -508,6 +616,159 @@ export class UserService {
 
   async findAll() {
     return this.userRepo.find();
+  }
+}
+```
+
+---
+
+### Queues & Workers
+
+Background jobs run on [BullMQ](https://docs.bullmq.io). Install it alongside a
+Redis client:
+
+```bash
+npm i bullmq ioredis
+```
+
+A queue both produces and consumes jobs. Name each job with `@JobHandler`:
+
+```typescript
+import { AvleonQueue, Queue, JobHandler, Job } from '@avleon/core';
+
+type EmailPayload = { userId: number; email: string };
+
+@Queue({
+  name: 'email',
+  adapter: { connection: { host: '127.0.0.1', port: 6379 } },
+  worker: { concurrency: 5 },
+})
+export class EmailQueue extends AvleonQueue<EmailPayload> {
+  @JobHandler('welcome')
+  async sendWelcome(job: Job<EmailPayload>) {
+    await mailer.send(job.data.email, 'Welcome!');
+  }
+
+  @JobHandler('reminder')
+  async sendReminder(job: Job<EmailPayload>) {
+    await mailer.send(job.data.email, 'Don't forget…');
+  }
+}
+```
+
+Dispatch jobs from anywhere the queue is injected:
+
+```typescript
+@AppService
+export class UsersService {
+  constructor(private readonly emails: EmailQueue) {}
+
+  async register(user: User) {
+    await this.emails.dispatch('welcome', { userId: user.id, email: user.email });
+    await this.emails.dispatch('reminder', { userId: user.id, email: user.email }, 86_400_000);
+  }
+}
+```
+
+Handlers declared on a base class are inherited, and a subclass may override one
+by reusing its job name.
+
+**Standalone workers.** When the consumer runs in its own process, use
+`AvleonWorkerBase`:
+
+```typescript
+import { AvleonWorker, AvleonWorkerBase, Job } from '@avleon/core';
+
+@AvleonWorker({ queue: 'email', concurrency: 5 })
+export class EmailWorker extends AvleonWorkerBase<EmailPayload> {
+  async process(job: Job<EmailPayload>) {
+    await mailer.send(job.data.email, 'Welcome!');
+  }
+
+  onFailed(job: Job<EmailPayload> | undefined, error: Error) {
+    logger.error(`Job ${job?.id} failed`, error);
+  }
+}
+```
+
+Register workers so they start with the app and close on shutdown:
+
+```typescript
+app.useWorker([EmailQueue, EmailWorker]);
+```
+
+---
+
+### Task Scheduling
+
+Mark a class with `@ScheduledTask()`, then schedule its methods:
+
+```typescript
+import { ScheduledTask, Cron, Interval, Timeout } from '@avleon/core';
+
+@ScheduledTask()
+export class ReportTask {
+  constructor(private readonly reports: ReportService) {}
+
+  @Cron('0 8 * * 1-5', { timezone: 'Asia/Dhaka' })
+  async sendDailyReport() {
+    await this.reports.send();
+  }
+
+  @Interval(60_000)          // every minute
+  async pollQueue() { ... }
+
+  @Timeout(5_000)            // once, 5s after startup
+  async warmCache() { ... }
+}
+```
+
+Register tasks explicitly, or auto-discover them:
+
+```typescript
+app.useScheduler([ReportTask]);
+// or
+app.useScheduler({ path: 'src/tasks' });
+```
+
+---
+
+### Caching
+
+In-memory by default; pass `provider: 'redis'` to use Redis instead.
+
+```typescript
+app.useCache({ provider: 'memory' });
+
+// Redis (requires: npm i ioredis)
+app.useCache({
+  provider: 'redis',
+  redisOptions: { host: '127.0.0.1', port: 6379 },
+});
+```
+
+Inject `CacheManager` where you need it. Entries can carry tags, so related
+keys are invalidated together:
+
+```typescript
+import { CacheManager, AppService } from '@avleon/core';
+
+@AppService
+export class UsersService {
+  constructor(private readonly cache: CacheManager) {}
+
+  async findAll() {
+    const cached = await this.cache.get<User[]>('users:all');
+    if (cached) return cached;
+
+    const users = await this.repo.find();
+    await this.cache.set('users:all', users, 3600, ['users']);
+    return users;
+  }
+
+  async update(user: User) {
+    await this.repo.save(user);
+    await this.cache.invalidateTags('users');
   }
 }
 ```
@@ -620,7 +881,7 @@ app
   .mapGet('/users', async (req, res) => {
     return { users: [] };
   })
-  .useMiddleware([AuthMiddleware])
+  .useMiddlewares([AuthMiddleware])
   .useOpenApi({
     summary: 'Get all users',
     tags: ['users'],
@@ -638,6 +899,8 @@ app
 
 ## Testing
 
+Resolve a controller directly, with its dependencies injected:
+
 ```typescript
 import { AvleonTest } from '@avleon/core';
 import { UserController } from './user.controller';
@@ -649,15 +912,34 @@ describe('UserController', () => {
     controller = AvleonTest.getController(UserController);
   });
 
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
-  });
+  afterAll(() => AvleonTest.clean());
 
   it('should return users', async () => {
     const result = await controller.getAll();
     expect(Array.isArray(result)).toBe(true);
   });
 });
+```
+
+Or exercise real routes without binding a port:
+
+```typescript
+const app = AvleonTest.createTestApplication({ controllers: [UserController] });
+
+const res = await app.get('/users');
+expect(res.statusCode).toBe(200);
+
+const created = await app.post('/users', { payload: { name: 'Tareq' } });
+expect(created.statusCode).toBe(201);
+```
+
+`get`, `post`, `put`, `patch`, `delete` and `options` are all available, each
+taking Fastify's inject options (`payload`, `headers`, `query`, …).
+
+Pass stub dependencies positionally when a controller needs them:
+
+```typescript
+const controller = AvleonTest.getController(UserController, [mockUserService]);
 ```
 
 ---
