@@ -45,7 +45,7 @@ import {
     OneToMany,
     JoinColumn,
 } from "typeorm";
-import { Constructor, loadPackageFromClient } from "../utils/common-utils";
+import { Constructor, loadPackageFromClient } from "../common/utils/common-utils";
 
 // ─── Re-export common operators for convenience ─────────────────────────────
 export {
@@ -183,7 +183,7 @@ export class AvleonRepository<TEntity extends ObjectLiteral> {
     // ─── Create & Save ───────────────────────────────────────────────────────
 
     create(data?: DeepPartial<TEntity>) {
-         return this.orm.create(data as any)
+         return this.orm.create(data as any);
     }
 
     createMany(dataArray: DeepPartial<TEntity>[]) {
@@ -395,7 +395,7 @@ export function Repository<TEntity extends ObjectLiteral>(
         @Service()
         class RepositoryClass extends Base {
             constructor(...args: any[]) {
-                const typeorm = loadPackageFromClient<typeof import("typeorm")>("typeorm")
+                const typeorm = loadPackageFromClient<typeof import("typeorm")>("typeorm");
                 const dataSource = Container.get(typeorm.DataSource);
                 super(entity, dataSource.manager, ...args);
             }

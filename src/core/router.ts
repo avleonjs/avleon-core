@@ -11,7 +11,7 @@ import {
   normalizeQueryDeep,
   validateOrThrow,
   validateObjectByInstance,
-} from "../helpers";
+} from "../common/helpers";
 import Container, {
   CONTROLLER_META_KEY,
   ROUTE_META_KEY,
@@ -23,17 +23,17 @@ import Container, {
   AUTHORIZATION_META_KEY,
   REQUEST_BODY_FILE_KEY,
   REQUEST_BODY_FILES_KEY,
-} from "../container";
+} from "../common/container";
 import {
   MethodParamMeta,
   IRequest,
   FuncRoute,
   ParamMetaOptions,
 } from "./types";
-import { BadRequestException, ValidationErrorException } from "../exceptions";
-import { AvleonMiddleware } from "../middleware";
-import { REQUEST_METADATA_KEY } from "../controller";
-import { OpenApiOptions } from "../openapi";
+import { BadRequestException, ValidationErrorException } from "../common/exceptions";
+import { AvleonMiddleware } from "../http/middleware";
+import { REQUEST_METADATA_KEY } from "../http/controller";
+import { OpenApiOptions } from "../openapi/openapi";
 import mime from "mime";
 import Stream from "stream";
 import { HTTPMethods, FastifyInstance } from "fastify";

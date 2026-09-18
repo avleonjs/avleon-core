@@ -1,6 +1,6 @@
 import "reflect-metadata";
-import { ApiController, Get } from "../src/decorators";
-import container, { getRegisteredControllers } from "../src/container";
+import { ApiController, Get } from "../src/common/decorators";
+import container, { getRegisteredControllers } from "../src/common/container";
 import Container, { Inject } from "typedi";
 
 @ApiController({

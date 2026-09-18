@@ -6,11 +6,11 @@
  */
 import { AvleonApplication } from "./application";
 import Container from "typedi";
-import { Constructor } from "../helpers";
-import { TestApplication, TestAppOptions } from "../interfaces/avleon-application";
+import { Constructor } from "../common/helpers";
+import { TestApplication, TestAppOptions } from "./interfaces";
 import { InjectOptions } from "fastify";
-import { ValidationErrorException } from "../exceptions";
-import { SystemUseError } from "../exceptions/system-exception";
+import { ValidationErrorException } from "../common/exceptions";
+import { SystemUseError } from "../common/exceptions/system-exception";
 
 export class AvleonTest {
     private constructor() {

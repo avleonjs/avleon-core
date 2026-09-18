@@ -15,24 +15,24 @@ import {
   CorsOptions,
   GlobalOptions,
   CacheOptions,
-} from "../interfaces/avleon-application";
-import { BaseHttpException } from "../exceptions";
-import { SystemUseError } from "../exceptions/system-exception";
-import { Constructor, inject, loadPackageFromClient } from "../helpers";
-import { generateSwaggerSchema } from "../swagger-schema";
-import { OpenApiUiOptions } from "../openapi";
-import { AvleonMiddleware } from "../middleware";
-import { AvleonScheduler } from "../task-scheduler";
-import { isApiController } from "../container";
+} from "./interfaces";
+import { BaseHttpException } from "../common/exceptions";
+import { SystemUseError } from "../common/exceptions/system-exception";
+import { Constructor, inject, loadPackageFromClient } from "../common/helpers";
+import { generateSwaggerSchema } from "../openapi/swagger-schema";
+import { OpenApiUiOptions } from "../openapi/openapi";
+import { AvleonMiddleware } from "../http/middleware";
+import { AvleonScheduler } from "../scheduler";
+import { isApiController } from "../common/container";
 import { AutoControllerOptions, IResponse, TestApplication } from "./types";
 
-import { RedisOptions } from "ioredis";
-import { CacheManager } from "../cache";
-import { DataSource, DataSourceOptions } from "typeorm";
-import { AvleonConfig, AvleonConfigClass } from "./config";
-import { Environment } from "../environment-variables";
-import knex, { Knex } from "knex";
-import { AVLEON_KNEX_DB } from "../kenx-provider";
+import type { RedisOptions } from "ioredis";
+import { CacheManager } from "../observability/cache";
+import type { DataSource, DataSourceOptions } from "typeorm";
+import { AvleonConfig, AvleonConfigClass } from "../config/config";
+import { Environment } from "../config/environment-variables";
+import type { Knex } from "knex";
+import { AVLEON_KNEX_DB } from "../data/knex-provider";
 type DataSourceInput =
   | Constructor<AvleonConfig<DataSourceOptions>>
   | AvleonConfig<DataSourceOptions>
@@ -262,6 +262,7 @@ export class AvleonApplication implements IAvleonApplication {
   // Overloads
   useKnex(options: Knex.Config): Promise<this>;
   useKnex(options: AvleonConfigClass<Knex.Config>): Promise<this>;
+  useKnex(options: Knex.Config | AvleonConfigClass<Knex.Config>): Promise<this>;
   async useKnex(options: Knex.Config | AvleonConfigClass<Knex.Config>): Promise<this> {
 
     const k = loadPackageFromClient<typeof import("knex")>("knex");
@@ -293,6 +294,7 @@ export class AvleonApplication implements IAvleonApplication {
 
   useTypeORM(dbOptions: DataSourceOptions): Promise<this>;
   useTypeORM(dbOptions: AvleonConfigClass<any>): Promise<this>;
+  useTypeORM(dbOptions: DataSourceOptions | AvleonConfigClass<DataSourceOptions>): Promise<this>;
   async useTypeORM(
     dbOptions: DataSourceOptions | AvleonConfigClass<DataSourceOptions>
   ): Promise<this> {
@@ -345,7 +347,7 @@ export class AvleonApplication implements IAvleonApplication {
       options.prototype != null &&
       typeof options.prototype.config === "function"
     ) {
-      const { GetConfig } = require("../config");
+      const { GetConfig } = require("../config/config");
       this.globalSwaggerOptions = GetConfig(options);
     } else {
       this.globalSwaggerOptions = options as OpenApiUiOptions;
@@ -615,9 +617,9 @@ export class AvleonApplication implements IAvleonApplication {
   private handleSocket(socket: any) {
     // ✅ lazy — only resolve socket services when socket actually connects
     try {
-      const { SocketContextService } = require("../event-dispatcher");
-      const { EventSubscriberRegistry } = require("../event-subscriber");
-      const { SocketIoServer } = require("../websocket");
+      const { SocketContextService } = require("../events/socket-dispatcher");
+      const { EventSubscriberRegistry } = require("../events/event-subscriber");
+      const { SocketIoServer } = require("../realtime/websocket");
 
       const contextService = Container.get(SocketContextService) as any;
       const subscriberRegistry = Container.get(EventSubscriberRegistry) as any;
@@ -655,7 +657,7 @@ export class AvleonApplication implements IAvleonApplication {
   private async _initKnexHooks(): Promise<void> {
     if (!this._knexHooksFactory) return;
     try {
-      const { DB } = require("../kenx-provider");
+      const { DB } = require("../data/knex-provider");
       const db = Container.get(DB) as any;
       const hooks = await this._knexHooksFactory();
       if (hooks.onInit) {
@@ -811,7 +813,7 @@ export class AvleonApplication implements IAvleonApplication {
       }
       // ✅ lazy — resolve SocketIoServer token only when websocket is ready
       try {
-        const { SocketIoServer } = require("../websocket");
+        const { SocketIoServer } = require("../realtime/websocket");
         // @ts-ignore
         Container.set(SocketIoServer, this.app.io);
         // @ts-ignore

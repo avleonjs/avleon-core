@@ -10,9 +10,9 @@ import {
   InjectOptions,
   LightMyRequestResponse,
 } from "fastify";
-import { MultipartFile } from "../multipart";
-import { OpenApiUiOptions } from "../openapi";
-import { Constructor } from "../helpers";
+import { MultipartFile } from "../http/multipart";
+import { OpenApiUiOptions } from "../openapi/openapi";
+import { Constructor } from "../common/helpers";
 import type {
   IAvleonApplication,
   AvleonApplicationOptions,
@@ -21,7 +21,7 @@ import type {
   AutoControllerOptions,
   TestApplication,
   TestResponse,
-} from "../interfaces/avleon-application";
+} from "./interfaces";
 
 // Re-export types imported from interfaces
 export {
