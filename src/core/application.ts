@@ -33,6 +33,7 @@ import { AvleonConfig, AvleonConfigClass } from "../config/config";
 import { Environment } from "../config/environment-variables";
 import type { Knex } from "knex";
 import { AVLEON_KNEX_DB } from "../data/knex-provider";
+import { AvleonAuthentication } from "../security/authentication";
 type DataSourceInput =
   | Constructor<AvleonConfig<DataSourceOptions>>
   | AvleonConfig<DataSourceOptions>
@@ -183,6 +184,7 @@ export class AvleonApplication implements IAvleonApplication {
   private schedulerTasks: any[] = [];
   private registerSchedulerAuto = false;
   private registerSchedulerPath = "src/tasks";
+  private _workers: any[] = [];
 
   private constructor(options?: AvleonApplicationOptions) {
     this.app = Fastify({
@@ -429,8 +431,25 @@ export class AvleonApplication implements IAvleonApplication {
   }
 
 
-  useAuthentication() {
-    throw new Error("Method need to implemented.");
+  /**
+   * Register the global authentication handler.
+   *
+   * The handler runs once per request, before any authorization handler, and
+   * whatever its `authenticate` method returns becomes `request.user` — the
+   * value injected by `@AuthUser()`.
+   *
+   *   app.useAuthentication(JwtAuthentication)
+   *
+   * @see AvleonAuthentication
+   */
+  useAuthentication(authentication: Constructor<AvleonAuthentication>) {
+    if (typeof authentication !== "function") {
+      throw new SystemUseError(
+        "[Avleon] useAuthentication expects an authentication class, e.g. app.useAuthentication(JwtAuthentication).",
+      );
+    }
+    this.router.setAuthenticationHandler(authentication);
+    return this;
   }
 
   /**
@@ -524,13 +543,48 @@ export class AvleonApplication implements IAvleonApplication {
     return this;
   }
 
-  useWorker(){
+  /**
+   * Register queue workers.
+   *
+   * Resolving each class through the container is what starts it: `@Queue`
+   * boots its worker in the constructor, and `@AvleonWorker` starts on
+   * resolution unless `autoStart: false` was set.
+   *
+   *   app.useWorker([EmailQueue, ReportWorker])
+   *
+   * Workers are closed automatically when the application shuts down.
+   */
+  useWorker(workers: Constructor<any>[]) {
+    if (!Array.isArray(workers)) {
+      throw new SystemUseError(
+        "[Avleon] useWorker expects an array of queue or worker classes, e.g. app.useWorker([EmailQueue]).",
+      );
+    }
 
-    const bullMq = loadPackageFromClient<typeof import("bullmq")>("bullmq");
-    
+    for (const worker of workers) {
+      const instance = Container.get(worker) as any;
+      // @AvleonWorker({ autoStart: false }) defers starting until now.
+      if (typeof instance?.start === "function" && !instance.getWorker?.()) {
+        instance.start();
+      }
+      this._workers.push(instance);
+    }
 
-    Container.get("");
+    return this;
+  }
 
+  /** Close every registered worker, releasing their Redis connections. */
+  private async _closeWorkers() {
+    await Promise.all(
+      this._workers.map(async (w) => {
+        try {
+          await w?.close?.();
+        } catch (err) {
+          console.error("[Avleon] Failed to close worker:", err);
+        }
+      }),
+    );
+    this._workers = [];
   }
 
 
@@ -823,7 +877,11 @@ export class AvleonApplication implements IAvleonApplication {
       }
     }
 
-    const gracefulStop = () => { this.scheduler.stopAll(); process.exit(0); };
+    const gracefulStop = async () => {
+      this.scheduler.stopAll();
+      await this._closeWorkers();
+      process.exit(0);
+    };
     process.once("SIGTERM", gracefulStop);
     process.once("SIGINT", gracefulStop);
 

@@ -35,6 +35,9 @@ export * from "./queue";
 // ─── Scheduler ───────────────────────────────────────────────────────────────
 export * from "./scheduler/schedule-decorator";
 
+// ─── Security ────────────────────────────────────────────────────────────────
+export * from "./security";
+
 // ─── Storage / Realtime / Observability ──────────────────────────────────────
 export * from "./storage";
 export * from "./realtime";

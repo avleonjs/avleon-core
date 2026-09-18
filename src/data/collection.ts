@@ -52,42 +52,90 @@ export type PaginationResult<T> = {
   totalPage?: number;
 }
 
-export type ListResult<T> = T | T[] | Promise<T> | Promise<T[]> | undefined;
 
-export interface IList<T>{
-  // insert /update/ delete
-  Find(predicate?: Predicate<T>): ListResult<T>;
-  FindOne(predicate?: Predicate<T>):ListResult<T>;
-
-  // access
-
-  // deep 
-
-  // clear
+export interface IList<T> {
+  /** All items, or those matching `predicate`. */
+  Find(predicate?: Predicate<T>): Promise<T[]>;
+  /** The first item matching `predicate`, or `undefined`. */
+  FindOne(predicate?: Predicate<T>): Promise<T | undefined>;
 }
 
+/**
+ * A small in-memory list with an async, repository-like surface.
+ *
+ * Every read resolves through a promise so a list can stand in for a
+ * repository in tests without callers having to change shape.
+ */
 export class List<T> implements IList<T> {
-  private locked = false;
-  private _items:T[] = [];
+  private _items: T[] = [];
 
+  constructor(items: T[] = []) {
+    this._items = [...items];
+  }
 
+  /** Build a list from an existing array. The array is copied, not captured. */
+  static from<T>(items: T[]): List<T> {
+    return new List<T>(items);
+  }
 
-  Count(){
+  /** Number of items held. */
+  Count(): number {
     return this._items.length;
   }
 
-
-  Find(predicate?: Predicate<T> | undefined): ListResult<T> {
-      const result = predicate ? this._items.filter(predicate) : this._items;
-      return Promise.resolve(result);
+  /** A copy of the backing array. */
+  ToArray(): T[] {
+    return [...this._items];
   }
 
-
-  FindOne(predicate?: Predicate<T> | undefined): ListResult<T> {
-    
-    throw new Error("Method not implemented.");
+  /** Append an item. */
+  Add(item: T): this {
+    this._items.push(item);
+    return this;
   }
-  
+
+  /** Append several items. */
+  AddRange(items: T[]): this {
+    this._items.push(...items);
+    return this;
+  }
+
+  /** Remove every item matching `predicate`; returns how many were removed. */
+  Remove(predicate: Predicate<T>): number {
+    const before = this._items.length;
+    this._items = this._items.filter((item) => !predicate(item));
+    return before - this._items.length;
+  }
+
+  /** Drop all items. */
+  Clear(): this {
+    this._items = [];
+    return this;
+  }
+
+  /** Items matching `predicate`, or every item when it is omitted. */
+  Find(predicate?: Predicate<T>): Promise<T[]> {
+    const result = predicate ? this._items.filter(predicate) : [...this._items];
+    return Promise.resolve(result);
+  }
+
+  /** The first item matching `predicate`, or `undefined` if none does. */
+  FindOne(predicate?: Predicate<T>): Promise<T | undefined> {
+    const result = predicate
+      ? this._items.find(predicate)
+      : this._items[0];
+    return Promise.resolve(result);
+  }
+
+  /** Synchronous filter, kept chainable. */
+  Where(predicate: Predicate<T>): List<T> {
+    return new List<T>(this._items.filter(predicate));
+  }
+
+  /** Whether any item matches `predicate`. */
+  Any(predicate?: Predicate<T>): boolean {
+    return predicate ? this._items.some(predicate) : this._items.length > 0;
+  }
 }
 
 

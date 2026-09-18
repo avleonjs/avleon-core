@@ -9,6 +9,7 @@ import { AvleonMiddleware } from "../http/middleware";
 import type { DataSource, DataSourceOptions } from "typeorm";
 import type { Knex } from "knex";
 import { AvleonConfig, AvleonConfigClass } from "../config/config";
+import type { AvleonAuthentication } from "../security/authentication";
 import { OpenApiUiOptions } from "../openapi/openapi";
 import { FastifyServerOptions, InjectOptions, LightMyRequestResponse } from "fastify";
 import type { RedisOptions } from "ioredis";
@@ -66,6 +67,8 @@ export interface IAvleonApplication {
   useMultipart: (options?: any) => this;
   useOpenApi: (options?: OpenApiUiOptions | Constructor<AvleonConfig<OpenApiUiOptions>>) => this;
   useMiddlewares: (middlewares: Constructor<AvleonMiddleware>[]) => this;
+  /** Register the global authentication handler that populates `request.user`. */
+  useAuthentication: (authentication: Constructor<AvleonAuthentication>) => this;
   useAuthorization: (authorization: Constructor<any>) => this;
   useSerialization: () => this;
   useControllers: (controllers: Constructor[] | AutoControllerOptions) => this;

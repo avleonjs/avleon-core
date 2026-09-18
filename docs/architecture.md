@@ -42,11 +42,12 @@ src/
 │   ├── socket-dispatcher.ts SocketEventDispatcher — socket.io transport
 │   └── event-subscriber.ts  @Subscribe / @PrivateChannel
 │
-├── queue/                Background jobs
+├── queue/                Background jobs (BullMQ)
 │   ├── queue.ts          AvleonQueue, @Queue, @JobHandler
-│   └── worker.ts         @AvleonWorker
+│   └── worker.ts         AvleonWorkerBase, @AvleonWorker
 │
 ├── scheduler/            Cron / task scheduling
+├── security/             AvleonAuthentication (populates request.user)
 ├── config/               AvleonConfig, @AppConfig, Environment
 ├── storage/              File storage
 ├── realtime/             socket.io integration
@@ -78,7 +79,8 @@ long as the root barrel still re-exports the same names.
 **Tests.** Colocated as `<module>.test.ts` beside the file under test.
 
 **Optional peer dependencies.** typeorm, knex, bullmq, socket.io, kafkajs and the
-DB drivers are optional peers. Load them lazily via
+DB drivers are optional peers. The queue is built on bullmq; `bull` is no longer
+used. Load them lazily via
 `loadPackageFromClient(name)` from `common/utils/common-utils`, which resolves
 from the consumer's `cwd` and throws an install hint when missing. Never import
 them at module top level in code reachable from `src/index.ts`.

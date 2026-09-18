@@ -106,9 +106,18 @@ export class AvleonRouter {
   private app: FastifyInstance;
   private authorizeMiddleware?: Constructor<any>;
   private authorizeMiddlewareMap = new Map<string, Constructor<any>>();
+  private authenticationHandler?: Constructor<any>;
 
   constructor(app: FastifyInstance) {
     this.app = app;
+  }
+
+  /**
+   * Register the global authentication handler. It runs before authorization
+   * on every route and populates `request.user`.
+   */
+  setAuthenticationHandler(handler: Constructor<any>) {
+    this.authenticationHandler = handler;
   }
 
   setAuthorizeMiddleware(middleware: Constructor<any>) {
@@ -324,6 +333,11 @@ export class AvleonRouter {
       const _mthdAuthCls  = authClsMethodMeata.authorize ? this._resolveAuthorizer(authClsMethodMeata.options) : null;
       const _clsAuthInst  = _clsAuthCls  ? Container.get(_clsAuthCls)  as any : null;
       const _mthdAuthInst = _mthdAuthCls ? Container.get(_mthdAuthCls) as any : null;
+      // Global authentication handler, resolved once. Runs before authorization
+      // so authorizers (and @AuthUser()) can rely on request.user being set.
+      const _authnInst = this.authenticationHandler
+        ? Container.get(this.authenticationHandler) as any
+        : null;
       const _resolvedMw: AvleonMiddleware[] = classMiddlewares.map(
         (m: any) => Container.get<AvleonMiddleware>(m.constructor),
       );
@@ -335,6 +349,14 @@ export class AvleonRouter {
         attachValidation: isMultipart,
         handler: async (req, res) => {
           let reqClone = req as unknown as IRequest;
+
+          if (_authnInst) {
+            const user = await _authnInst.authenticate(reqClone);
+            if (res.sent) return;
+            if (user !== null && user !== undefined) {
+              (reqClone as any).user = user;
+            }
+          }
 
           if (_clsAuthInst) {
             await _clsAuthInst.authorize(reqClone, authClsMeata.options);
