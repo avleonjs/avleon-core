@@ -7,21 +7,12 @@
 
 import { BadRequestException } from "../common/exceptions";
 
-class PValidationRule<T> {
-  name: string;
-  type: T;
-  message?: string;
-
-  constructor(name: string, type: T, message?: string) {
-    this.name = name;
-    this.type = type;
-    this.message = message;
-  }
-}
-
 type BaseRule = {
+  /** Defaults to `true`. `required: false` behaves like `optional: true`. */
   required?: boolean;
+  /** Skip every check when the value is missing (`undefined`, `null` or `""`). */
   optional?: boolean;
+  /** Replaces the generated messages for this field. */
   message?: string;
 };
 
@@ -50,94 +41,128 @@ export type ValidateOptons = {
   location?: "header" | "queryparam" | "param" | "body" | "custom";
 };
 
+type ConstraintMessage = { constraint: string; message: string };
+
+export type ValidatorIssue = {
+  path: string;
+  location?: ValidateOptons["location"];
+  constraints: ConstraintMessage[];
+};
+
+const isMissing = (value: unknown) =>
+  value === undefined || value === null || value === "";
+
 export class Validator {
-  private rules: PValidationRule<any>[] = [];
+  private rules: [string, ValidationRule][] = [];
   private options: ValidateOptons = {};
 
   constructor(obj: ValidationProps, options?: ValidateOptons) {
-    this.init(obj);
+    this.rules = Object.entries(obj ?? {});
     if (options) {
       this.options = options;
     }
   }
 
-  private init(obj: ValidationProps) {
-    Object.keys(obj).forEach((key) => {
-      const rule = obj[key];
-      this.rules.push(
-        new PValidationRule<typeof rule.type>(key, rule.type, rule.message),
-      );
-    });
+  /**
+   * Validate `obj` against the rules. Numbers and booleans given as strings
+   * are coerced in place. Returns `[errors, obj]`.
+   */
+  validate(obj: any, options?: ValidateOptons): [ValidatorIssue[], any] {
+    const location = options?.location ?? this.options.location;
+    const errors: ValidatorIssue[] = [];
+    const target = obj ?? {};
+
+    for (const [name, rule] of this.rules) {
+      const messages = this.check(target, name, rule ?? ({} as ValidationRule));
+      if (messages.length > 0) {
+        errors.push({
+          path: name,
+          ...(location ? { location } : {}),
+          constraints: rule?.message
+            ? messages.map((m) => ({ ...m, message: rule.message! }))
+            : messages,
+        });
+      }
+    }
+
+    return [errors, target];
   }
 
-  validate(obj: any | Array<any>, options?: ValidateOptons) {
-    const erors: any[] = [];
+  private check(
+    obj: any,
+    name: string,
+    rule: ValidationRule,
+  ): ConstraintMessage[] {
+    const value = obj[name];
 
-    this.rules.forEach((k) => {
-      const r = Object.keys(obj).find((key) => key == k.name);
-      let messages: any = [];
-      if (!r || obj[r] == undefined || obj[r] == "") {
-        messages.push({
-          constraint: "required",
-          message: k.name + " is required",
-        });
+    if (isMissing(value)) {
+      if (rule.optional || rule.required === false) return [];
+      return [{ constraint: "required", message: `${name} is required` }];
+    }
+
+    const typeError = (): ConstraintMessage[] => [
+      { constraint: "type", message: `${name} must be type ${rule.type}` },
+    ];
+
+    switch (rule.type) {
+      case "string":
+        return typeof value === "string" ? [] : typeError();
+
+      case "number": {
+        const n =
+          typeof value === "number"
+            ? value
+            : typeof value === "string" && value.trim() !== ""
+              ? Number(value)
+              : NaN;
+        if (!Number.isFinite(n)) return typeError();
+        obj[name] = n;
+        const messages: ConstraintMessage[] = [];
+        if (rule.min !== undefined && n < rule.min) {
+          messages.push({
+            constraint: "min",
+            message: `${name} must not be less than ${rule.min}`,
+          });
+        }
+        if (rule.max !== undefined && n > rule.max) {
+          messages.push({
+            constraint: "max",
+            message: `${name} must not be greater than ${rule.max}`,
+          });
+        }
+        if (rule.exact !== undefined && n !== rule.exact) {
+          messages.push({
+            constraint: "exact",
+            message: `${name} must be exactly ${rule.exact}`,
+          });
+        }
+        return messages;
       }
 
-      if (k.type == "string" && typeof obj[k.name] != "string") {
-        messages.push({
-          constraint: "type",
-          message: `${k.name} must be type ${k.type}`,
-        });
-      }
-      if (k.type == "number" && !parseInt(obj[k.name])) {
-        messages.push({
-          constraint: "type",
-          message: `${k.name} must be type ${k.type}`,
-        });
-      }
+      case "boolean":
+        if (!isBool(value)) return typeError();
+        obj[name] = parseBoolean(value);
+        return [];
 
-      if (k.type == "number") {
-        obj[k.name] = parseInt(obj[k.name]);
-      }
-      if (k.type == "boolean" && !isBool(obj[k.name])) {
-        messages.push({
-          constraint: "type",
-          message: `${k.name} must be type ${k.type}`,
-        });
-      }
-      if (k.type == "boolean") {
-        obj[k.name] = parseBoolean(obj[k.name]);
-      }
-      if (messages.length > 0) {
-        erors.push({
-          path: k.name,
-          ...(this.options.location ? { location: this.options.location } : {}),
-          constraints: messages,
-        });
-      }
-    });
-
-    return [erors, obj];
+      default:
+        // Unknown or missing type (e.g. no decorator metadata): presence only.
+        return [];
+    }
   }
 }
 
 const isBool = (val: any) => {
-  if (typeof val == "boolean") return true;
-  if (parseInt(val) == 0 || parseInt(val) == 1) return true;
-  if (val == "true" || val == "false") return true;
-
+  if (typeof val === "boolean") return true;
+  if (val === 0 || val === 1 || val === "0" || val === "1") return true;
+  if (val === "true" || val === "false") return true;
   return false;
 };
 
 const parseBoolean = (val: any): boolean => {
   if (typeof val === "boolean") return val;
-
-  if (parseInt(val) == 1) return true;
-  if (typeof val === "string") {
-    const normalized = val.trim().toLowerCase();
-    return normalized === "true";
-  }
-  return false; 
+  if (val === 1 || val === "1") return true;
+  if (typeof val === "string") return val.trim().toLowerCase() === "true";
+  return false;
 };
 
 export function validateOrThrow<T extends {}>(

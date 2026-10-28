@@ -42,16 +42,14 @@ type DataSourceInput =
 // Lazy loaders for optional peer dependencies
 // ---------------------------------------------------------------------------
 
-
-
 function requireTypeorm() {
   try {
     return require("typeorm");
   } catch {
     throw new Error(
       "[Avleon] typeorm is not installed.\n" +
-      "Run: npm install typeorm\n" +
-      "Then install a driver: npm install pg  (or mysql2, sqlite3, etc.)",
+        "Run: npm install typeorm\n" +
+        "Then install a driver: npm install pg  (or mysql2, sqlite3, etc.)",
     );
   }
 }
@@ -62,7 +60,7 @@ function requireSocketIo() {
   } catch {
     throw new Error(
       "[Avleon] fastify-socket.io is not installed.\n" +
-      "Run: npm install fastify-socket.io socket.io",
+        "Run: npm install fastify-socket.io socket.io",
     );
   }
 }
@@ -73,8 +71,8 @@ function requireKnex() {
   } catch {
     throw new Error(
       "[Avleon] knex is not installed.\n" +
-      "Run: npm install knex\n" +
-      "Then install a driver: npm install pg  (or mysql2, sqlite3, etc.)",
+        "Run: npm install knex\n" +
+        "Then install a driver: npm install pg  (or mysql2, sqlite3, etc.)",
     );
   }
 }
@@ -85,7 +83,7 @@ function requireSwagger() {
   } catch {
     throw new Error(
       "[Avleon] @fastify/swagger is not installed.\n" +
-      "Run: npm install @fastify/swagger @fastify/swagger-ui",
+        "Run: npm install @fastify/swagger @fastify/swagger-ui",
     );
   }
 }
@@ -96,7 +94,7 @@ function requireSwaggerUi() {
   } catch {
     throw new Error(
       "[Avleon] @fastify/swagger-ui is not installed.\n" +
-      "Run: npm install @fastify/swagger-ui",
+        "Run: npm install @fastify/swagger-ui",
     );
   }
 }
@@ -107,7 +105,7 @@ function requireScalar() {
   } catch {
     throw new Error(
       "[Avleon] @scalar/fastify-api-reference is not installed.\n" +
-      "Run: npm install @scalar/fastify-api-reference",
+        "Run: npm install @scalar/fastify-api-reference",
     );
   }
 }
@@ -118,7 +116,7 @@ function requireCors() {
   } catch {
     throw new Error(
       "[Avleon] @fastify/cors is not installed.\n" +
-      "Run: npm install @fastify/cors",
+        "Run: npm install @fastify/cors",
     );
   }
 }
@@ -129,7 +127,7 @@ function requireMultipart() {
   } catch {
     throw new Error(
       "[Avleon] @fastify/multipart is not installed.\n" +
-      "Run: npm install @fastify/multipart",
+        "Run: npm install @fastify/multipart",
     );
   }
 }
@@ -140,7 +138,7 @@ function requireStatic() {
   } catch {
     throw new Error(
       "[Avleon] @fastify/static is not installed.\n" +
-      "Run: npm install @fastify/static",
+        "Run: npm install @fastify/static",
     );
   }
 }
@@ -237,10 +235,9 @@ export class AvleonApplication implements IAvleonApplication {
     return this;
   }
 
-
   /**
    * @deprecated will be removed in next stable version
-   * @param dataSource 
+   * @param dataSource
    * @see useTypeorm
    */
   useDatasource(dataSource: any) {
@@ -252,25 +249,27 @@ export class AvleonApplication implements IAvleonApplication {
   }
 
   private isConfigClass<T>(
-    options: AvleonConfigClass<T> | any
+    options: AvleonConfigClass<T> | any,
   ): options is AvleonConfigClass<T> {
     return (
-      typeof options === "function" &&
-      options.prototype instanceof AvleonConfig
+      typeof options === "function" && options.prototype instanceof AvleonConfig
     );
   }
-
 
   // Overloads
   useKnex(options: Knex.Config): Promise<this>;
   useKnex(options: AvleonConfigClass<Knex.Config>): Promise<this>;
   useKnex(options: Knex.Config | AvleonConfigClass<Knex.Config>): Promise<this>;
-  async useKnex(options: Knex.Config | AvleonConfigClass<Knex.Config>): Promise<this> {
-
+  async useKnex(
+    options: Knex.Config | AvleonConfigClass<Knex.Config>,
+  ): Promise<this> {
     const k = loadPackageFromClient<typeof import("knex")>("knex");
     let knexOptions: Knex.Config;
 
-    if (options instanceof Function && options.prototype instanceof AvleonConfig) {
+    if (
+      options instanceof Function &&
+      options.prototype instanceof AvleonConfig
+    ) {
       // It's a config class — resolve from DI and call .config()
       const instance = Container.get<AvleonConfig<Knex.Config>>(options as any);
       const env = Container.get(Environment);
@@ -293,22 +292,27 @@ export class AvleonApplication implements IAvleonApplication {
     await knex.raw("SELECT 1");
   }
 
-
   useTypeORM(dbOptions: DataSourceOptions): Promise<this>;
   useTypeORM(dbOptions: AvleonConfigClass<any>): Promise<this>;
-  useTypeORM(dbOptions: DataSourceOptions | AvleonConfigClass<DataSourceOptions>): Promise<this>;
+  useTypeORM(
+    dbOptions: DataSourceOptions | AvleonConfigClass<DataSourceOptions>,
+  ): Promise<this>;
   async useTypeORM(
-    dbOptions: DataSourceOptions | AvleonConfigClass<DataSourceOptions>
+    dbOptions: DataSourceOptions | AvleonConfigClass<DataSourceOptions>,
   ): Promise<this> {
     const t = loadPackageFromClient<typeof import("typeorm")>("typeorm");
     let options: DataSourceOptions;
 
-    if (dbOptions instanceof Function && dbOptions.prototype instanceof AvleonConfig) {
-      const instance = Container.get<AvleonConfig<DataSourceOptions>>(dbOptions);
-      const env = Container.get(Environment); 
+    if (
+      dbOptions instanceof Function &&
+      dbOptions.prototype instanceof AvleonConfig
+    ) {
+      const instance =
+        Container.get<AvleonConfig<DataSourceOptions>>(dbOptions);
+      const env = Container.get(Environment);
       options = instance.config(env);
     } else {
-      options = dbOptions as DataSourceOptions; 
+      options = dbOptions as DataSourceOptions;
     }
 
     const dataSource = new t.DataSource(options);
@@ -329,7 +333,6 @@ export class AvleonApplication implements IAvleonApplication {
     }
   }
 
-
   useMultipart(options?: any) {
     this.app.register(requireMultipart(), {
       // ✅ lazy
@@ -342,7 +345,9 @@ export class AvleonApplication implements IAvleonApplication {
     return this;
   }
 
-  useOpenApi(options?: OpenApiUiOptions | Constructor<AvleonConfig<OpenApiUiOptions>>) {
+  useOpenApi(
+    options?: OpenApiUiOptions | Constructor<AvleonConfig<OpenApiUiOptions>>,
+  ) {
     this.hasSwagger = true;
     if (
       typeof options === "function" &&
@@ -430,7 +435,6 @@ export class AvleonApplication implements IAvleonApplication {
     return this;
   }
 
-
   /**
    * Register the global authentication handler.
    *
@@ -466,7 +470,9 @@ export class AvleonApplication implements IAvleonApplication {
    *   @Authorized("jwt")               // uses the "jwt" handler
    *   @Authorized({ name: "oauth" })   // uses the "oauth" handler
    */
-  useAuthorization(authorization: Constructor<any> | Record<string, Constructor<any>>) {
+  useAuthorization(
+    authorization: Constructor<any> | Record<string, Constructor<any>>,
+  ) {
     if (typeof authorization === "function") {
       this.router.setAuthorizeMiddleware(authorization);
     } else {
@@ -533,7 +539,8 @@ export class AvleonApplication implements IAvleonApplication {
     if (options.authorization) this.useAuthorization(options.authorization);
     if (options.multipart) this.useMultipart(options.multipart);
     if (options.staticFiles) this.useStaticFiles(options.staticFiles);
-    if ((options as any).scheduler) this.useScheduler((options as any).scheduler);
+    if ((options as any).scheduler)
+      this.useScheduler((options as any).scheduler);
     return this;
   }
 
@@ -587,14 +594,18 @@ export class AvleonApplication implements IAvleonApplication {
     this._workers = [];
   }
 
-
   mapFeatures() {
     this.isMapFeatures = true;
     return this;
   }
 
+  /**
+   * True only when `NODE_ENV` is exactly `"development"`. An unset
+   * `NODE_ENV` counts as production, so dev-only features (API docs,
+   * detailed errors) stay off unless explicitly enabled.
+   */
   isDevelopment() {
-    return process.env.NODE_ENV === "development" || !process.env.NODE_ENV;
+    return process.env.NODE_ENV === "development";
   }
 
   private async _mapControllers() {
@@ -739,7 +750,10 @@ export class AvleonApplication implements IAvleonApplication {
     const dir = nodePath.join(process.cwd(), this.registerSchedulerPath);
     const resolvedDir = isTsNode ? dir : dir.replace("src", "dist");
     try {
-      const files = nodeFs.readdirSync(resolvedDir, { recursive: true, encoding: "utf-8" }) as string[];
+      const files = nodeFs.readdirSync(resolvedDir, {
+        recursive: true,
+        encoding: "utf-8",
+      }) as string[];
       for (const file of files) {
         const isTest = /\.(test|spec|e2e-spec)\.(ts|js)$/.test(file);
         if (isTest) continue;
@@ -747,7 +761,11 @@ export class AvleonApplication implements IAvleonApplication {
           const mod = await import(nodePath.join(resolvedDir, file));
           for (const exported of Object.values(mod)) {
             if (typeof exported === "function" && isScheduledTask(exported)) {
-              if (!this.schedulerTasks.some((t) => t.name === (exported as any).name)) {
+              if (
+                !this.schedulerTasks.some(
+                  (t) => t.name === (exported as any).name,
+                )
+              ) {
                 this.schedulerTasks.push(exported);
                 this.scheduler.addTaskClasses([exported as any]);
               }
@@ -756,7 +774,10 @@ export class AvleonApplication implements IAvleonApplication {
         }
       }
     } catch (e) {
-      console.warn("[Avleon] Could not auto-register tasks from " + resolvedDir, e);
+      console.warn(
+        "[Avleon] Could not auto-register tasks from " + resolvedDir,
+        e,
+      );
     }
   }
 
@@ -792,7 +813,7 @@ export class AvleonApplication implements IAvleonApplication {
     }
 
     this.app.setErrorHandler((error: any, request, reply) => {
-      const isDev = process.env.NODE_ENV === "development";
+      const isDev = this.isDevelopment();
       const timestamp = new Date().toISOString();
       const requestInfo = `${request.method} ${request.url}`;
 
@@ -810,18 +831,22 @@ export class AvleonApplication implements IAvleonApplication {
       }
 
       if (error instanceof BaseHttpException) {
+        const code = error.code || 500;
         console.warn(
-          `[${timestamp}] HTTP ${error.code} ${requestInfo} — ${error.message}`,
+          `[${timestamp}] HTTP ${code} ${requestInfo} — ${error.message}`,
         );
+        // 4xx messages are written for the client; 5xx ones describe server
+        // internals and are only shown in development.
+        const expose = isDev || code < 500;
         return reply
-          .status(error.code || 500)
+          .status(code)
           .type("application/json")
           .serializer((payload: any) => JSON.stringify(payload))
           .send({
-            code: error.code,
+            code,
             status: "Error",
-            message: error.message,
-            data: error.payload,
+            message: expose ? error.message : "Internal Server Error",
+            ...(expose && { data: error.payload }),
           });
       }
 

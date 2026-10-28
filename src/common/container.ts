@@ -4,11 +4,8 @@
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
-import type { Knex } from "knex";
-import { Container, ContainerInstance, Token } from "typedi";
-import type { DataSource } from "typeorm";
+import { Container } from "typedi";
 
-export const FEATURE_KEY = Symbol.for("features");
 export const ROUTE_META_KEY = Symbol("iroute:options");
 export const CONTROLLER_META_KEY = Symbol("icontroller:options");
 export const PARAM_META_KEY = Symbol("iparam:options");
@@ -45,14 +42,4 @@ export const API_CONTROLLER_METADATA_KEY = Symbol("apiController");
 export function isApiController(target: Function): boolean {
   return Reflect.getMetadata(API_CONTROLLER_METADATA_KEY, target) === true;
 }
-Container.set<string>("appName", "Iqra");
-
-export function registerDataSource(dataSource: any) {
-  Container.set<DataSource>("idatasource", dataSource);
-}
-
-export function registerKnex(dataSource: Knex.Config) {
-  Container.set<Knex>("KnexConnection", dataSource);
-}
-
 export default Container;

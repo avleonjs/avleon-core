@@ -1,469 +1,361 @@
-import fs, { PathLike } from "fs";
+import fs from "fs";
+import os from "os";
 import path from "path";
 import { Readable } from "stream";
-import { pipeline } from "stream/promises";
 import { FileStorage } from "./file-storage";
 import { SystemUseError } from "../common/exceptions/system-exception";
+import { NotFoundException } from "../common/exceptions/http-exceptions";
 import { MultipartFile } from "../http/multipart";
-import { SavedMultipartFile } from "@fastify/multipart";
 
-// ─── Mocks ────────────────────────────────────────────────────────────────────
+// These tests run against a real temporary directory so path checks are
+// exercised against the actual filesystem rather than mocks.
 
-jest.mock("fs");
-jest.mock("stream/promises", () => ({
-  pipeline: jest.fn(() => Promise.resolve()),
-}));
-
-const mockFs = fs as jest.Mocked<typeof fs>;
-const mockPipeline = pipeline as jest.Mock;
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function makeFile(overrides: Partial<MultipartFile> = {}): MultipartFile {
-  return {
-    type: "file",
-    filename: "test.txt",
-    file: new Readable({ read() {} }),
-    ...overrides,
-  } as MultipartFile;
-}
-
-// Models a file that was already saved to disk by @fastify/multipart
-// (has a filepath, no .file stream)
-function makeSavedFile(
-  overrides: Partial<SavedMultipartFile> = {},
+function makeFile(
+  filename = "test.txt",
+  content: string | Buffer = "hello",
+  extra: Record<string, any> = {},
 ): MultipartFile {
   return {
     type: "file",
-    filename: "saved.txt",
-    filepath: "/tmp/saved.txt",
-    file: undefined,
-    ...overrides,
+    filename,
+    mimetype: "text/plain",
+    file: Readable.from([Buffer.from(content)]),
+    ...extra,
   } as unknown as MultipartFile;
 }
 
-// Suppress expected console.error noise from the implementation's catch blocks
-// so the test output stays clean. Errors are still thrown and asserted on.
-let consoleSpy: jest.SpyInstance;
+async function readAll(stream: NodeJS.ReadableStream): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const c of stream as any) chunks.push(Buffer.from(c));
+  return Buffer.concat(chunks).toString();
+}
 
-// ─── Suite ────────────────────────────────────────────────────────────────────
+function makeSavedFile(tmpPath: string, filename = "saved.txt"): MultipartFile {
+  return {
+    type: "file",
+    filename,
+    mimetype: "text/plain",
+    filepath: tmpPath,
+    file: undefined,
+  } as unknown as MultipartFile;
+}
 
 describe("FileStorage", () => {
+  let root: string;
+  let baseDir: string;
   let storage: FileStorage;
-  const baseDir = path.join(process.cwd(), "public");
+  let consoleSpy: jest.SpyInstance;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "avleon-storage-"));
+    baseDir = path.join(root, "public");
+    fs.mkdirSync(baseDir);
+    storage = new FileStorage().configure({ baseDir });
     consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
-
-    // Default: nothing exists on disk
-    mockFs.existsSync.mockReturnValue(false);
-    mockFs.mkdirSync.mockImplementation(() => undefined);
-    mockFs.createWriteStream.mockReturnValue({} as any);
-    mockFs.createReadStream.mockReturnValue(new Readable({ read() {} }) as any);
-    mockFs.unlinkSync.mockImplementation(() => {});
-    mockPipeline.mockResolvedValue(undefined);
-
-    // FileStorage constructor calls ensureDirectoryExists(baseDir).
-    // At that point existsSync returns false so mkdirSync fires once.
-    // We create the instance AFTER setting up mocks so the call is counted,
-    // then we clear the mock before individual tests that need a clean slate.
-    storage = new FileStorage();
-
-    // Clear constructor-time calls so per-test assertions are unambiguous
-    mockFs.mkdirSync.mockClear();
-    mockFs.existsSync.mockClear();
-    // Restore default after clear
-    mockFs.existsSync.mockReturnValue(false);
   });
 
   afterEach(() => {
     consoleSpy.mockRestore();
+    fs.rmSync(root, { recursive: true, force: true });
   });
-
-  // ── transform ───────────────────────────────────────────────────────────────
-
-  describe("transform", () => {
-    it("should store transform options and return the same instance (fluent API)", () => {
-      const opts = {
-        resize: { width: 200, height: 200 },
-        format: "webp" as const,
-        quality: 75,
-      };
-      const result = storage.transform(opts);
-
-      expect(result).toBe(storage);
-      // @ts-ignore — accessing private field for assertion
-      expect(storage.transformOptions).toEqual(opts);
-    });
-  });
-
-  // ── save — happy paths ───────────────────────────────────────────────────────
 
   describe("save", () => {
-    it("should save a file to baseDir and return correct paths", async () => {
-      const result = await storage.save(makeFile());
-      expect(result).toEqual({
-        uploadPath: "/uploads/test.txt",
-        staticPath: "/static/test.txt",
-      });
+    it("saves under a random name that keeps the extension", async () => {
+      const result = await storage.save(
+        makeFile("photo.png", "x", { mimetype: "image/png" }),
+      );
+
+      expect(result.filename).toMatch(/^[0-9a-f-]{36}\.png$/);
+      expect(result.originalFilename).toBe("photo.png");
+      expect(result.uploadPath).toBe(`/uploads/${result.filename}`);
+      expect(result.staticPath).toBe(`/static/${result.filename}`);
+      expect(fs.readFileSync(path.join(baseDir, result.filename), "utf8")).toBe(
+        "x",
+      );
     });
 
-    it("should save to a subdirectory when options.to is provided", async () => {
-      const result = await storage.save(makeFile(), { to: "images" });
-      expect(result).toEqual({
-        uploadPath: "/uploads/images/test.txt",
-        staticPath: "/static/images/test.txt",
+    it("keeps the client filename when preserveFilename is set", async () => {
+      const result = await storage.save(makeFile("notes.txt"), {
+        preserveFilename: true,
       });
+      expect(result.filename).toBe("notes.txt");
+      expect(fs.existsSync(path.join(baseDir, "notes.txt"))).toBe(true);
     });
 
-    it("should save under saveAs filename when provided", async () => {
-      const result = await storage.save(makeFile(), { saveAs: "renamed.txt" });
-      expect(result).toEqual({
-        uploadPath: "/uploads/renamed.txt",
-        staticPath: "/static/renamed.txt",
-      });
-    });
-
-    it("should save under saveAs inside subdirectory", async () => {
+    it("saves under saveAs inside a subdirectory", async () => {
       const result = await storage.save(makeFile(), {
-        to: "docs",
-        saveAs: "renamed.txt",
+        to: "docs/2026",
+        saveAs: "a.txt",
       });
-      expect(result).toEqual({
-        uploadPath: "/uploads/docs/renamed.txt",
-        staticPath: "/static/docs/renamed.txt",
+      expect(result.uploadPath).toBe("/uploads/docs/2026/a.txt");
+      expect(fs.existsSync(path.join(baseDir, "docs", "2026", "a.txt"))).toBe(
+        true,
+      );
+    });
+
+    it("does not overwrite by default", async () => {
+      fs.writeFileSync(path.join(baseDir, "index.txt"), "original");
+      await expect(
+        storage.save(makeFile("index.txt", "evil"), { preserveFilename: true }),
+      ).rejects.toThrow(SystemUseError);
+      expect(fs.readFileSync(path.join(baseDir, "index.txt"), "utf8")).toBe(
+        "original",
+      );
+    });
+
+    it("overwrites when overwrite is true", async () => {
+      fs.writeFileSync(path.join(baseDir, "a.txt"), "old");
+      await storage.save(makeFile("a.txt", "new"), {
+        saveAs: "a.txt",
+        overwrite: true,
       });
+      expect(fs.readFileSync(path.join(baseDir, "a.txt"), "utf8")).toBe("new");
     });
 
-    it("should use savedFile.filepath read stream when file.file is absent", async () => {
-      const saved = makeSavedFile({ filename: "disk.txt" });
-      // Only the temp file path exists
-      mockFs.existsSync.mockImplementation((p) => p === "/tmp/saved.txt");
-
-      const result = await storage.save(saved);
-      expect(mockFs.createReadStream).toHaveBeenCalledWith("/tmp/saved.txt");
-      expect(result.uploadPath).toBe("/uploads/disk.txt");
+    it("rejects extensions outside the default allowlist", async () => {
+      await expect(
+        storage.save(makeFile("index.html", "<script>")),
+      ).rejects.toThrow(/not allowed/);
+      await expect(storage.save(makeFile("logo.svg"))).rejects.toThrow(
+        /not allowed/,
+      );
+      await expect(storage.save(makeFile(".htaccess"))).rejects.toThrow(
+        /not allowed/,
+      );
+      expect(fs.readdirSync(baseDir)).toEqual([]);
     });
 
-    it("should delete the temp filepath after saving a SavedMultipartFile", async () => {
-      const saved = makeSavedFile({ filename: "disk.txt" });
-      mockFs.existsSync.mockImplementation((p) => p === "/tmp/saved.txt");
-
-      await storage.save(saved);
-      expect(mockFs.unlinkSync).toHaveBeenCalledWith("/tmp/saved.txt");
+    it("rejects a saveAs with a disallowed extension", async () => {
+      await expect(
+        storage.save(makeFile("a.txt"), { saveAs: "index.html" }),
+      ).rejects.toThrow(/not allowed/);
     });
 
-    it("should overwrite by default (overwrite defaults to true)", async () => {
-      mockFs.existsSync.mockReturnValue(true); // file already exists
-      await expect(storage.save(makeFile())).resolves.toBeDefined();
+    it("accepts a custom extension allowlist, or none", async () => {
+      await expect(
+        storage.save(makeFile("model.stl"), { allowedExtensions: [".STL"] }),
+      ).resolves.toBeDefined();
+      await expect(
+        storage.save(makeFile("anything.xyz"), { allowedExtensions: null }),
+      ).resolves.toBeDefined();
     });
 
-    it("should create upload directory if it does not exist", async () => {
-      mockFs.existsSync.mockReturnValue(false);
-      await storage.save(makeFile(), { to: "newdir" });
-      expect(mockFs.mkdirSync).toHaveBeenCalledWith(
-        path.join(baseDir, "newdir"),
-        { recursive: true },
+    it("enforces a MIME allowlist when configured", async () => {
+      await expect(
+        storage.save(makeFile("a.png", "x", { mimetype: "text/html" }), {
+          allowedMimeTypes: ["image/*"],
+        }),
+      ).rejects.toThrow(/MIME type/);
+      await expect(
+        storage.save(makeFile("a.png", "x", { mimetype: "image/png" }), {
+          allowedMimeTypes: ["image/*"],
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    it("enforces maxFileSize and removes the partial file", async () => {
+      await expect(
+        storage.save(makeFile("big.txt", Buffer.alloc(1024)), {
+          maxFileSize: 100,
+        }),
+      ).rejects.toThrow(/maximum size/);
+      expect(fs.readdirSync(baseDir)).toEqual([]);
+    });
+
+    it("rejects a stream that @fastify/multipart truncated", async () => {
+      const f = makeFile("a.txt");
+      (f.file as any).truncated = true;
+      await expect(storage.save(f)).rejects.toThrow(/maximum size/);
+      expect(fs.readdirSync(baseDir)).toEqual([]);
+    });
+
+    it("reads from filepath for an already-saved file and removes the temp file", async () => {
+      const tmp = path.join(root, "upload.tmp");
+      fs.writeFileSync(tmp, "from-disk");
+      const result = await storage.save(makeSavedFile(tmp));
+      expect(fs.readFileSync(path.join(baseDir, result.filename), "utf8")).toBe(
+        "from-disk",
+      );
+      expect(fs.existsSync(tmp)).toBe(false);
+    });
+
+    it("throws when file type is not 'file'", async () => {
+      await expect(storage.save({ type: "field" } as any)).rejects.toThrow(
+        "Invalid file type",
       );
     });
 
-    // ── save — error paths ────────────────────────────────────────────────────
-
-    it("should throw SystemUseError when file type is not 'file'", async () => {
-      const bad = makeFile({ type: "field" as any });
-      await expect(storage.save(bad)).rejects.toThrow(SystemUseError);
-    });
-
-    it("should throw SystemUseError when overwrite is false and file exists", async () => {
-      mockFs.existsSync.mockReturnValue(true);
+    it("throws when there is no stream or filepath", async () => {
       await expect(
-        storage.save(makeFile(), { overwrite: false }),
-      ).rejects.toThrow(SystemUseError);
+        storage.save({ type: "file", filename: "a.txt" } as any),
+      ).rejects.toThrow("No file stream or filepath available");
     });
 
-    it("should throw SystemUseError when both file.file and savedFile.filepath are absent", async () => {
-      const bad = { type: "file", filename: "ghost.txt" } as MultipartFile;
-      await expect(storage.save(bad)).rejects.toThrow(SystemUseError);
-    });
+    it.each(["", "   ", "..", "../a.txt", "a/b.txt", "a\\b.txt", "a\0.txt"])(
+      "rejects unsafe filename %j",
+      async (name) => {
+        await expect(storage.save(makeFile(name))).rejects.toThrow(
+          SystemUseError,
+        );
+        await expect(
+          storage.save(makeFile("a.txt"), { saveAs: name }),
+        ).rejects.toThrow(SystemUseError);
+      },
+    );
 
-    it("should throw SystemUseError when pipeline fails", async () => {
-      mockPipeline.mockRejectedValueOnce(new Error("pipeline error"));
-      await expect(storage.save(makeFile())).rejects.toThrow(SystemUseError);
-    });
-
-    it("should re-throw a SystemUseError with its original message (not double-wrapped)", async () => {
-      mockPipeline.mockRejectedValueOnce(new SystemUseError("original"));
-      await expect(storage.save(makeFile())).rejects.toThrow("original");
-    });
-
-    // ── save — filename validation ────────────────────────────────────────────
-
-    it("should throw SystemUseError for an empty filename", async () => {
-      await expect(storage.save(makeFile({ filename: "" }))).rejects.toThrow(
-        SystemUseError,
-      );
-    });
-
-    it("should throw SystemUseError for a blank (whitespace-only) filename", async () => {
-      await expect(storage.save(makeFile({ filename: "   " }))).rejects.toThrow(
-        SystemUseError,
-      );
-    });
-
-    it("should throw SystemUseError for path traversal with ..", async () => {
-      await expect(
-        storage.save(makeFile({ filename: "../evil.txt" })),
-      ).rejects.toThrow(SystemUseError);
-    });
-
-    it("should throw SystemUseError for filename containing forward slash", async () => {
-      await expect(
-        storage.save(makeFile({ filename: "dir/evil.txt" })),
-      ).rejects.toThrow(SystemUseError);
-    });
-
-    it("should throw SystemUseError for filename containing backslash", async () => {
-      await expect(
-        storage.save(makeFile({ filename: "dir\\evil.txt" })),
-      ).rejects.toThrow(SystemUseError);
-    });
-
-    it("should throw SystemUseError for filename containing null byte", async () => {
-      await expect(
-        storage.save(makeFile({ filename: "evil\0.txt" })),
-      ).rejects.toThrow(SystemUseError);
+    it("rejects a `to` that escapes the root, including a sibling prefix", async () => {
+      fs.mkdirSync(path.join(root, "public-evil"));
+      for (const to of [
+        "..",
+        "../public-evil",
+        "../../etc",
+        "a/../../x",
+        path.join(root, "x"),
+      ]) {
+        await expect(storage.save(makeFile(), { to })).rejects.toThrow(
+          "Invalid upload directory",
+        );
+      }
+      expect(fs.readdirSync(path.join(root, "public-evil"))).toEqual([]);
     });
   });
 
-  // ── saveAll ──────────────────────────────────────────────────────────────────
+  describe("transform", () => {
+    it("does not leak transform options into other saves", async () => {
+      const scoped = storage.transform({ format: "webp" });
+      expect(scoped).not.toBe(storage);
+      expect((storage as any).transformOptions).toBeNull();
+      expect((scoped as any).transformOptions).toEqual({ format: "webp" });
+
+      // A save on the shared instance must not pick up the scoped transform.
+      const result = await storage.save(makeFile("a.png", "x"));
+      expect(result.filename.endsWith(".png")).toBe(true);
+    });
+  });
 
   describe("saveAll", () => {
-    it("should return an empty array when given an empty array", async () => {
-      await expect(storage.saveAll([])).resolves.toEqual([]);
+    it("returns [] for empty or null input", async () => {
+      expect(await storage.saveAll([])).toEqual([]);
+      expect(await storage.saveAll(null as any)).toEqual([]);
     });
 
-    it("should return an empty array for null input", async () => {
-      await expect(storage.saveAll(null as any)).resolves.toEqual([]);
-    });
-
-    it("should save multiple files and return correct paths", async () => {
-      const files = [
-        makeFile({ filename: "a.txt" }),
-        makeFile({ filename: "b.txt" }),
-      ];
-      const result = await storage.saveAll(files);
-      expect(result).toEqual([
-        { uploadPath: "/uploads/a.txt", staticPath: "/static/a.txt" },
-        { uploadPath: "/uploads/b.txt", staticPath: "/static/b.txt" },
-      ]);
-    });
-
-    it("should save to a subdirectory when options.to is provided", async () => {
-      const result = await storage.saveAll(
-        [makeFile({ filename: "img.png" })],
+    it("saves every file into the subdirectory", async () => {
+      const results = await storage.saveAll(
+        [makeFile("a.txt"), makeFile("b.txt")],
         {
-          to: "photos",
+          to: "batch",
         },
       );
-      expect(result).toEqual([
-        {
-          uploadPath: "/uploads/photos/img.png",
-          staticPath: "/static/photos/img.png",
-        },
-      ]);
+      expect(results).toHaveLength(2);
+      for (const r of results) {
+        expect(r.uploadPath).toBe(`/uploads/batch/${r.filename}`);
+        expect(fs.existsSync(path.join(baseDir, "batch", r.filename))).toBe(
+          true,
+        );
+      }
     });
 
-    it("should throw SystemUseError when overwrite is false and file exists", async () => {
-      mockFs.existsSync.mockReturnValue(true);
+    it("rejects a sibling-prefix `to`", async () => {
       await expect(
-        storage.saveAll([makeFile()], { overwrite: false }),
-      ).rejects.toThrow(SystemUseError);
+        storage.saveAll([makeFile()], { to: "../public-evil" }),
+      ).rejects.toThrow("Invalid upload directory");
     });
 
-    it("should throw SystemUseError when pipeline fails for a file", async () => {
-      mockPipeline.mockRejectedValueOnce(new Error("disk full"));
-      await expect(storage.saveAll([makeFile()])).rejects.toThrow(
+    it("rejects unsafe filenames", async () => {
+      await expect(storage.saveAll([makeFile("../x.txt")])).rejects.toThrow(
         SystemUseError,
       );
     });
-
-    it("should throw SystemUseError for path traversal in a filename", async () => {
-      const bad = makeFile({ filename: "../etc/passwd" });
-      await expect(storage.saveAll([bad])).rejects.toThrow(SystemUseError);
-    });
-
-    it("should use savedFile.filepath when file.file is absent", async () => {
-      const saved = makeSavedFile({ filename: "disk.png" });
-      mockFs.existsSync.mockImplementation((p) => p === "/tmp/saved.txt");
-
-      await storage.saveAll([saved]);
-      expect(mockFs.createReadStream).toHaveBeenCalledWith("/tmp/saved.txt");
-    });
-
-    it("should throw SystemUseError when SavedMultipartFile has no filepath", async () => {
-      const bad = { type: "file", filename: "ghost.txt" } as MultipartFile;
-      await expect(storage.saveAll([bad])).rejects.toThrow(SystemUseError);
-    });
   });
-
-  // ── remove ───────────────────────────────────────────────────────────────────
 
   describe("remove", () => {
-    it("should remove an existing file successfully", async () => {
-      mockFs.existsSync.mockReturnValue(true);
-      await expect(storage.remove("test.txt")).resolves.toBeUndefined();
-      expect(mockFs.unlinkSync).toHaveBeenCalledWith(
-        path.join(baseDir, "test.txt"),
-      );
+    it("removes an existing file", async () => {
+      fs.writeFileSync(path.join(baseDir, "a.txt"), "x");
+      await storage.remove("a.txt");
+      expect(fs.existsSync(path.join(baseDir, "a.txt"))).toBe(false);
     });
 
-    it("should throw SystemUseError when the file does not exist", async () => {
-      mockFs.existsSync.mockReturnValue(false);
+    it("throws when the file does not exist", async () => {
       await expect(storage.remove("missing.txt")).rejects.toThrow(
-        SystemUseError,
+        "File doesn't exist",
       );
     });
 
-    it("should throw SystemUseError when unlinkSync throws", async () => {
-      mockFs.existsSync.mockReturnValue(true);
-      mockFs.unlinkSync.mockImplementation(() => {
-        throw new Error("permission denied");
-      });
-      await expect(storage.remove("test.txt")).rejects.toThrow(SystemUseError);
-    });
-
-    it("should throw SystemUseError for a path traversal attempt", async () => {
-      // path.join(baseDir, '../secret.txt') resolves outside baseDir
+    it("rejects paths outside the root, including a sibling prefix", async () => {
+      fs.mkdirSync(path.join(root, "public-evil"));
+      fs.writeFileSync(path.join(root, "public-evil", "x.txt"), "x");
+      await expect(storage.remove("../public-evil/x.txt")).rejects.toThrow(
+        "Invalid file path",
+      );
       await expect(storage.remove("../secret.txt")).rejects.toThrow(
-        SystemUseError,
+        "Invalid file path",
       );
+      expect(fs.existsSync(path.join(root, "public-evil", "x.txt"))).toBe(true);
     });
   });
 
-  // ── download ─────────────────────────────────────────────────────────────────
-
-  describe("download", () => {
-    it("should return a download object with the correct filename", async () => {
-      const result = await storage.download("/public/uploads/photo.jpg");
-      expect(result).toMatchObject({
-        download: true,
-        filename: "photo.jpg",
-      });
-      expect(result.stream).toBeDefined();
+  describe("reads", () => {
+    beforeEach(() => {
+      fs.writeFileSync(path.join(baseDir, "report.pdf"), "pdf");
+      fs.writeFileSync(path.join(root, "secret.txt"), "secret");
+      fs.mkdirSync(path.join(root, "public-evil"));
+      fs.writeFileSync(path.join(root, "public-evil", "x.txt"), "x");
     });
 
-    it("should fall back to 'file' when the path has no filename segment", async () => {
-      const result = await storage.download("" as PathLike);
-      expect(result.filename).toBe("file");
-    });
-  });
-
-  // ── downloadAs ───────────────────────────────────────────────────────────────
-
-  describe("downloadAs", () => {
-    it("should return a download object with the provided custom filename", async () => {
-      const result = await storage.downloadAs(
-        "/public/uploads/photo.jpg",
-        "custom-name.jpg",
-      );
-      expect(result).toMatchObject({
-        download: true,
-        filename: "custom-name.jpg",
-      });
-      expect(result.stream).toBeDefined();
-    });
-  });
-
-  // ── ensureDirectoryExists (private) ─────────────────────────────────────────
-
-  describe("ensureDirectoryExists (private)", () => {
-    it("should call mkdirSync with recursive: true when directory is absent", async () => {
-      mockFs.existsSync.mockReturnValue(false);
-      // @ts-ignore
-      await storage["ensureDirectoryExists"]("/some/new/dir");
-      expect(mockFs.mkdirSync).toHaveBeenCalledWith("/some/new/dir", {
-        recursive: true,
-      });
-    });
-
-    it("should NOT call mkdirSync when directory already exists", async () => {
-      mockFs.existsSync.mockReturnValue(true);
-      // @ts-ignore
-      await storage["ensureDirectoryExists"]("/some/existing/dir");
-      expect(mockFs.mkdirSync).not.toHaveBeenCalled();
-    });
-  });
-
-  // ── isImageFile (private) ────────────────────────────────────────────────────
-
-  describe("isImageFile (private)", () => {
-    it.each([
-      ["photo.jpg", true],
-      ["photo.jpeg", true],
-      ["photo.png", true],
-      ["photo.webp", true],
-      ["photo.avif", true],
-      ["photo.gif", true],
-      ["photo.bmp", true],
-      ["document.pdf", false],
-      ["archive.zip", false],
-      ["script.js", false],
-      ["PHOTO.JPG", true], // case-insensitive
-    ])("%s → %s", (filename, expected) => {
-      // @ts-ignore
-      expect(storage["isImageFile"](filename)).toBe(expected);
-    });
-  });
-
-  // ── validateFilename (private) ───────────────────────────────────────────────
-
-  describe("validateFilename (private)", () => {
-    it("should not throw for a valid filename", () => {
-      // @ts-ignore
-      expect(() =>
-        storage["validateFilename"]("valid-file_123.txt"),
-      ).not.toThrow();
-    });
-
-    it("should throw for an empty string", () => {
-      // @ts-ignore
-      expect(() => storage["validateFilename"]("")).toThrow(SystemUseError);
-    });
-
-    it("should throw for a whitespace-only string", () => {
-      // @ts-ignore
-      expect(() => storage["validateFilename"]("   ")).toThrow(SystemUseError);
-    });
-
-    it("should throw for filenames containing '..'", () => {
-      // @ts-ignore
-      expect(() => storage["validateFilename"]("../up.txt")).toThrow(
-        SystemUseError,
+    it("getUploadFile reads files under the root", async () => {
+      expect((await storage.getUploadFile("report.pdf")).toString()).toBe(
+        "pdf",
       );
     });
 
-    it("should throw for filenames containing '/'", () => {
-      // @ts-ignore
-      expect(() => storage["validateFilename"]("sub/file.txt")).toThrow(
-        SystemUseError,
-      );
+    it("download accepts relative paths and absolute paths inside the root", async () => {
+      const a = await storage.download("report.pdf");
+      expect(a.filename).toBe("report.pdf");
+      expect(await readAll(a.stream)).toBe("pdf");
+      const b = await storage.download(path.join(baseDir, "report.pdf"));
+      expect(b.filename).toBe("report.pdf");
+      expect(await readAll(b.stream)).toBe("pdf");
     });
 
-    it("should throw for filenames containing '\\'", () => {
-      // @ts-ignore
-      expect(() => storage["validateFilename"]("sub\\file.txt")).toThrow(
-        SystemUseError,
-      );
+    it("downloadAs uses the given filename", async () => {
+      const r = await storage.downloadAs("report.pdf", "Q3 Report.pdf");
+      expect(r.filename).toBe("Q3 Report.pdf");
+      expect(await readAll(r.stream)).toBe("pdf");
     });
 
-    it("should throw for filenames containing null bytes", () => {
-      // @ts-ignore
-      expect(() => storage["validateFilename"]("file\0.txt")).toThrow(
-        SystemUseError,
+    it.each([["../secret.txt"], ["../public-evil/x.txt"], ["/etc/passwd"]])(
+      "refuses to read %s",
+      async (p) => {
+        await expect(storage.getUploadFile(p)).rejects.toThrow();
+        await expect(storage.download(p)).rejects.toThrow();
+        await expect(storage.downloadAs(p, "x")).rejects.toThrow();
+      },
+    );
+
+    it("refuses an absolute path outside the root", async () => {
+      await expect(
+        storage.download(path.join(root, "secret.txt")),
+      ).rejects.toThrow("Invalid file path");
+    });
+
+    it("throws NotFoundException for missing files and directories", async () => {
+      await expect(storage.download("missing.pdf")).rejects.toThrow(
+        NotFoundException,
+      );
+      fs.mkdirSync(path.join(baseDir, "dir"));
+      await expect(storage.download("dir")).rejects.toThrow(NotFoundException);
+    });
+
+    it("refuses a symlink that points outside the root", async () => {
+      const link = path.join(baseDir, "link.txt");
+      try {
+        fs.symlinkSync(path.join(root, "secret.txt"), link);
+      } catch {
+        return; // symlinks need extra privileges on some Windows setups
+      }
+      await expect(storage.getUploadFile("link.txt")).rejects.toThrow(
+        "Invalid file path",
       );
     });
   });
 });
-

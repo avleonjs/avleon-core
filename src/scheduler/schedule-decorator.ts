@@ -19,6 +19,16 @@ import {
   registerTask,
 } from "./schedule-registry";
 
+/**
+ * Append job metadata to the class's *own* list. The list is copied, never
+ * mutated, so a subclass never writes into its parent's jobs; the scheduler
+ * merges the lists up the inheritance chain when it starts.
+ */
+function addJobMeta<T>(key: symbol, target: Function, meta: T): void {
+  const own: T[] = Reflect.getOwnMetadata(key, target) ?? [];
+  Reflect.defineMetadata(key, [...own, meta], target);
+}
+
 // ─── Class decorator ──────────────────────────────────────────────────────────
 
 /**
@@ -59,19 +69,17 @@ export function ScheduledTask(): ClassDecorator {
  * @Cron("*\/5 * * * *", { name: "poll" })      // every 5 min, named
  * @Cron("0 8 * * 1-5", { timezone: "Asia/Dhaka", runOnInit: true })
  */
-export function Cron(expression: string, options?: CronOptions): MethodDecorator {
+export function Cron(
+  expression: string,
+  options?: CronOptions,
+): MethodDecorator {
   return function (target: Object, propertyKey: string | symbol) {
-    const existing: CronJobMeta[] =
-      Reflect.getMetadata(CRON_META_KEY, target.constructor) || [];
-
-    existing.push({
+    addJobMeta<CronJobMeta>(CRON_META_KEY, target.constructor, {
       type: "cron",
       expression,
       methodName: propertyKey as string,
       options,
     });
-
-    Reflect.defineMetadata(CRON_META_KEY, existing, target.constructor);
   };
 }
 
@@ -85,19 +93,17 @@ export function Cron(expression: string, options?: CronOptions): MethodDecorator
  * @Interval(30_000)                // every 30 seconds
  * @Interval(5000, { name: "heartbeat" })
  */
-export function Interval(ms: number, options?: BaseJobOptions): MethodDecorator {
+export function Interval(
+  ms: number,
+  options?: BaseJobOptions,
+): MethodDecorator {
   return function (target: Object, propertyKey: string | symbol) {
-    const existing: IntervalJobMeta[] =
-      Reflect.getMetadata(INTERVAL_META_KEY, target.constructor) || [];
-
-    existing.push({
+    addJobMeta<IntervalJobMeta>(INTERVAL_META_KEY, target.constructor, {
       type: "interval",
       ms,
       methodName: propertyKey as string,
       options,
     });
-
-    Reflect.defineMetadata(INTERVAL_META_KEY, existing, target.constructor);
   };
 }
 
@@ -115,16 +121,11 @@ export function Interval(ms: number, options?: BaseJobOptions): MethodDecorator 
  */
 export function Timeout(ms: number, options?: BaseJobOptions): MethodDecorator {
   return function (target: Object, propertyKey: string | symbol) {
-    const existing: TimeoutJobMeta[] =
-      Reflect.getMetadata(TIMEOUT_META_KEY, target.constructor) || [];
-
-    existing.push({
+    addJobMeta<TimeoutJobMeta>(TIMEOUT_META_KEY, target.constructor, {
       type: "timeout",
       ms,
       methodName: propertyKey as string,
       options,
     });
-
-    Reflect.defineMetadata(TIMEOUT_META_KEY, existing, target.constructor);
   };
 }

@@ -5,18 +5,17 @@
  * @url https://github.com/xtareq
  */
 
-import Container, { Service } from "typedi";
-import container, {
+import { Service } from "typedi";
+import {
   API_CONTROLLER_METADATA_KEY,
   CONTROLLER_META_KEY,
   registerController,
 } from "../common/container";
 
-
 export const REQUEST_METADATA_KEY = Symbol("avleon:request");
 
 export function AvleonRequest(): ParameterDecorator {
-  return (target, propertyKey:any, parameterIndex) => {
+  return (target, propertyKey: any, parameterIndex) => {
     const existingParams =
       Reflect.getMetadata(REQUEST_METADATA_KEY, target, propertyKey) || [];
 
@@ -29,35 +28,22 @@ export function AvleonRequest(): ParameterDecorator {
       REQUEST_METADATA_KEY,
       existingParams,
       target,
-      propertyKey
+      propertyKey,
     );
   };
 }
 
-
-
 /**
  * Options for configuring a controller.
- * @remarks
- * Controller default options
- * @type {Object} ControllerOptions
- * @property {string} [name] - The name of the controller.
- * @property {string} [path] - The base path for the controller's routes.
- * @property {string} [version] - The version of the controller. If not provided, it will default to the version from `package.json`.
- * @property {string} [since] - The date or version since the controller was introduced.
- * @property {any} [meta] - Additional metadata associated with the controller.
  */
 export type ControllerOptions = {
   /**
-   *@property {string} name
-   *@description Name of the controller. If specified it'll used as  swagger tags
-   *@default Contorller class name
-   * */
+   * Name of the controller, used as its OpenAPI tag.
+   * @default the class name without the `Controller` suffix
+   */
   name?: string;
+  /** Base path for the controller's routes. */
   path?: string;
-  version?: string; // Will look at package.json if not set
-  since?: string;
-  meta?: any;
 };
 
 export function createControllerDecorator(

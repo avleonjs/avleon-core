@@ -22,6 +22,8 @@ export * from "./openapi";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 export * from "./data";
+// Explicit so it wins over the legacy helper of the same name in common/container.
+export { registerDataSource } from "./data";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 export * from "./config";

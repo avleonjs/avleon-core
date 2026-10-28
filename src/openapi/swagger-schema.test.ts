@@ -1,5 +1,6 @@
 import "reflect-metadata";
 import { generateClassSchema } from "./swagger-schema";
+import { registerSchemaProperty } from "./schema-properties";
 
 // ─── Mock class-validator ────────────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ function setPropertyMetadata(
   openApi?: any,
 ) {
   Reflect.defineMetadata("design:type", type, target, property);
+  // What @OpenApiProperty / class-validator decorators do: declare the key.
+  registerSchemaProperty(target, property);
   if (openApi !== undefined) {
     Reflect.defineMetadata("property:openapi", openApi, target, property);
   }
@@ -405,7 +408,7 @@ describe("generateClassSchema", () => {
     expect(schema).toEqual({ type: "object", properties: {}, required: [] });
   });
 
-  it("should gracefully handle a class that throws on instantiation", () => {
+  it("never instantiates the class", () => {
     class ThrowingDto {
       constructor() {
         throw new Error("boom");
@@ -431,4 +434,3 @@ describe("generateClassSchema", () => {
     expect(schema.required).toContain("phantom");
   });
 });
-

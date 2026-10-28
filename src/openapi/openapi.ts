@@ -4,6 +4,8 @@
  * @email xtrinsic96@gmail.com
  * @url https://github.com/xtareq
  */
+import { registerSchemaProperty } from "./schema-properties";
+
 export interface InfoObject {
   title: string;
   description?: string;
@@ -50,11 +52,6 @@ export type OpenApiUiOptions = {
   security?: SecurityRequirementObject[];
   tags?: TagObject[];
   externalDocs?: any;
-  "x-express-openapi-additional-middleware"?: (
-    | ((request: any, response: any, next: any) => Promise<void>)
-    | ((request: any, response: any, next: any) => void)
-  )[];
-  "x-express-openapi-validation-strict"?: boolean;
 };
 export interface PathsObject<T extends {} = {}, P extends {} = {}> {
   [pattern: string]: (PathItemObject<T> & P) | undefined;
@@ -102,7 +99,7 @@ export interface ParameterObject extends ParameterBaseObject {
   name: string;
   in: string;
 }
-export interface HeaderObject extends ParameterBaseObject { }
+export interface HeaderObject extends ParameterBaseObject {}
 export interface ParameterBaseObject {
   description?: string;
   required?: boolean;
@@ -357,7 +354,7 @@ export type ParamSchema = {
   minLength?: number;
   maxLength?: number;
   pattern?: string;
-  properties?: Record<string, ParamSchema>;  // for nested object properties
+  properties?: Record<string, ParamSchema>; // for nested object properties
   additionalProperties?: boolean | ParamSchema;
 };
 
@@ -375,19 +372,19 @@ export type RequestBodyOptions = {
 };
 
 export type ResponseBodyOptions = {
-    description?: string;
-    type?: NonArraySchemaObjectType | ArraySchemaObjectType;
-    properties?: {
-        [name: string]: ReferenceObject | SchemaObject;
-    };
-    items?: ReferenceObject | SchemaObject;
-    required?: string[];
-    schema?: SchemaObject | ReferenceObject;
-    example?: any;
-    examples?: Record<string, ExampleObject>;
-    content?: {
-        [media: string]: MediaTypeObject;
-    };
+  description?: string;
+  type?: NonArraySchemaObjectType | ArraySchemaObjectType;
+  properties?: {
+    [name: string]: ReferenceObject | SchemaObject;
+  };
+  items?: ReferenceObject | SchemaObject;
+  required?: string[];
+  schema?: SchemaObject | ReferenceObject;
+  example?: any;
+  examples?: Record<string, ExampleObject>;
+  content?: {
+    [media: string]: MediaTypeObject;
+  };
 } & Partial<BaseSchemaObject>; // ✅ inherits all schema fields (format, enum, minimum, etc.)
 
 export type ResponsesOptions = {
@@ -456,26 +453,27 @@ export function normalizeParamsToJsonSchema(
   return schema;
 }
 export function OpenApiSchema(): ClassDecorator {
-    return function (target) {
-        Reflect.defineMetadata("openapi:schema", true, target);
-    };
+  return function (target) {
+    Reflect.defineMetadata("openapi:schema", true, target);
+  };
 }
 export function OpenApi(
-    options: OpenApiOptions,
+  options: OpenApiOptions,
 ): MethodDecorator & ClassDecorator & PropertyDecorator {
-    return function (
-        target: Object | Function,
-        propertyKey?: string | symbol,
-        descriptor?: PropertyDescriptor,
-    ) {
-        if (typeof target === "function" && !propertyKey) {
-            Reflect.defineMetadata("controller:openapi", options, target);
-        } else if (descriptor) {
-            // ✅ Store options as-is — router's buildRouteSchema handles normalization
-            Reflect.defineMetadata("route:openapi", options, target, propertyKey!);
-        } else if (propertyKey) {
-            Reflect.defineMetadata("property:openapi", options, target, propertyKey);
-        }
-    };
+  return function (
+    target: Object | Function,
+    propertyKey?: string | symbol,
+    descriptor?: PropertyDescriptor,
+  ) {
+    if (typeof target === "function" && !propertyKey) {
+      Reflect.defineMetadata("controller:openapi", options, target);
+    } else if (descriptor) {
+      // ✅ Store options as-is — router's buildRouteSchema handles normalization
+      Reflect.defineMetadata("route:openapi", options, target, propertyKey!);
+    } else if (propertyKey) {
+      Reflect.defineMetadata("property:openapi", options, target, propertyKey);
+      if (typeof propertyKey === "string")
+        registerSchemaProperty(target, propertyKey);
+    }
+  };
 }
-

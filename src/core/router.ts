@@ -10,7 +10,8 @@ import {
   autoCast,
   normalizeQueryDeep,
   validateOrThrow,
-  validateObjectByInstance,
+  transformAndValidate,
+  formatValidationMessage,
 } from "../common/helpers";
 import Container, {
   CONTROLLER_META_KEY,
@@ -30,7 +31,8 @@ import {
   FuncRoute,
   ParamMetaOptions,
 } from "./types";
-import { BadRequestException, ValidationErrorException } from "../common/exceptions";
+import { BadRequestException, ForbiddenException } from "../common/exceptions";
+import { contentDisposition } from "../common/utils/path-utils";
 import { AvleonMiddleware } from "../http/middleware";
 import { REQUEST_METADATA_KEY } from "../http/controller";
 import { OpenApiOptions } from "../openapi/openapi";
@@ -94,6 +96,22 @@ function buildRouteSchema(raw: any): any {
   return schema;
 }
 
+/**
+ * Send a DTO validation failure in the same shape the global error handler
+ * uses for 400s.
+ */
+function sendValidationError(
+  res: any,
+  errors: { path: string; constraints: Record<string, string> }[],
+) {
+  return res.code(400).send({
+    code: 400,
+    status: "Error",
+    message: formatValidationMessage(errors),
+    errors,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -140,13 +158,15 @@ export class AvleonRouter {
    *   @Authorized({ name: "oauth"}) -> map.get("oauth")
    *   @Authorized()                 -> default authorizeMiddleware
    */
-  private _resolveAuthorizer(options?: { name?: string }): Constructor<any> | undefined {
+  private _resolveAuthorizer(options?: {
+    name?: string;
+  }): Constructor<any> | undefined {
     if (options?.name) {
       const named = this.authorizeMiddlewareMap.get(options.name);
       if (!named) {
         throw new Error(
           `[Avleon] No authorization handler registered under the name "${options.name}". ` +
-          `Did you call useAuthorization({ ${options.name}: YourClass })?`,
+            `Did you call useAuthorization({ ${options.name}: YourClass })?`,
         );
       }
       return named;
@@ -182,8 +202,14 @@ export class AvleonRouter {
     // Pre-compute args array size once at boot (avoids 8x .map + spread + Math.max per request).
     let _maxIdx = -1;
     const _groups = [
-      meta.params, meta.query, meta.body, meta.currentUser,
-      meta.headers, meta.request ?? [], meta.file ?? [], meta.files ?? [],
+      meta.params,
+      meta.query,
+      meta.body,
+      meta.currentUser,
+      meta.headers,
+      meta.request ?? [],
+      meta.file ?? [],
+      meta.files ?? [],
     ];
     for (const group of _groups) {
       for (const item of group) {
@@ -194,10 +220,15 @@ export class AvleonRouter {
 
     // Pre-compute branch flags so the handler can skip entire loop bodies
     // in the common case where no files/validation are involved.
-    (meta as any)._needsFiles = (meta.file?.length ?? 0) > 0 || (meta.files?.length ?? 0) > 0;
+    (meta as any)._needsFiles =
+      (meta.file?.length ?? 0) > 0 || (meta.files?.length ?? 0) > 0;
     (meta as any)._hasRequiredParams = meta.params.some((p: any) => p.required);
-    (meta as any)._hasValidatorQuery = meta.query.some((q: any) => q.validatorClass || q.required);
-    (meta as any)._hasValidatorBody = meta.body.some((b: any) => b.validatorClass);
+    (meta as any)._hasValidatorQuery = meta.query.some(
+      (q: any) => q.validatorClass || q.required,
+    );
+    (meta as any)._hasValidatorBody = meta.body.some(
+      (b: any) => b.validatorClass,
+    );
 
     this.metaCache.set(cacheKey, meta);
     return meta;
@@ -329,17 +360,36 @@ export class AvleonRouter {
       // Resolve DI singletons once at route-registration time, not per request.
       // _resolveAuthorizer picks the named handler when @Authorized("jwt") is used,
       // or falls back to the default handler for bare @Authorized().
-      const _clsAuthCls   = authClsMeata.authorize   ? this._resolveAuthorizer(authClsMeata.options)   : null;
-      const _mthdAuthCls  = authClsMethodMeata.authorize ? this._resolveAuthorizer(authClsMethodMeata.options) : null;
-      const _clsAuthInst  = _clsAuthCls  ? Container.get(_clsAuthCls)  as any : null;
-      const _mthdAuthInst = _mthdAuthCls ? Container.get(_mthdAuthCls) as any : null;
+      const _clsAuthCls = authClsMeata.authorize
+        ? this._resolveAuthorizer(authClsMeata.options)
+        : null;
+      const _mthdAuthCls = authClsMethodMeata.authorize
+        ? this._resolveAuthorizer(authClsMethodMeata.options)
+        : null;
+      const _clsAuthInst = _clsAuthCls
+        ? (Container.get(_clsAuthCls) as any)
+        : null;
+      const _mthdAuthInst = _mthdAuthCls
+        ? (Container.get(_mthdAuthCls) as any)
+        : null;
+      // @Authorized with no authorizer registered must never serve the route.
+      const _authMissing =
+        (authClsMeata.authorize && !_clsAuthInst) ||
+        (authClsMethodMeata.authorize && !_mthdAuthInst);
+      if (_authMissing) {
+        console.warn(
+          `[Avleon] ${methodmetaOptions.method.toUpperCase()} ${routePath} uses @Authorized ` +
+            "but no authorization handler is registered; every request will be denied (403). " +
+            "Call app.useAuthorization(YourAuthorization).",
+        );
+      }
       // Global authentication handler, resolved once. Runs before authorization
       // so authorizers (and @AuthUser()) can rely on request.user being set.
       const _authnInst = this.authenticationHandler
-        ? Container.get(this.authenticationHandler) as any
+        ? (Container.get(this.authenticationHandler) as any)
         : null;
-      const _resolvedMw: AvleonMiddleware[] = classMiddlewares.map(
-        (m: any) => Container.get<AvleonMiddleware>(m.constructor),
+      const _resolvedMw: AvleonMiddleware[] = classMiddlewares.map((m: any) =>
+        Container.get<AvleonMiddleware>(m.constructor),
       );
 
       this.app.route({
@@ -358,14 +408,26 @@ export class AvleonRouter {
             }
           }
 
+          if (_authMissing) {
+            throw new ForbiddenException("Forbidden");
+          }
+
           if (_clsAuthInst) {
-            await _clsAuthInst.authorize(reqClone, authClsMeata.options);
+            const allowed = await _clsAuthInst.authorize(
+              reqClone,
+              authClsMeata.options,
+            );
             if (res.sent) return;
+            if (allowed === false) throw new ForbiddenException("Forbidden");
           }
 
           if (_mthdAuthInst) {
-            await _mthdAuthInst.authorize(reqClone, authClsMethodMeata.options);
+            const allowed = await _mthdAuthInst.authorize(
+              reqClone,
+              authClsMethodMeata.options,
+            );
             if (res.sent) return;
+            if (allowed === false) throw new ForbiddenException("Forbidden");
           }
 
           if (_resolvedMw.length > 0) {
@@ -376,9 +438,11 @@ export class AvleonRouter {
           }
 
           const _argsResult = this._mapArgs(reqClone, allMeta);
-          const args = (_argsResult !== null && typeof (_argsResult as any).then === "function")
-            ? await (_argsResult as Promise<any[]>)
-            : _argsResult as any[];
+          const args =
+            _argsResult !== null &&
+            typeof (_argsResult as any).then === "function"
+              ? await (_argsResult as Promise<any[]>)
+              : (_argsResult as any[]);
 
           if ((allMeta as any)._hasRequiredParams) {
             for (let i = 0; i < allMeta.params.length; i++) {
@@ -397,18 +461,12 @@ export class AvleonRouter {
             for (let i = 0; i < allMeta.query.length; i++) {
               const queryMeta = allMeta.query[i];
               if (queryMeta.validatorClass) {
-                const err = await validateObjectByInstance(
+                const { value, errors } = await transformAndValidate(
                   queryMeta.dataType,
                   args[queryMeta.index],
                 );
-                if (err) {
-                  return await res.code(400).send({
-                    code: 400,
-                    error: "ValidationError",
-                    errors: err,
-                    message: err.message,
-                  });
-                }
+                if (errors) return sendValidationError(res, errors);
+                args[queryMeta.index] = value;
               }
               if (queryMeta.required) {
                 validateOrThrow(
@@ -424,18 +482,12 @@ export class AvleonRouter {
             for (let i = 0; i < allMeta.body.length; i++) {
               const bodyMeta = allMeta.body[i];
               if (bodyMeta.validatorClass) {
-                const err = await validateObjectByInstance(
+                const { value, errors } = await transformAndValidate(
                   bodyMeta.dataType,
                   args[bodyMeta.index],
                 );
-                if (err) {
-                  return await res.code(400).send({
-                    code: 400,
-                    error: "ValidationError",
-                    errors: err,
-                    message: err.message,
-                  });
-                }
+                if (errors) return sendValidationError(res, errors);
+                args[bodyMeta.index] = value;
               }
             }
           }
@@ -456,10 +508,7 @@ export class AvleonRouter {
               mime.getType(filename) ||
               "application/octet-stream";
             res.header("Content-Type", contentType);
-            res.header(
-              "Content-Disposition",
-              `attachment; filename="${filename}"`,
-            );
+            res.header("Content-Disposition", contentDisposition(filename));
             stream.on("error", (err: any) => {
               console.error("Stream error:", err);
               if (!res.sent) {
@@ -494,21 +543,26 @@ export class AvleonRouter {
     }
   }
 
-  private _mapArgs(req: IRequest, meta: MethodParamMeta): any[] | Promise<any[]> {
+  private _mapArgs(
+    req: IRequest,
+    meta: MethodParamMeta,
+  ): any[] | Promise<any[]> {
     // _argCount pre-computed at boot in _processMeta; no allocations here.
     const args: any[] = new Array((meta as any)._argCount);
 
     for (let i = 0; i < meta.params.length; i++) {
       const p = meta.params[i];
-      const raw = p.key === "all" ? { ...req.params } : (req.params[p.key] ?? null);
+      const raw =
+        p.key === "all" ? { ...req.params } : (req.params[p.key] ?? null);
       args[p.index] = autoCast(raw, p.dataType, p.schema);
     }
 
     for (let i = 0; i < meta.query.length; i++) {
       const q = meta.query[i];
-      const raw = q.key === "all"
-        ? normalizeQueryDeep({ ...req.query })
-        : req.query[q.key];
+      const raw =
+        q.key === "all"
+          ? normalizeQueryDeep({ ...req.query })
+          : req.query[q.key];
       args[q.index] = autoCast(raw, q.dataType, q.schema);
     }
 
@@ -523,7 +577,8 @@ export class AvleonRouter {
 
     for (let i = 0; i < meta.headers.length; i++) {
       const header = meta.headers[i];
-      args[header.index] = header.key === "all" ? { ...req.headers } : req.headers[header.key];
+      args[header.index] =
+        header.key === "all" ? { ...req.headers } : req.headers[header.key];
     }
 
     for (let i = 0; i < meta.request.length; i++) {

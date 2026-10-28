@@ -15,6 +15,16 @@ import type {
 } from "bullmq";
 import { Service } from "typedi";
 import { loadPackageFromClient } from "../common/utils/common-utils";
+import { internalLogger } from "../observability/internal-logger";
+import {
+  MemoryQueue,
+  MemoryWorker,
+  QueueDriver,
+  resolveQueueDriver,
+} from "./memory-driver";
+
+const logger = internalLogger("queue");
+const QUEUE_CONFIG = Symbol.for("avleon:queue:config");
 
 export type { Job, JobsOptions };
 
@@ -82,10 +92,19 @@ export interface QueueConfig {
   name: string;
   /** BullMQ queue options, including the Redis `connection`. */
   adapter?: QueueOptions;
-  /** Options for the worker that processes this queue. */
-  worker?: Omit<WorkerOptions, "connection">;
+  /**
+   * Options for the worker that processes this queue, or `false` for a
+   * producer-only queue that never starts a worker (the jobs are consumed
+   * elsewhere, e.g. by an `@AvleonWorker` in another process).
+   */
+  worker?: false | Omit<WorkerOptions, "connection">;
   /** Fallback processor used when the class defines no `handler`/`@JobHandler`. */
   handler?: (job: Job) => Promise<any>;
+  /**
+   * Backend. Defaults to `setQueueDriver()`, then `AVLEON_QUEUE_DRIVER`, then
+   * `"bullmq"`. Use `"memory"` or `"sync"` in tests to run jobs without Redis.
+   */
+  driver?: QueueDriver;
 }
 
 // ─── Base Class ──────────────────────────────────────────────────────────────
@@ -107,28 +126,59 @@ export abstract class AvleonQueue<T = any> {
   private readonly _name: string;
   private readonly _connection?: ConnectionOptions;
   private readonly _workerOptions: Omit<WorkerOptions, "connection">;
+  private readonly _driver: QueueDriver;
   private _fallbackHandler?: (job: Job<T>) => Promise<any>;
 
+  /**
+   * Every argument is optional for a `@Queue`-decorated class: missing values
+   * come from the decorator config, so a subclass constructor can take its own
+   * injected dependencies and call `super()` with no arguments.
+   */
   constructor(
     name?: string,
     adapter?: QueueOptions,
     workerOptions?: Omit<WorkerOptions, "connection">,
+    driver?: QueueDriver,
   ) {
-    // `name` is optional so that a @Queue-decorated subclass, whose name comes
-    // from the decorator config, can be constructed with no arguments.
-    if (!name) {
+    const config: QueueConfig | undefined = (this.constructor as any)[
+      QUEUE_CONFIG
+    ];
+    const resolvedName = name ?? config?.name;
+    if (!resolvedName) {
       throw new Error(
         "[AvleonQueue] A queue name is required. Pass one to super(), or decorate the class with @Queue({ name }).",
       );
     }
+    const resolvedAdapter = adapter ?? config?.adapter;
 
-    const { Queue: BullMQQueue } =
-      loadPackageFromClient<typeof import("bullmq")>("bullmq");
+    this._name = resolvedName;
+    this._connection = resolvedAdapter?.connection;
+    this._workerOptions = workerOptions ?? (config?.worker || undefined) ?? {};
+    this._driver = resolveQueueDriver(driver ?? config?.driver);
 
-    this._name = name;
-    this._connection = adapter?.connection;
-    this._workerOptions = workerOptions ?? {};
-    this.queue = new BullMQQueue<T, any, string>(name, adapter as QueueOptions);
+    if (this._driver === "bullmq") {
+      const { Queue: BullMQQueue } =
+        loadPackageFromClient<typeof import("bullmq")>("bullmq");
+      this.queue = new BullMQQueue<T, any, string>(
+        resolvedName,
+        resolvedAdapter as QueueOptions,
+      );
+    } else {
+      this.queue = new MemoryQueue<T>(
+        resolvedName,
+        this._driver,
+      ) as unknown as BullQueue<T, any, string>;
+    }
+  }
+
+  /** The queue name. */
+  get name(): string {
+    return this._name;
+  }
+
+  /** The backend this queue uses. */
+  get driver(): QueueDriver {
+    return this._driver;
   }
 
   /** Subclasses may override this to process every job on the queue. */
@@ -165,28 +215,38 @@ export abstract class AvleonQueue<T = any> {
     }
 
     const fallback =
-      (typeof this.handler === "function" ? this.handler.bind(this) : undefined) ??
-      this._fallbackHandler;
+      (typeof this.handler === "function"
+        ? this.handler.bind(this)
+        : undefined) ?? this._fallbackHandler;
 
     // Nothing to process — stay a producer-only queue rather than spawning an
     // idle worker that would hold a Redis connection open.
     if (named.size === 0 && !fallback) return this;
 
-    const { Worker } = loadPackageFromClient<typeof import("bullmq")>("bullmq");
+    const processor = async (job: Job<T>) => {
+      const handler = named.get(job.name) ?? fallback;
+      if (!handler) {
+        throw new Error(
+          `[AvleonQueue] No handler registered for job "${job.name}" on queue "${this._name}".`,
+        );
+      }
+      return handler(job);
+    };
 
-    this.worker = new Worker<T, any, string>(
-      this._name,
-      async (job: Job<T>) => {
-        const handler = named.get(job.name) ?? fallback;
-        if (!handler) {
-          throw new Error(
-            `[AvleonQueue] No handler registered for job "${job.name}" on queue "${this._name}".`,
-          );
-        }
-        return handler(job);
-      },
-      { ...this._workerOptions, connection: this._connection } as WorkerOptions,
-    );
+    if (this._driver === "bullmq") {
+      const { Worker } =
+        loadPackageFromClient<typeof import("bullmq")>("bullmq");
+      this.worker = new Worker<T, any, string>(this._name, processor, {
+        ...this._workerOptions,
+        connection: this._connection,
+      } as WorkerOptions);
+      attachWorkerLogging(this.worker, this._name);
+    } else {
+      // The memory driver keeps and logs failed jobs itself.
+      this.worker = new MemoryWorker(this._name, processor as any, {
+        concurrency: this._workerOptions.concurrency,
+      }) as unknown as BullWorker<T, any, string>;
+    }
 
     return this;
   }
@@ -209,13 +269,24 @@ export abstract class AvleonQueue<T = any> {
 
   /** Add a job to run after `delayMs` milliseconds. */
   delay(data: T, delayMs: number, options?: JobsOptions): Promise<Job<T>>;
-  delay(name: string, data: T, delayMs: number, options?: JobsOptions): Promise<Job<T>>;
+  delay(
+    name: string,
+    data: T,
+    delayMs: number,
+    options?: JobsOptions,
+  ): Promise<Job<T>>;
   delay(arg1: any, arg2: any, arg3?: any, arg4?: any): Promise<Job<T>> {
     const q = this.queue as any;
     if (typeof arg1 === "string") {
-      return q.add(arg1, arg2, { ...(arg4 as JobsOptions), delay: arg3 as number });
+      return q.add(arg1, arg2, {
+        ...(arg4 as JobsOptions),
+        delay: arg3 as number,
+      });
     }
-    return q.add(this._name, arg1, { ...(arg3 as JobsOptions), delay: arg2 as number });
+    return q.add(this._name, arg1, {
+      ...(arg3 as JobsOptions),
+      delay: arg2 as number,
+    });
   }
 
   /**
@@ -226,7 +297,12 @@ export abstract class AvleonQueue<T = any> {
    * emailQueue.dispatch("welcome", { userId: 1 }, 5000); // in 5s
    * ```
    */
-  dispatch(name: string, data: T, delayMs?: number, options?: JobsOptions): Promise<Job<T>> {
+  dispatch(
+    name: string,
+    data: T,
+    delayMs?: number,
+    options?: JobsOptions,
+  ): Promise<Job<T>> {
     const q = this.queue as any;
     return delayMs && delayMs > 0
       ? q.add(name, data, { ...options, delay: delayMs })
@@ -261,7 +337,9 @@ export abstract class AvleonQueue<T = any> {
   }
 
   async getJobs(
-    types: Array<"completed" | "waiting" | "active" | "delayed" | "failed" | "paused">,
+    types: Array<
+      "completed" | "waiting" | "active" | "delayed" | "failed" | "paused"
+    >,
     start?: number,
     end?: number,
   ): Promise<Job<T>[]> {
@@ -271,7 +349,13 @@ export abstract class AvleonQueue<T = any> {
   async clean(
     grace: number,
     limit = 1000,
-    status: "completed" | "wait" | "active" | "delayed" | "failed" | "paused" = "completed",
+    status:
+      | "completed"
+      | "wait"
+      | "active"
+      | "delayed"
+      | "failed"
+      | "paused" = "completed",
   ): Promise<string[]> {
     return this.queue.clean(grace, limit, status as any);
   }
@@ -291,33 +375,85 @@ export abstract class AvleonQueue<T = any> {
   }
 }
 
+/**
+ * Log failed jobs and worker errors. BullMQ keeps failed jobs by default
+ * (`removeOnFail: false`); the "error" listener also stops an unhandled
+ * EventEmitter error from crashing the process.
+ */
+export function attachWorkerLogging(
+  worker: { on(event: string, fn: (...args: any[]) => void): any },
+  queue: string,
+): void {
+  worker.on("failed", (job: Job | undefined, err: Error) => {
+    logger.error(
+      {
+        err,
+        queue,
+        jobId: job?.id,
+        jobName: job?.name,
+        attempts: job?.attemptsMade,
+      },
+      `[Avleon Queue] Job "${job?.name ?? "?"}" on "${queue}" failed`,
+    );
+  });
+  worker.on("error", (err: Error) => {
+    logger.error({ err, queue }, `[Avleon Queue] Worker error on "${queue}"`);
+  });
+}
+
 // ─── Decorator ───────────────────────────────────────────────────────────────
 
 /**
- * Register a queue class with the DI container and start its worker.
+ * Register a queue class with the DI container and, unless `worker: false`,
+ * start its worker once the instance is constructed.
+ *
+ * The class keeps its own constructor, so it can inject services; call
+ * `super()` with no arguments.
  *
  * ```ts
  * @Queue({ name: "email", adapter: { connection: { host: "localhost" } } })
  * class EmailQueue extends AvleonQueue<EmailPayload> {
+ *   constructor(private readonly mailer: Mailer) { super(); }
+ *
  *   @JobHandler("welcome")
  *   async welcome(job: Job<EmailPayload>) { ... }
  * }
+ *
+ * // Producer only: adds jobs, never consumes them.
+ * @Queue({ name: "email", worker: false })
+ * class EmailProducer extends AvleonQueue<EmailPayload> {}
  * ```
  */
 export function Queue(config: QueueConfig) {
   return function <T extends new (...args: any[]) => AvleonQueue>(Base: T): T {
-    @Service()
-    class QueueClass extends Base {
-      constructor(..._args: any[]) {
-        super(config.name, config.adapter, config.worker);
+    Object.defineProperty(Base, QUEUE_CONFIG, {
+      value: config,
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    });
+
+    // Forward constructor arguments untouched, so the decorated class's own
+    // constructor receives its injected dependencies. The worker starts after
+    // the whole constructor chain has run.
+    const QueueClass = class extends Base {
+      constructor(...args: any[]) {
+        super(...args);
 
         if (config.handler) {
           (this as any)._setFallbackHandler(config.handler);
         }
 
-        (this as any).startWorker();
+        if (config.worker !== false) {
+          (this as any).startWorker();
+        }
       }
-    }
+    };
+
+    // Applied as a call, not `@Service()`, so TypeScript emits no
+    // `design:paramtypes` for the wrapper; typedi then reads the decorated
+    // class's own parameter types through the prototype chain.
+    Service()(QueueClass);
 
     // Preserve the original class name for debugging and typedi token lookup.
     Object.defineProperty(QueueClass, "name", {

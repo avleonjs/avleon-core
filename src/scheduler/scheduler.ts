@@ -14,8 +14,12 @@ import {
   IntervalJobMeta,
   TimeoutJobMeta,
   isScheduledTask,
+  collectJobMeta,
 } from "./schedule-registry";
 import { Constructor } from "../common/helpers";
+import { internalLogger } from "../observability/internal-logger";
+
+const logger = internalLogger("scheduler");
 
 // ─── Lazy loader ──────────────────────────────────────────────────────────────
 
@@ -36,7 +40,7 @@ function requireNodeCron() {
 interface CronHandle {
   kind: "cron";
   label: string;
-  task: { stop(): void };
+  task: { stop(): void; destroy?(): void };
 }
 
 interface IntervalHandle {
@@ -78,7 +82,7 @@ export class AvleonScheduler {
   start(): void {
     for (const cls of this.taskClasses) {
       if (!isScheduledTask(cls)) {
-        console.warn(
+        logger.warn(
           `[Avleon Scheduler] "${cls.name}" is not decorated with @ScheduledTask() — skipping.`,
         );
         continue;
@@ -93,7 +97,7 @@ export class AvleonScheduler {
     }
 
     if (this.handles.length > 0) {
-      console.log(
+      logger.info(
         `[Avleon Scheduler] Started ${this.handles.length} job(s): ` +
           this.handles.map((h) => h.label).join(", "),
       );
@@ -103,12 +107,11 @@ export class AvleonScheduler {
   // ── Cron ─────────────────────────────────────────────────────────────────────
 
   private _registerCronJobs(cls: Constructor<any>, instance: any): void {
-    const jobs: CronJobMeta[] =
-      Reflect.getMetadata(CRON_META_KEY, cls) || [];
+    const jobs: CronJobMeta[] = collectJobMeta<CronJobMeta>(CRON_META_KEY, cls);
 
     for (const job of jobs) {
       if (job.options?.disabled) {
-        console.log(
+        logger.info(
           `[Avleon Scheduler] Cron "${this._label(cls, job)}" is disabled — skipping.`,
         );
         continue;
@@ -126,12 +129,13 @@ export class AvleonScheduler {
       // Wrap so a throwing job doesn't crash the process
       const runner = this._safeRunner(cls, job.methodName, instance);
 
+      const label = this._label(cls, job);
+      // node-cron v4 starts the task on schedule(); there is no `scheduled` option.
       const cronTask = nodeCron.schedule(job.expression, runner, {
         timezone: job.options?.timezone,
-        scheduled: true,
+        name: label,
       });
 
-      const label = this._label(cls, job);
       this.handles.push({ kind: "cron", label, task: cronTask });
 
       // runOnInit: fire immediately in addition to the schedule
@@ -144,12 +148,14 @@ export class AvleonScheduler {
   // ── Interval ──────────────────────────────────────────────────────────────────
 
   private _registerIntervalJobs(cls: Constructor<any>, instance: any): void {
-    const jobs: IntervalJobMeta[] =
-      Reflect.getMetadata(INTERVAL_META_KEY, cls) || [];
+    const jobs: IntervalJobMeta[] = collectJobMeta<IntervalJobMeta>(
+      INTERVAL_META_KEY,
+      cls,
+    );
 
     for (const job of jobs) {
       if (job.options?.disabled) {
-        console.log(
+        logger.info(
           `[Avleon Scheduler] Interval "${this._label(cls, job)}" is disabled — skipping.`,
         );
         continue;
@@ -165,12 +171,14 @@ export class AvleonScheduler {
   // ── Timeout ───────────────────────────────────────────────────────────────────
 
   private _registerTimeoutJobs(cls: Constructor<any>, instance: any): void {
-    const jobs: TimeoutJobMeta[] =
-      Reflect.getMetadata(TIMEOUT_META_KEY, cls) || [];
+    const jobs: TimeoutJobMeta[] = collectJobMeta<TimeoutJobMeta>(
+      TIMEOUT_META_KEY,
+      cls,
+    );
 
     for (const job of jobs) {
       if (job.options?.disabled) {
-        console.log(
+        logger.info(
           `[Avleon Scheduler] Timeout "${this._label(cls, job)}" is disabled — skipping.`,
         );
         continue;
@@ -201,20 +209,22 @@ export class AvleonScheduler {
       try {
         if (handle.kind === "cron") {
           handle.task.stop();
+          handle.task.destroy?.();
         } else if (handle.kind === "interval") {
           clearInterval(handle.id);
         } else {
           clearTimeout(handle.id);
         }
       } catch (e) {
-        console.warn(`[Avleon Scheduler] Error stopping "${handle.label}":`, e);
+        logger.warn(
+          { err: e },
+          `[Avleon Scheduler] Error stopping "${handle.label}"`,
+        );
       }
     }
 
     if (this.handles.length > 0) {
-      console.log(
-        `[Avleon Scheduler] Stopped ${this.handles.length} job(s).`,
-      );
+      logger.info(`[Avleon Scheduler] Stopped ${this.handles.length} job(s).`);
     }
 
     this.handles = [];
@@ -237,7 +247,7 @@ export class AvleonScheduler {
 
     return async function () {
       if (running) {
-        console.warn(
+        logger.warn(
           `[Avleon Scheduler] "${label}" previous run still in progress — skipping tick.`,
         );
         return;
@@ -246,12 +256,10 @@ export class AvleonScheduler {
       try {
         await instance[methodName]();
       } catch (err: any) {
-        console.error(
+        logger.error(
+          { err },
           `[Avleon Scheduler] Error in "${label}": ${err?.message ?? err}`,
         );
-        if (err?.stack) {
-          console.error(err.stack);
-        }
       } finally {
         running = false;
       }

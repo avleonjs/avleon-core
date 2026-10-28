@@ -84,3 +84,26 @@ used. Load them lazily via
 `loadPackageFromClient(name)` from `common/utils/common-utils`, which resolves
 from the consumer's `cwd` and throws an install hint when missing. Never import
 them at module top level in code reachable from `src/index.ts`.
+
+## The CLI contract
+
+`@avleon/cli` scaffolds projects against this package's public API. Its stubs
+(`stubs/`) and inline generators emit code that imports only from
+`@avleon/core`, so **renaming or removing an exported name breaks generated
+projects even though nothing in this repo fails to build.**
+
+The names the CLI currently emits:
+
+| Emitted by         | Depends on                                                                                                       |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `new` / app stub   | `Avleon.createApplication`, `app.useOpenApi`, `app.useControllers`, `app.isDevelopment`, `app.mapGet`, `app.run` |
+| `new` / serve stub | `Environment`, `inject`                                                                                          |
+| `make:controller`  | `ApiController`, `Get`/`Post`/`Put`/`Delete`, `Param`/`Query`/`Body`, `HttpExceptions`                           |
+| `make:service`     | `AppService`, `Collection`, `InjectRepository`                                                                   |
+| `make:middleware`  | `AppMiddleware`, `AvleonMiddleware`, `IRequest`, `IResponse`                                                     |
+| `make:config`      | `AppConfig`, `AvleonConfig`, `Environment`, `OpenApiUiOptions`                                                   |
+| `new` (test spec)  | `AvleonTest.getController`                                                                                       |
+
+When changing any of these, update the CLI in the same pass. The fastest check
+is to scaffold into a scratch directory and typecheck the result against this
+package's `src/`.

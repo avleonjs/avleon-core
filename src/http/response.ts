@@ -8,24 +8,12 @@ import {
   instanceToPlain,
   plainToInstance,
   ClassConstructor,
-  ClassTransformer,
 } from "class-transformer";
+import { withStatus } from "./results";
 
 export interface IHttpResponse<T extends any> {
   message: string;
   data: T | null;
-}
-
-function isClassTransformerClass(target: any): boolean {
-  const prototype = target.prototype;
-  const keys = Reflect.getMetadataKeys(prototype);
-
-  // Check for class-transformer metadata
-  return keys.some((key) => key.startsWith("class_transformer:"));
-}
-
-function isClassTransformerType<T>(target: new () => T): boolean {
-  return isClassTransformerClass(target);
 }
 
 export class HttpResponse {
@@ -59,16 +47,17 @@ export class HttpResponse {
         excludeExtraneousValues: true,
       });
 
-      return {
-        message: "created",
-        data: instanceToPlain(transformedData) as T,
-      };
+      return withStatus(
+        { message: "created", data: instanceToPlain(transformedData) as T },
+        201,
+      );
     }
 
-    return { message: "created", data: obj };
+    return withStatus({ message: "created", data: obj }, 201);
   }
 
+  /** Responds with 204 and an empty body. */
   static NoContent(): IHttpResponse<null> {
-    return { message: "no content", data: null };
+    return withStatus({ message: "no content", data: null }, 204);
   }
 }

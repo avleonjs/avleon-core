@@ -5,20 +5,15 @@
  * @url https://github.com/xtareq
  */
 import Container from "typedi";
+import type { EntityTarget, ObjectLiteral, Repository } from "typeorm";
 import { NotFoundException } from "../common/exceptions";
+import { getDataSource } from "./datasource";
 import {
-  DataSource,
-  EntityTarget,
-  FindOneOptions,
-  ObjectLiteral,
-  Repository,
-} from "typeorm";
-
-type ObjKey<T> = keyof T;
-type PaginationOptions = {
-  take: number;
-  skip?: number;
-};
+  PageRequest,
+  Paginated,
+  normalizePageRequest,
+  paginated,
+} from "./pagination";
 
 type Predicate<T> = (item: T) => boolean;
 type ValueOperator<T> = {
@@ -42,16 +37,25 @@ export interface IFindOneOptions<T = any> {
   where: Where<T>;
 }
 
-export type PaginationResult<T> = {
-  total: number;
-  data: T[];
-  next?: number | null;
-  prev?: number | null;
-  first?: number | null;
-  last?: number | null;
-  totalPage?: number;
-}
+/** @deprecated Use {@link Paginated}. Kept as an alias of the unified shape. */
+export type PaginationResult<T> = Paginated<T>;
 
+/** A TypeORM repository extended with the unified `paginate`. */
+export type PaginatedRepository<T extends ObjectLiteral> = Repository<T> & {
+  paginate(options?: PageRequest): Promise<Paginated<T>>;
+};
+
+async function paginateRepository<T extends ObjectLiteral>(
+  repo: Repository<T>,
+  options?: PageRequest,
+): Promise<Paginated<T>> {
+  const { page, perPage, offset } = normalizePageRequest(options);
+  const [data, total] = await repo.findAndCount({
+    skip: offset,
+    take: perPage,
+  });
+  return paginated(data, total, page, perPage);
+}
 
 export interface IList<T> {
   /** All items, or those matching `predicate`. */
@@ -121,9 +125,7 @@ export class List<T> implements IList<T> {
 
   /** The first item matching `predicate`, or `undefined` if none does. */
   FindOne(predicate?: Predicate<T>): Promise<T | undefined> {
-    const result = predicate
-      ? this._items.find(predicate)
-      : this._items[0];
+    const result = predicate ? this._items.find(predicate) : this._items[0];
     return Promise.resolve(result);
   }
 
@@ -137,11 +139,6 @@ export class List<T> implements IList<T> {
     return predicate ? this._items.some(predicate) : this._items.length > 0;
   }
 }
-
-
-
-
-
 
 export interface BasicCollection<T> {
   clear(): void;
@@ -168,12 +165,13 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
     this.items = [];
   }
 
-
   firstItem(): T | undefined {
     return this.items.length > 0 ? this.items[0] : undefined;
   }
   lastItem(): T | undefined {
-    return this.items.length > 0 ? this.items[this.items.length - 1] : undefined;
+    return this.items.length > 0
+      ? this.items[this.items.length - 1]
+      : undefined;
   }
 
   find(predicate?: Predicate<T>) {
@@ -184,11 +182,8 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
     return results;
   }
 
-
-
   async findAsync(predicate?: Predicate<T>): Promise<T[]> {
-    const results = Array.from(this.items);
-    return results;
+    return this.find(predicate);
   }
 
   private _matches<T>(item: T, where: Where<T>): boolean {
@@ -264,8 +259,6 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
     this.items.push(...items);
   }
 
-
-
   update(predicate: (item: T) => boolean, updater: Partial<T>): void {
     const item = this.items.find(predicate);
     if (item) {
@@ -287,12 +280,12 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
 
   updateBy(
     where: Partial<{ [K in keyof T]: T[K] }>,
-    updater: Partial<T>
+    updater: Partial<T>,
   ): void {
     const keys = Object.keys(where) as (keyof T)[];
 
-    const index = this.items.findIndex(item =>
-      keys.every(k => item[k] === where[k])
+    const index = this.items.findIndex((item) =>
+      keys.every((k) => item[k] === where[k]),
     );
 
     if (index === -1) {
@@ -326,13 +319,11 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
       throw new NotFoundException("Index out of range.");
     }
   }
-  deleteBy(
-    where: Partial<{ [K in keyof T]: T[K] }>,
-  ): void {
+  deleteBy(where: Partial<{ [K in keyof T]: T[K] }>): void {
     const keys = Object.keys(where) as (keyof T)[];
 
-    const index = this.items.findIndex(item =>
-      keys.every(k => item[k] === where[k])
+    const index = this.items.findIndex((item) =>
+      keys.every((k) => item[k] === where[k]),
     );
 
     if (index === -1) {
@@ -350,7 +341,7 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
   }
 
   min<K extends keyof T>(key: K & string): number {
-    return Math.max(...this.items.map((item) => item[key] as number));
+    return Math.min(...this.items.map((item) => item[key] as number));
   }
 
   sum<K extends keyof T>(key: K & string): number {
@@ -363,92 +354,48 @@ class BasicCollectionImpl<T> implements BasicCollection<T> {
     return nums.reduce((sum, num) => sum + num, 0) / nums.length;
   }
 
-  paginate(options?: PaginationOptions) {
-    const take = options?.take || 10;
-    const skip = options?.skip || 0;
-    const total = this.items.length;
-    const data = this.items.slice(skip, take);
-    return {
-      total,
-      totalPage: Math.ceil(total / take),
-      next: skip + take < total ? skip + take : null,
-      data,
-    };
-  }
-
-  private getDeepValue(item: any, path: string | keyof T): any {
-    if (typeof path !== "string") return item[path];
-    return path.split(".").reduce((acc, key) => acc?.[key], item);
+  /** One page of items: `{ data, meta: { total, page, perPage, lastPage, next, prev } }`. */
+  paginate(options?: PageRequest): Paginated<T> {
+    const { page, perPage, offset } = normalizePageRequest(options);
+    const data = this.items.slice(offset, offset + perPage);
+    return paginated(data, this.items.length, page, perPage);
   }
 }
 
-class AsynchronousCollection<T extends ObjectLiteral> {
-  private model: EntityTarget<T>;
-  private repo?: Repository<T>;
-
-  private constructor(model: EntityTarget<T>) {
-    this.model = model;
-  }
-
-  static fromRepository<T extends ObjectLiteral>(
-    model: EntityTarget<T>,
-  ): AsynchronousCollection<T> {
-    return new AsynchronousCollection(model);
-  }
-
-  getRepository() {
-    if (!this.repo) {
-      const dataSourceKey = "idatasource";
-      const dataSource = Container.get(dataSourceKey) as DataSource;
-      console.log("datasource", dataSource);
-      const repository = dataSource.getRepository<T>(this.model);
-      this.repo = repository;
-      return repository;
-    }
-    return this.repo;
-  }
-
-  // Pagination with query builder
-  async paginate(options?: PaginationOptions): Promise<PaginationResult<T>> {
-    const take = options?.take || 10;
-    const skip = options?.skip || 0;
-
-    const [data, total] = await this.getRepository().findAndCount({
-      take,
-      skip,
-    });
-
-    return {
-      total,
-      totalPage: Math.ceil(total / take),
-      next: skip + take < total ? skip + take : null,
-      prev: skip + take < total ? skip + take : null,
-      data,
-    };
-  }
-}
-
-export interface Collection<T> extends BasicCollectionImpl<T> { }
+export interface Collection<T> extends BasicCollectionImpl<T> {}
 
 export class Collection<T> {
-
-
   static from<T>(items: T[]): Collection<T> {
     return BasicCollectionImpl.from(items);
   }
-  // Example refactoring of Collection.fromRepository for better type safety
+
+  /**
+   * The TypeORM repository for `entity`, from the registered DataSource, with
+   * the unified `paginate({ page, perPage })` added.
+   */
   static fromRepository<T extends ObjectLiteral>(
     entity: EntityTarget<T>,
-  ): Repository<T> {
-    const asyncCollection = AsynchronousCollection.fromRepository(entity);
-    // Assuming AsynchronousCollection has a method to get the Repository<T>
-    return asyncCollection.getRepository();
+  ): PaginatedRepository<T> {
+    return createPaginatedRepository(entity);
   }
 }
 
+function createPaginatedRepository<T extends ObjectLiteral>(
+  entity: EntityTarget<T>,
+  dataSource = getDataSource(),
+): PaginatedRepository<T> {
+  return dataSource.getRepository<T>(entity).extend({
+    paginate(this: Repository<T>, options?: PageRequest) {
+      return paginateRepository(this, options);
+    },
+  }) as PaginatedRepository<T>;
+}
 
-
-export function InjectRepository<T extends Repository<T>>(
+/**
+ * Inject the TypeORM repository for `model`, extended with the unified
+ * `paginate({ page, perPage })`. Requires a registered DataSource.
+ */
+export function InjectRepository<T extends ObjectLiteral>(
   model: EntityTarget<T>,
 ) {
   return function (
@@ -456,42 +403,11 @@ export function InjectRepository<T extends Repository<T>>(
     propertyName: string | undefined,
     index?: number,
   ) {
-    let repo!: any | Repository<T>;
-    try {
-      Container.registerHandler({
-        object,
-        propertyName,
-        index,
-        value: (containerInstance) => {
-          const dataSource = containerInstance.get<DataSource>("idatasource");
-          repo = dataSource
-            .getRepository<T>(model)
-            .extend({ paginate: () => { } });
-          repo.paginate = async function (
-            options: PaginationOptions = { take: 10, skip: 0 },
-          ): Promise<PaginationResult<T>> {
-            const [data, total] = await this.findAndCount({
-              take: options.take || 10,
-              skip: options.skip || 0,
-            });
-
-            return {
-              total,
-              totalPage: Math.ceil(total / (options.take || 10)),
-              next:
-                options.skip! + options.take! < total
-                  ? options.skip! + options.take!
-                  : null,
-              data,
-            };
-          };
-          return repo;
-        },
-      });
-    } catch (error: any) {
-      if (error.name && error.name == "ServiceNotFoundError") {
-        console.log("Database didn't initialized.");
-      }
-    }
+    Container.registerHandler({
+      object,
+      propertyName,
+      index,
+      value: () => createPaginatedRepository(model),
+    });
   };
 }

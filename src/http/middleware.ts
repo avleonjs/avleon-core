@@ -6,11 +6,8 @@
  */
 import { Service } from "typedi";
 import { IRequest, IResponse } from "../core/types";
-import {
-  HttpExceptionTypes as HttpException,
-  UnauthorizedException,
-} from "../common/exceptions";
-import Container, { AUTHORIZATION_META_KEY } from "../common/container";
+import { HttpExceptionTypes as HttpException } from "../common/exceptions";
+import { AUTHORIZATION_META_KEY } from "../common/container";
 import { Constructor } from "../common/helpers";
 
 export abstract class AvleonMiddleware {
@@ -19,41 +16,25 @@ export abstract class AvleonMiddleware {
     res?: IResponse,
   ): Promise<IRequest | HttpException>;
 }
-export type AuthHandler = (
-  req: IRequest,
-  roles?: string[],
-) => Promise<IRequest | HttpException>;
-
-
-
-export abstract class AuthorizeMiddleware {
-  abstract authorize(
-    roles: string[],
-  ): (req: IRequest, res?: IResponse) => IRequest | Promise<IRequest>;
+/**
+ * Shape of an authorization handler registered with `app.useAuthorization`.
+ * Return `false` (or throw) to deny with 403.
+ */
+export interface AuthorizeClass {
+  authorize(req: IRequest, options?: any): unknown;
 }
 
-export type AuthReturnTypes = IRequest | Promise<IRequest>;
-
-interface AuthorizeClass {
-  authorize(req: IRequest, options?: any): AuthReturnTypes;
-}
-
-
-export function CanAuthorize(target: {
-  new(...args: any[]): AuthorizeClass;
-}) {
-  if (typeof target.prototype.authorize !== "function") {
-    throw new Error(
-      `Class "${target.name}" must implement an "authorize" method.`,
-    );
-  }
-  Service()(target);
-}
-
-
-export function AppAuthorization(target: {
-  new(...args: any[]): AuthorizeClass;
-}) {
+/**
+ * Marks a class as an authorization handler and registers it for DI.
+ *
+ *   @CanAuthorize
+ *   class JwtAuthorization {
+ *     authorize(req: IRequest, options?: { roles?: string[] }) { ... }
+ *   }
+ *
+ *   app.useAuthorization(JwtAuthorization);
+ */
+export function CanAuthorize(target: { new (...args: any[]): AuthorizeClass }) {
   if (typeof target.prototype.authorize !== "function") {
     throw new Error(
       `Class "${target.name}" must implement an "authorize" method.`,
@@ -76,11 +57,13 @@ export function AppAuthorization(target: {
  * @Authorized({ name: "jwt", roles: ["admin"] })
  */
 export type AuthorizedOptions =
-  | string                           // shorthand: the authorizer name
+  | string // shorthand: the authorizer name
   | { name?: string; [key: string]: any }; // object form: { name, roles, ... }
 
 export function Authorized(): ClassDecorator & MethodDecorator;
-export function Authorized(options: AuthorizedOptions): ClassDecorator & MethodDecorator;
+export function Authorized(
+  options: AuthorizedOptions,
+): ClassDecorator & MethodDecorator;
 export function Authorized(
   options: AuthorizedOptions = {},
 ): MethodDecorator | ClassDecorator {
@@ -120,14 +103,15 @@ export function AppMiddleware(target: Constructor<AvleonMiddleware>) {
   Service()(target);
 }
 
-
-
-
 /**
  * A decorator function that applies one or more middleware to a class or a method.
  *
  * When applied to a class, the middleware are registered for the entire controller.
  * When applied to a method, the middleware are registered for that specific route.
+ *
+ * Classes are resolved through the DI container when the route is registered,
+ * so middleware can use constructor injection. They run after authentication,
+ * authorization and the global middlewares, class-level before method-level.
  *
  * @param options - A single middleware instance/class or an array of middleware instances/classes to be applied.
  * @returns A decorator that registers the middleware metadata.
@@ -140,11 +124,7 @@ export function UseMiddleware<
     propertyKey?: string | symbol,
     descriptor?: PropertyDescriptor,
   ) {
-    const normalizeMiddleware = (middleware: any) =>
-      typeof middleware === "function" ? new middleware() : middleware;
-    const middlewareList = (Array.isArray(options) ? options : [options]).map(
-      normalizeMiddleware,
-    );
+    const middlewareList = Array.isArray(options) ? options : [options];
     if (typeof target === "function" && !propertyKey) {
       const existingMiddlewares =
         Reflect.getMetadata("controller:middleware", target) || [];

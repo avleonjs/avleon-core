@@ -14,8 +14,21 @@ import { IRequest } from "../core/types";
 import fs from "fs";
 import path from "path";
 import { pipeline } from "stream/promises";
-import { InternalErrorException } from "../common/exceptions";
-import { REQUEST_BODY_FILE_KEY, REQUEST_BODY_FILES_KEY } from "../common/container";
+import {
+  BadRequestException,
+  InternalErrorException,
+} from "../common/exceptions";
+import {
+  DEFAULT_ALLOWED_UPLOAD_EXTENSIONS,
+  fileExtension,
+  isSafeFilename,
+  randomFilename,
+  resolveWithin,
+} from "../common/utils/path-utils";
+import {
+  REQUEST_BODY_FILE_KEY,
+  REQUEST_BODY_FILES_KEY,
+} from "../common/container";
 
 export function UploadFile(fieldName: string) {
   return function (
@@ -75,8 +88,17 @@ export function UploadFiles(fieldName?: string) {
 }
 
 type Foptions = {
+  /** Filename to save as. Must be a plain filename. */
   saveAs?: string;
-  dest?: true;
+  /** Directory to save into. Defaults to `<cwd>/public`. */
+  dest?: string;
+  /** Keep the client's filename instead of generating a random one. */
+  preserveFilename?: boolean;
+  /**
+   * Allowed file extensions (with the dot). Defaults to
+   * DEFAULT_ALLOWED_UPLOAD_EXTENSIONS; `null` disables the check.
+   */
+  allowedExtensions?: string[] | null;
 };
 
 export type MultipartFile = FsM | SavedMultipartFile;
@@ -84,31 +106,55 @@ export function UploadFileFromRequest(req: IRequest, options?: Foptions) {
   return Promise.resolve(
     (req as any).file().then(async (f: any) => {
       if (f && f.file) {
-        let fname = f.filename;
-        if (options) {
-          if (options.dest) {
-            fname = options.saveAs
-              ? options.dest + "/" + options.saveAs
-              : options.dest + "/" + f.filename;
-          } else {
-            fname = path.join(
-              process.cwd(),
-              `public/${options.saveAs ? options.saveAs : f.filename}`,
-            );
-          }
-        } else {
-          fname = path.join(process.cwd(), `public/${f.filename}`);
+        const original = f.filename;
+        const target = options?.saveAs ?? original;
+        if (!isSafeFilename(original) || !isSafeFilename(target)) {
+          f.file.resume?.();
+          throw new BadRequestException("Invalid filename");
+        }
+
+        const allowed =
+          options?.allowedExtensions !== undefined
+            ? options.allowedExtensions
+            : DEFAULT_ALLOWED_UPLOAD_EXTENSIONS;
+        const ext = fileExtension(target);
+        if (
+          allowed &&
+          (!ext || !allowed.map((e) => e.toLowerCase()).includes(ext))
+        ) {
+          f.file.resume?.();
+          throw new BadRequestException(
+            `File type "${ext || target}" is not allowed`,
+          );
+        }
+
+        const name =
+          options?.saveAs || options?.preserveFilename
+            ? target
+            : randomFilename(ext);
+        const dir = path.resolve(
+          options?.dest ?? path.join(process.cwd(), "public"),
+        );
+        const fname = resolveWithin(dir, name);
+        if (!fname) {
+          f.file.resume?.();
+          throw new BadRequestException("Invalid filename");
         }
 
         if (fs.existsSync(fname)) {
+          f.file.resume?.();
           throw new InternalErrorException("File already exists.");
         }
 
-        await pipeline(f.file!, fs.createWriteStream(fname));
+        await fs.promises.mkdir(dir, { recursive: true });
+        // "wx" refuses to replace a file created after the check above.
+        await pipeline(f.file!, fs.createWriteStream(fname, { flags: "wx" }));
 
         return {
           ...f,
-          filename: options?.saveAs ? options.saveAs : f.filename,
+          filename: name,
+          originalFilename: original,
+          filepath: fname,
         } as MultipartFile;
       }
     }),

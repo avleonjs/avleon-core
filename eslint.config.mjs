@@ -1,10 +1,10 @@
-// eslint.config.js
+// eslint.config.mjs (ESM via the .mjs extension; package.json has no "type")
 import eslintPluginTs from "@typescript-eslint/eslint-plugin";
 import parserTs from "@typescript-eslint/parser";
 
 export default [
   {
-    ignores: ["**/dist/**", "**/build/**", "node_modules/**"],
+    ignores: ["**/dist/**", "**/build/**", "node_modules/**", "coverage/**"],
   },
   {
     files: ["**/*.ts"],
@@ -29,7 +29,7 @@ export default [
       quotes: ["error", "double"],
       "no-console": "off",
       "@typescript-eslint/no-unused-vars": "warn",
-      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-explicit-any": "warn",
     },
   },
 ];
