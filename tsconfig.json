@@ -22,7 +22,7 @@
     "skipLibCheck": true,
 
     // Node 20 built-ins. Jest types live in tsconfig.test.json only.
-    "types": ["node"],
+    "types": ["node", "jest"],
     "paths": {
       "knex": ["./node_modules/knex/types/index.d.ts"]
     }
