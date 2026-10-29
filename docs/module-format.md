@@ -1,6 +1,6 @@
-# Module format: CommonJS only (1.0)
+# Module format: CommonJS only (0.3)
 
-`@avleon/core` 1.0 ships a single CommonJS build in `dist/`, with type
+`@avleon/core` 0.3 ships a single CommonJS build in `dist/`, with type
 declarations next to it. There is no ESM build.
 
 ```json
@@ -44,6 +44,6 @@ side-effect free would let bundlers drop those modules, so `sideEffects` is
 
 ## Revisiting
 
-An ESM build can be added in a 1.x minor release without breaking consumers, by
+An ESM build can be added in a later minor release without breaking consumers, by
 adding an `import` condition to the `exports` map. Removing the CJS build would be
-a 2.0 change.
+a breaking change.
